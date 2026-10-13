@@ -1,0 +1,48 @@
+import { useEffect, useState } from 'react';
+import { formatClock, remaining } from '../game/clock';
+import { useGameStore } from '../game/gameStore';
+import type { Color } from '../game/types';
+
+export function PlayerBar({ color }: { color: Color }) {
+  const player = useGameStore((s) => (color === 'w' ? s.record.white : s.record.black));
+  const clock = useGameStore((s) => s.clock);
+  const flag = useGameStore((s) => s.flag);
+  const [now, setNow] = useState(() => Date.now());
+  const running = clock?.running === color;
+
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // `now` only ticks while running, so it can predate the turn start; never count negative time.
+  const left = clock ? remaining(clock, color, Math.max(now, clock.turnStartedAt ?? 0)) : null;
+
+  useEffect(() => {
+    if (running && left !== null && left <= 0) flag(color);
+  }, [running, left, flag, color]);
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block h-3 w-3 rounded-full border border-muted ${color === 'w' ? 'bg-white' : 'bg-neutral-900'}`}
+          aria-hidden
+        />
+        <span className="font-medium">{player.name}</span>
+        {player.elo !== undefined && <span className="text-sm text-muted">({player.elo})</span>}
+      </div>
+      {left !== null && (
+        <span
+          data-testid={`clock-${color}`}
+          className={`min-w-20 rounded-md px-2.5 py-1 text-right font-mono text-lg tabular-nums ${
+            running ? 'bg-ink text-bg' : 'bg-surface-2 text-muted'
+          } ${left < 10_000 ? 'text-danger' : ''}`}
+        >
+          {formatClock(left)}
+        </span>
+      )}
+    </div>
+  );
+}

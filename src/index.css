@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --surface-2: #ebe6da;
+  --text: #22201c;
+  --muted: #6b665c;
+  --accent: #2f6f62;
+  --accent-text: #ffffff;
+  --danger: #b4432f;
+  --board-light: #ece3cf;
+  --board-dark: #7f9a8f;
+  --last-move: rgba(232, 196, 76, 0.55);
+  --selected: rgba(47, 111, 98, 0.45);
+  --dot: rgba(34, 32, 28, 0.28);
+  --check: rgba(214, 48, 32, 0.85);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171a19;
+    --surface: #212624;
+    --surface-2: #2b312f;
+    --text: #ece8df;
+    --muted: #a19c91;
+    --accent: #5fb3a1;
+    --accent-text: #0f1312;
+    --danger: #e0735e;
+    --board-light: #d9cfb8;
+    --board-dark: #5f7a70;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-text);
+  --color-danger: var(--danger);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+}

@@ -63,3 +63,19 @@ export const REVIEW = {
     minWinBefore: 5,
   },
 };
+
+/** Estimated game rating (SPEC Feature 4, MVP method). */
+export const RATING = {
+  /** Fewer moves than this by a player: no estimate. */
+  minMoves: 10,
+  /** Fewer moves than this: the wider range. */
+  shortGameMoves: 20,
+  /** Half-width of the shown range. Replaced by the calibration's typical error once calibrated. */
+  range: 200,
+  shortGameRange: 300,
+  /** Blunders up to this many are free; each one beyond costs `blunderPenalty`. */
+  freeBlunders: 2,
+  blunderPenalty: 100,
+  /** Lowest rating ever shown. */
+  floor: 100,
+};

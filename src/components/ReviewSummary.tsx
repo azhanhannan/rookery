@@ -1,6 +1,27 @@
 import type { PlayerInfo } from '../game/types';
+import { estimateRating } from '../rating/estimateRating';
 import { MOVE_LABELS, type PlayerSummary } from '../review/types';
 import { MoveBadge } from './MoveBadge';
+
+function EstimatedRating({ summary }: { summary: PlayerSummary }) {
+  const est = estimateRating(summary);
+  return (
+    <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-surface-2 pt-2" data-testid="estimated-rating">
+      <span className="text-sm text-muted">Game rating</span>
+      {est.kind === 'not-enough-moves' ? (
+        <span className="text-sm text-muted">Not enough moves to estimate</span>
+      ) : (
+        <span className="text-right">
+          <span className="font-mono font-semibold tabular-nums" data-testid="rating-range">
+            {est.low}–{est.high}
+          </span>
+          {/* SPEC: the placeholder curve must not be presented as accurate. */}
+          {!est.calibrated && <span className="block text-[10px] text-muted">rough estimate, not yet calibrated</span>}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function PlayerCard({ side, player, summary }: { side: 'White' | 'Black'; player: PlayerInfo; summary: PlayerSummary }) {
   return (
@@ -20,8 +41,7 @@ function PlayerCard({ side, player, summary }: { side: 'White' | 'Black'; player
           <div className="text-[10px] uppercase tracking-wide text-muted">Accuracy</div>
         </div>
       </div>
-      {/* Phase 4 slot: estimated game rating (Feature 4). Deliberately renders nothing until then. */}
-      <div data-slot="estimated-rating" />
+      <EstimatedRating summary={summary} />
       <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
         {MOVE_LABELS.map((label) => (
           <li key={label} className={`flex items-center gap-1.5 ${summary.counts[label] ? '' : 'opacity-45'}`}>

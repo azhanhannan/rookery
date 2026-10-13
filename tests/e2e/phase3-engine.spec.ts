@@ -33,6 +33,8 @@ test('reviews a real game with progress, labels every move, names the opening, a
   await expect(list.getByRole('img')).toHaveCount(13);
   await expect(page.getByTestId('opening')).not.toBeEmpty();
   await expect(page.getByTestId('summary-white').getByTestId('accuracy')).toHaveText(/^\d+\.\d$/);
+  // 7 moves by White: too few for a rating estimate (SPEC Feature 4).
+  await expect(page.getByTestId('summary-white').getByTestId('estimated-rating')).toContainText('Not enough moves to estimate');
 
   await page.reload();
   await expect(page.getByTestId('review-move-list').getByRole('img')).toHaveCount(13);

@@ -12,7 +12,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | 1 | Board and rules | Done |
 | 2 | Engine and bots | Done |
 | 3 | Game Review | Done |
-| 4 | Estimated rating | Not started |
+| 4 | Estimated rating | Partly done: estimate works on the placeholder curve; calibration not run |
 | 5 | Accounts and ratings | Not started |
 
 ## Run
@@ -63,3 +63,14 @@ npm run build
 - Fixed label positions: `tests/fixtures/review-positions.ts`, checked against the real engine in
   `tests/unit/review.engine.test.ts`.
 - The review screen and Recharts load on first visit to `#/review`.
+
+## Phase 4 notes
+
+- `src/rating/estimateRating.ts` implements the SPEC's MVP method: accuracy looked up on the curve in
+  `src/rating/calibration.json` (linear interpolation), -100 per blunder beyond 2, range ±200 (±300 under 20 moves),
+  "Not enough moves to estimate" under 10 moves. Numbers are in `RATING` in `src/config/tunables.ts`.
+- The curve is still the SPEC's placeholder (`"calibrated": false`), so the summary card says "rough estimate, not yet
+  calibrated". The estimate is computed when shown, not stored, so a new calibration applies to old reviews too.
+- Still to do: `scripts/calibrate/` (stream a Lichess month, keep rapid/classical games with `[%eval]`, ~1,000
+  player-games per 100-point band, median accuracy per band) writes `calibration.json` with `calibrated: true` and
+  `typicalError`, which then becomes the range half-width.

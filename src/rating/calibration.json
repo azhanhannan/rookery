@@ -1,0 +1,15 @@
+{
+  "calibrated": false,
+  "source": "SPEC placeholder curve (rough guesses). Replace with scripts/calibrate output (Phase 4 calibration).",
+  "typicalError": null,
+  "points": [
+    { "accuracy": 40, "rating": 400 },
+    { "accuracy": 50, "rating": 600 },
+    { "accuracy": 60, "rating": 900 },
+    { "accuracy": 70, "rating": 1200 },
+    { "accuracy": 80, "rating": 1600 },
+    { "accuracy": 85, "rating": 1900 },
+    { "accuracy": 90, "rating": 2200 },
+    { "accuracy": 95, "rating": 2600 }
+  ]
+}

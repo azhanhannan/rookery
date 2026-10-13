@@ -36,6 +36,9 @@ test('a finished game offers Game Review, which shows the stored review', async 
   // Summary: accuracy to one decimal, label counts, the empty rating slot.
   await expect(page.getByTestId('summary-white').getByTestId('accuracy')).toHaveText(/^\d+\.\d$/);
   await expect(page.getByTestId('summary-white').getByTestId('count-Blunder')).toHaveText('2');
+  // 10 moves each: an estimate with the wide ±300 range, flagged as uncalibrated.
+  await expect(page.getByTestId('summary-white').getByTestId('rating-range')).toHaveText(/^\d+–\d+$/);
+  await expect(page.getByTestId('summary-white')).toContainText('not yet calibrated');
   await expect(page.getByTestId('summary-black').getByTestId('count-Book')).toHaveText('3');
 
   // Selecting a move shows its label and explanation; the best move is drawn as an arrow.

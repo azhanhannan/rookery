@@ -11,7 +11,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | --- | --- | --- |
 | 1 | Board and rules | Done |
 | 2 | Engine and bots | Done |
-| 3 | Game Review | Not started |
+| 3 | Game Review | Done |
 | 4 | Estimated rating | Not started |
 | 5 | Accounts and ratings | Not started |
 
@@ -48,3 +48,18 @@ npm run build
   above or below" (SPEC) is implemented as the adjacent level.
 - The bot match (`tests/match/`) uses 0.2 s per engine move instead of play's 1-3 s think time, so it finishes in minutes.
 - Credits and GPL links: the About page (`#/about`).
+
+## Phase 3 notes
+
+- Pipeline: `reviewRunner.ts` analyses each position once (M moves = M + 1 searches, depth 16, MultiPV 2, 64 MB hash,
+  in-memory cache per FEN) and `buildReview.ts` turns the analyses into labels, accuracy and explanations. All
+  thresholds are in `REVIEW` in `src/config/tunables.ts`.
+- Timing: a 40-move (80-ply) engine self-play game took about 96 s at depth 16 in Node on an idle machine; Fast
+  (depth 12) is several times quicker. `REVIEW_BENCH=1 npx vitest run tests/unit/reviewRunner.node.test.ts` re-measures.
+- Openings: lichess-org/chess-openings (CC0), combined in `src/openings/openings.tsv`; `scripts/build-openings.mjs`
+  regenerates the position index `positions.tsv`. Loaded only when a review runs.
+- Known limit of the SPEC's win-chance formula: passing up a mate in an already winning position (say +9) costs only
+  ~3.5 win% and is labelled Good or Excellent, not Miss.
+- Fixed label positions: `tests/fixtures/review-positions.ts`, checked against the real engine in
+  `tests/unit/review.engine.test.ts`.
+- The review screen and Recharts load on first visit to `#/review`.

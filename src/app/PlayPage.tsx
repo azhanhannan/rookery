@@ -147,6 +147,16 @@ export function PlayPage() {
           )}
         </div>
 
+        {ended && (
+          <a
+            href={`#/review/${record.id}`}
+            className="rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-accent-ink"
+            data-testid="game-review-link"
+          >
+            Game Review
+          </a>
+        )}
+
         {botError && (
           <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-surface p-3 text-sm text-danger">
             <span>{botError}</span>

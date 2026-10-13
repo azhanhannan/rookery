@@ -30,3 +30,24 @@ test('screens', async ({ page }) => {
   await page.getByRole('button', { name: 'New game' }).click();
   await page.screenshot({ path: 'test-results/screen-dark-dialog.png' });
 });
+
+test('review screens', async ({ page }) => {
+  const { SAMPLE_REVIEWED_RECORD } = await import('../fixtures/sample-review');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+  await page.evaluate((r) => {
+    localStorage.clear();
+    localStorage.setItem('rookery.current', JSON.stringify({ record: r, clock: null, orientation: 'white' }));
+  }, SAMPLE_REVIEWED_RECORD);
+  await page.goto('/#/review');
+  await page.reload();
+  await page.getByTestId('graph-dot-13').click();
+  await page.screenshot({ path: 'test-results/screen-review.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'test-results/screen-review-phone.png', fullPage: true });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.getByRole('button', { name: /Retry mistakes/ }).click();
+  await page.screenshot({ path: 'test-results/screen-review-phone-dark-retry.png', fullPage: true });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 0) throw new Error(`horizontal scroll at 390px: ${overflow}px`);
+});

@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react';
+import type { Score } from '../engine/types';
 import type { Orientation } from '../game/gameStore';
+import { formatScore } from '../review/winChance';
 
 /**
  * White's share of the bar is its win chance. Vertical beside the board from `sm` up; a thin
@@ -8,13 +10,17 @@ import type { Orientation } from '../game/gameStore';
  */
 export function EvalBar({
   white,
-  label,
-  stale,
+  score,
+  label = score ? formatScore(score) : '',
+  stale = false,
   orientation,
 }: {
+  /** White's win chance, 0-100. */
   white: number;
-  label: string;
-  stale: boolean;
+  /** Shown as the label ("+1.3", "M3") when no `label` is given. */
+  score?: Score;
+  label?: string;
+  stale?: boolean;
   orientation: Orientation;
 }) {
   const whiteNear = orientation === 'white'; // White's end is the bottom/left one

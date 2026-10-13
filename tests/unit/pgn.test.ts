@@ -66,6 +66,7 @@ describe('PGN round trip', () => {
     const g = fromPgn('1. e4 {good} e5 2. Nf3 Nc6 3. Bb5 a6 *');
     expect(g.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6']);
     expect(g.result).toBe('*');
+    expect([g.white.name, g.black.name]).toEqual(['White', 'Black']);
   });
 
   it('rejects invalid PGN with a readable error', () => {

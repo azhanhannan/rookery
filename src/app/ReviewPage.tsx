@@ -1,0 +1,134 @@
+import { useState } from 'react';
+import { REVIEW } from '../config/tunables';
+import { ReviewRunPanel } from '../components/ReviewRunPanel';
+import { useGameStore } from '../game/gameStore';
+import { describeEnd } from '../game/rules';
+import { findArchivedGame, loadHistory } from '../game/storage';
+import type { GameRecord } from '../game/types';
+import { nextDepth, reviewableGames, reviewFits } from '../review/reviewView';
+import { ReviewScreen } from './ReviewScreen';
+import { useReviewRun } from './useReviewRun';
+
+function gameTitle(g: GameRecord) {
+  return `${g.white.name} vs ${g.black.name}`;
+}
+
+function GamePicker({ intro }: { intro: string }) {
+  const games = reviewableGames(useGameStore.getState().record, loadHistory());
+  return (
+    <div className="mx-auto flex max-w-xl flex-col gap-3 px-4 py-6">
+      <h1 className="text-xl font-bold">Game Review</h1>
+      <p className="text-sm text-muted">{intro}</p>
+      {games.length === 0 ? (
+        <p className="rounded-lg bg-surface p-3 text-sm">
+          No finished games yet. <a className="text-accent underline" href="#/play">Play one</a> or{' '}
+          <a className="text-accent underline" href="#/import">import a PGN</a>.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2" data-testid="review-games">
+          {games.map((g) => (
+            <li key={g.id}>
+              <a
+                href={`#/review/${g.id}`}
+                className="flex items-center justify-between gap-3 rounded-lg bg-surface p-3 hover:outline-1 hover:outline-accent"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{gameTitle(g)}</span>
+                  <span className="block text-xs text-muted">
+                    {describeEnd(g)} · {Math.ceil(g.moves.length / 2)} moves · {new Date(g.createdAt).toLocaleDateString()}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs text-muted">{reviewFits(g, g.review) ? 'Reviewed' : 'Not reviewed'}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: GameRecord) => void }) {
+  const setReview = useGameStore((s) => s.setReview);
+  const review = reviewFits(record, record.review) ? record.review : null;
+  const [depth, setDepth] = useState<number>(review ? nextDepth(review.depth, REVIEW.depth) : REVIEW.depth.normal);
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const run = useReviewRun(record, (r) => {
+    const saved = setReview(record.id, r);
+    if (saved) onSaved(saved);
+    setRerunOpen(false);
+  });
+
+  const title = (
+    <div className="min-w-0">
+      <h1 className="truncate text-xl font-bold">{gameTitle(record)}</h1>
+      <p className="text-sm text-muted">{describeEnd(record)}</p>
+    </div>
+  );
+
+  if (!review) {
+    return (
+      <div className="mx-auto flex max-w-xl flex-col gap-3 px-4 py-6">
+        <div className="flex items-start justify-between gap-3">
+          {title}
+          <a className="shrink-0 text-sm text-muted hover:text-ink" href="#/review/games">Other games</a>
+        </div>
+        <p className="text-sm text-muted">
+          Stockfish analyses every position at full strength and labels each move. Deeper takes longer.
+        </p>
+        <ReviewRunPanel run={run} depth={depth} onDepth={setDepth} />
+      </div>
+    );
+  }
+
+  const header = (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        {title}
+        <div className="flex shrink-0 flex-col items-end gap-1 text-sm">
+          <a className="text-muted hover:text-ink" href="#/review/games">Other games</a>
+          {!rerunOpen && run.status === 'idle' && (
+            <button className="text-muted hover:text-ink" onClick={() => setRerunOpen(true)}>
+              Re-run (depth {review.depth})
+            </button>
+          )}
+        </div>
+      </div>
+      {(rerunOpen || run.status !== 'idle') && (
+        <ReviewRunPanel
+          run={run}
+          depth={depth}
+          onDepth={setDepth}
+          startLabel="Re-run review"
+          onClose={() => setRerunOpen(false)}
+        />
+      )}
+    </div>
+  );
+
+  // Keyed by the review so a re-run starts the screen fresh on the new labels.
+  return <ReviewScreen key={review.createdAt} record={record} review={review} header={header} />;
+}
+
+/**
+ * `#/review` shows the current game when it is finished, otherwise a list of finished games;
+ * `#/review/<id>` reviews that game (the current one or a saved one); `#/review/games` is the list.
+ */
+export function ReviewPage({ gameId }: { gameId?: string }) {
+  const current = useGameStore((s) => s.record);
+  // A saved (not current) game is read once from storage, then kept here as reviews are added.
+  const [saved, setSaved] = useState<GameRecord | null>(() =>
+    gameId && gameId !== 'games' && gameId !== current.id ? findArchivedGame(gameId) : null,
+  );
+
+  if (gameId === 'games') return <GamePicker intro="Pick a finished game to review." />;
+
+  const record = !gameId || gameId === current.id ? current : saved;
+  if (!gameId && current.result === '*') {
+    return <GamePicker intro="The current game isn't finished yet. Pick a finished game to review." />;
+  }
+  if (!record || record.result === '*') {
+    return <GamePicker intro="That game isn't available for review. Pick a finished game." />;
+  }
+  return <GameReviewView key={record.id} record={record} onSaved={setSaved} />;
+}

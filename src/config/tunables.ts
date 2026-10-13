@@ -41,6 +41,8 @@ export const LIVE_EVAL = { depth: 12, movetime: 400 };
 export const REVIEW = {
   depth: { fast: 12, normal: 16, deep: 20 },
   multiPV: 2,
+  /** Engine hash table for reviews, MB (Stockfish default 16). Consecutive positions share entries. */
+  hashMb: 64,
   /** Upper `loss` bound for each label, checked in this order. Above `mistake` = Blunder. */
   loss: { excellent: 2, good: 5, inaccuracy: 10, mistake: 20 },
   /** Great: top move, second-best line at least this much worse, mover not already above `greatMaxWinBefore`. */
@@ -54,5 +56,10 @@ export const REVIEW = {
     /** Net material the sacrifice can lose, in pawns (P1 N3 B3 R5 Q9). */
     minSacrifice: 2,
     maxWinBefore: 90,
+    /**
+     * Not in the SPEC: a mover already below this has nothing to sacrifice for, and the engine's
+     * "best" move there is often a desperado that only looks like a sacrifice.
+     */
+    minWinBefore: 5,
   },
 };

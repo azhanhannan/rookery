@@ -32,6 +32,11 @@ export function toPgn(record: GameRecord): string {
   return chess.pgn() + '\n';
 }
 
+/** PGN writes "?" for an unknown player; chess.js also fills missing tags with it. */
+function playerName(tag: string | undefined, fallback: string): string {
+  return tag && tag !== '?' ? tag : fallback;
+}
+
 function parseElo(v: string | undefined): number | undefined {
   if (!v || !/^\d+$/.test(v)) return undefined;
   return Number(v);
@@ -76,8 +81,8 @@ export function fromPgn(text: string): GameRecord {
     id: crypto.randomUUID(),
     startFen,
     moves,
-    white: { name: headers.White || 'White', isBot: false, elo: parseElo(headers.WhiteElo) },
-    black: { name: headers.Black || 'Black', isBot: false, elo: parseElo(headers.BlackElo) },
+    white: { name: playerName(headers.White, 'White'), isBot: false, elo: parseElo(headers.WhiteElo) },
+    black: { name: playerName(headers.Black, 'Black'), isBot: false, elo: parseElo(headers.BlackElo) },
     result,
     termination,
     createdAt: date,

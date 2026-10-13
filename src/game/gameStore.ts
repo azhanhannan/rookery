@@ -14,8 +14,8 @@ import {
   type MoveInput,
 } from './rules';
 import { playSound } from './sound';
-import { archiveGame, loadSession, saveSession } from './storage';
-import type { Color, GameRecord, NewGameOptions, PlayerInfo } from './types';
+import { archiveGame, findArchivedGame, loadSession, saveSession, updateArchivedGame } from './storage';
+import type { Color, GameRecord, GameReview, NewGameOptions, PlayerInfo } from './types';
 
 export type { SideChoice } from './types';
 export type Orientation = 'white' | 'black';
@@ -40,6 +40,11 @@ type GameState = {
   flip(): void;
   importPgn(text: string): void;
   exportPgn(): string;
+  /**
+   * Stores a finished review on a finished game: the current one (session + archive) or a saved one (archive only).
+   * Returns the updated record, or null when no such game exists.
+   */
+  setReview(gameId: string, review: GameReview): GameRecord | null;
 };
 
 const DEFAULT_SETUP: NewGameOptions = { side: 'w', timeControlId: 'unlimited', opponent: 'friend' };
@@ -159,6 +164,23 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   exportPgn() {
     return toPgn(get().record);
+  },
+
+  setReview(gameId, review) {
+    const current = get().record;
+    if (current.id === gameId) {
+      // Only finished games are reviewed (and archived); a game in progress can't hold a review.
+      if (current.result === '*') return null;
+      const next = { ...current, review };
+      set({ record: next });
+      updateArchivedGame(next);
+      return next;
+    }
+    const saved = findArchivedGame(gameId);
+    if (!saved) return null;
+    const next = { ...saved, review };
+    updateArchivedGame(next);
+    return next;
   },
 }));
 

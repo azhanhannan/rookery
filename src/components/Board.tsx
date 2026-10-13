@@ -1,28 +1,84 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { Chessboard, defaultPieces, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
-import { useGameStore } from '../game/gameStore';
-import { botColor, legalTargets, needsPromotion, replay } from '../game/rules';
+import { Chess } from 'chess.js';
+import { useGameStore, type Orientation } from '../game/gameStore';
+import { botColor, legalTargets, needsPromotion, replay, type MoveInput } from '../game/rules';
 
 const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
 
-function kingSquare(board: ReturnType<ReturnType<typeof replay>['board']>, color: 'w' | 'b'): string | null {
+function kingSquare(board: ReturnType<Chess['board']>, color: 'w' | 'b'): string | null {
   for (const row of board) for (const p of row) if (p?.type === 'k' && p.color === color) return p.square;
   return null;
 }
 
-export function Board() {
+export type BoardArrow = { startSquare: string; endSquare: string; color: string };
+
+type BoardViewProps = {
+  /** FEN shown on the board. */
+  position: string;
+  orientation: Orientation;
+  /** The move that led to this position, highlighted; `color` overrides the usual yellow. */
+  lastMove?: { from: string; to: string; color?: string } | null;
+  arrows?: BoardArrow[];
+  /** Whether the side to move may play on the board. */
+  movable?: boolean;
+  /** A move attempt from the board; return false to snap the piece back. */
+  onMove?: (input: MoveInput) => boolean;
+  /** Changes whenever the position does, so a selection never outlives its position. Defaults to the FEN. */
+  positionKey?: string;
+  id?: string;
+};
+
+/**
+ * The live game from the store when given no props; otherwise a controlled board for any position
+ * (the review screen), read-only unless `movable` is set.
+ */
+export function Board(props: Partial<BoardViewProps> & { position?: string }) {
+  if (props.position === undefined) return <StoreBoard />;
+  return <BoardView orientation="white" {...props} position={props.position} />;
+}
+
+function StoreBoard() {
   const record = useGameStore((s) => s.record);
   const viewPly = useGameStore((s) => s.viewPly);
   const orientation = useGameStore((s) => s.orientation);
   const move = useGameStore((s) => s.move);
 
-  const chess = useMemo(() => replay(record, viewPly), [record, viewPly]);
-  const turn = chess.turn();
+  const fen = useMemo(() => replay(record, viewPly).fen(), [record, viewPly]);
+  const turn = fen.split(' ')[1];
   // Against a bot the human only moves on their own turn; on the bot's turn (thinking or failed) nothing moves.
   const live = viewPly === record.moves.length && record.result === '*' && turn !== botColor(record);
+  const last = record.moves[viewPly - 1];
+  const lastMove = useMemo(() => (last ? { from: last.uci.slice(0, 2), to: last.uci.slice(2, 4) } : null), [last]);
+
+  return (
+    <BoardView
+      id="main-board"
+      position={fen}
+      orientation={orientation}
+      lastMove={lastMove}
+      movable={live}
+      onMove={move}
+      positionKey={`${record.id}:${viewPly}:${record.moves.length}`}
+    />
+  );
+}
+
+function BoardView({
+  position,
+  orientation,
+  lastMove,
+  arrows,
+  movable = false,
+  onMove,
+  positionKey = position,
+  id = 'board',
+}: BoardViewProps) {
+  const chess = useMemo(() => new Chess(position), [position]);
+  const turn = chess.turn();
+  const live = movable && !!onMove;
 
   // Selection belongs to one position; a new position (move played, or stepping through the list) clears it.
-  const positionKey = `${record.id}:${viewPly}:${record.moves.length}`;
   const [sel, setSel] = useState<{ key: string; square: string } | null>(null);
   const [promo, setPromo] = useState<{ key: string; from: string; to: string } | null>(null);
   const selected = sel?.key === positionKey ? sel.square : null;
@@ -36,7 +92,7 @@ export function Board() {
       setPromo({ key: positionKey, from, to });
       return false;
     }
-    return move({ from, to });
+    return onMove ? onMove({ from, to }) : false;
   }
 
   function onPieceDrop({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean {
@@ -59,14 +115,14 @@ export function Board() {
 
   const squareStyles = useMemo(() => {
     const styles: Record<string, CSSProperties> = {};
-    const last = record.moves[viewPly - 1];
-    if (last) {
-      styles[last.uci.slice(0, 2)] = { backgroundColor: 'var(--last-move)' };
-      styles[last.uci.slice(2, 4)] = { backgroundColor: 'var(--last-move)' };
+    if (lastMove) {
+      const backgroundColor = lastMove.color ?? 'var(--last-move)';
+      styles[lastMove.from] = { backgroundColor };
+      styles[lastMove.to] = { backgroundColor };
     }
     if (chess.inCheck()) {
       const k = kingSquare(chess.board(), turn);
-      if (k) styles[k] = { backgroundImage: 'radial-gradient(circle, var(--check) 0%, transparent 72%)' };
+      if (k) styles[k] = { ...styles[k], backgroundImage: 'radial-gradient(circle, var(--check) 0%, transparent 72%)' };
     }
     if (selected) styles[selected] = { ...styles[selected], backgroundColor: 'var(--selected)' };
     for (const t of targets) {
@@ -80,14 +136,14 @@ export function Board() {
       };
     }
     return styles;
-  }, [chess, record.moves, viewPly, selected, targets, turn]);
+  }, [chess, lastMove, selected, targets, turn]);
 
   return (
     <div className="relative w-full" data-testid="board">
       <Chessboard
         options={{
-          id: 'main-board',
-          position: chess.fen(),
+          id,
+          position,
           boardOrientation: orientation,
           allowDragging: live,
           canDragPiece: ({ piece }) => live && piece.pieceType[0] === turn,
@@ -95,6 +151,8 @@ export function Board() {
           onSquareClick,
           onPieceDrag: ({ square }) => square && setSel({ key: positionKey, square }),
           squareStyles,
+          // Boards with app-drawn arrows don't mix in hand-drawn ones.
+          ...(arrows ? { arrows, allowDrawingArrows: false } : {}),
           lightSquareStyle: { backgroundColor: 'var(--board-light)' },
           darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
           animationDurationInMs: 150,
@@ -114,7 +172,7 @@ export function Board() {
                     className="h-16 w-16 rounded-lg bg-surface-2 p-1 hover:outline-2 hover:outline-accent"
                     onClick={() => {
                       setPromo(null);
-                      move({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: p });
+                      onMove?.({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: p });
                     }}
                   >
                     {defaultPieces[key]?.()}

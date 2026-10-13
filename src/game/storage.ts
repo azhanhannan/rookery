@@ -51,6 +51,23 @@ export function archiveGame(record: GameRecord): void {
   write(HISTORY_KEY, [record, ...rest].slice(0, HISTORY_LIMIT));
 }
 
+/** Replaces a saved game in place (keeping the list order); adds it at the front when it isn't saved yet. */
+export function updateArchivedGame(record: GameRecord): void {
+  const history = loadHistory();
+  const i = history.findIndex((g) => g.id === record.id);
+  if (i < 0) {
+    archiveGame(record);
+    return;
+  }
+  history[i] = record;
+  write(HISTORY_KEY, history);
+}
+
+/** A saved game by id, or null. */
+export function findArchivedGame(id: string): GameRecord | null {
+  return loadHistory().find((g) => g.id === id) ?? null;
+}
+
 const BOT_ELO_KEY = 'rookery.botElo';
 const EVAL_BAR_KEY = 'rookery.evalBar';
 

@@ -8,6 +8,8 @@ const LIBRARIES = [
   { name: 'Zustand', url: 'https://github.com/pmndrs/zustand', license: 'MIT' },
   { name: 'Tailwind CSS', url: 'https://github.com/tailwindlabs/tailwindcss', license: 'MIT' },
   { name: 'Vite', url: 'https://github.com/vitejs/vite', license: 'MIT' },
+  { name: 'Recharts', url: 'https://github.com/recharts/recharts', license: 'MIT' },
+  { name: 'lichess-org/chess-openings (opening names)', url: 'https://github.com/lichess-org/chess-openings', license: 'CC0-1.0' },
 ];
 
 export function AboutPage() {

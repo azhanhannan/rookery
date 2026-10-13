@@ -4,19 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-stockfish.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-stockfish.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:bots": "vitest run -c vitest.match.config.ts"
   },
   "dependencies": {
     "chess.js": "^1.4.0",
     "react": "^19.2.8",
     "react-chessboard": "^5.12.1",
     "react-dom": "^19.2.8",
+    "recharts": "^3.10.1",
+    "stockfish": "^19.0.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

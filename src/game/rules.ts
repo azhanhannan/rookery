@@ -134,3 +134,15 @@ export function describeEnd(record: GameRecord): string | null {
     record.result === '1-0' ? 'White wins' : record.result === '0-1' ? 'Black wins' : 'Draw';
   return record.termination ? `${winner} by ${record.termination}` : winner;
 }
+
+/** The bot's colour in a game against a bot, or null in a game between people. */
+export function botColor(record: GameRecord): Color | null {
+  if (record.white.isBot) return 'w';
+  if (record.black.isBot) return 'b';
+  return null;
+}
+
+/** Identifies "this game at this many moves"; a bot result is only applied while it still matches. */
+export function plyKey(record: GameRecord): string {
+  return `${record.id}:${record.moves.length}`;
+}

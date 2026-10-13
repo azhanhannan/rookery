@@ -1,5 +1,5 @@
 import type { ClockState } from './clock';
-import type { GameRecord } from './types';
+import type { GameRecord, NewGameOptions } from './types';
 
 const CURRENT_KEY = 'rookery.current';
 const HISTORY_KEY = 'rookery.games';
@@ -9,6 +9,8 @@ export type SavedSession = {
   record: GameRecord;
   clock: ClockState | null;
   orientation: 'white' | 'black';
+  /** Absent in sessions saved before Phase 2. */
+  setup?: NewGameOptions;
 };
 
 // Storage can be missing or throw (private mode, blocked site data); the app must work without it.
@@ -47,4 +49,27 @@ export function loadHistory(): GameRecord[] {
 export function archiveGame(record: GameRecord): void {
   const rest = loadHistory().filter((g) => g.id !== record.id);
   write(HISTORY_KEY, [record, ...rest].slice(0, HISTORY_LIMIT));
+}
+
+const BOT_ELO_KEY = 'rookery.botElo';
+const EVAL_BAR_KEY = 'rookery.evalBar';
+
+/** The bot level this viewer chose last, if any. */
+export function loadBotElo(): number | null {
+  const elo = read<number>(BOT_ELO_KEY);
+  return typeof elo === 'number' && Number.isFinite(elo) ? elo : null;
+}
+
+export function saveBotElo(elo: number): void {
+  write(BOT_ELO_KEY, elo);
+}
+
+/** The viewer's eval bar choice, or null when they never toggled it. */
+export function loadEvalBarPref(): boolean | null {
+  const on = read<boolean>(EVAL_BAR_KEY);
+  return typeof on === 'boolean' ? on : null;
+}
+
+export function saveEvalBarPref(on: boolean): void {
+  write(EVAL_BAR_KEY, on);
 }

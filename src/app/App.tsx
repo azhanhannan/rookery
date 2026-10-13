@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '../config/tunables';
+import { AboutPage } from './AboutPage';
 import { ImportPage } from './ImportPage';
 import { PlayPage } from './PlayPage';
 
@@ -7,6 +8,7 @@ import { PlayPage } from './PlayPage';
 const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/play': PlayPage,
   '#/import': ImportPage,
+  '#/about': AboutPage,
 };
 
 function useHash(): string {
@@ -32,6 +34,7 @@ export default function App() {
           </a>
           <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
           <a href="#/import" className={`text-sm ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
+          <a href="#/about" className={`ml-auto text-sm ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
         </nav>
       </header>
       <main>

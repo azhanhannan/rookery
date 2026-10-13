@@ -10,7 +10,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1 | Board and rules | Done |
-| 2 | Engine and bots | Not started |
+| 2 | Engine and bots | Done |
 | 3 | Game Review | Not started |
 | 4 | Estimated rating | Not started |
 | 5 | Accounts and ratings | Not started |
@@ -22,6 +22,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests (Vitest)
 npm run test:e2e   # end-to-end (Playwright, uses the installed Chrome)
+npm run test:bots  # bot-vs-bot strength matches, ~6 min; scores in test-results/bot-match.txt
 npm run build
 ```
 
@@ -36,3 +37,14 @@ npm run build
 - Timeout against a lone king, or king plus one minor piece against a lone king, is a draw (simplified FIDE rule).
 - An imported game continues without a clock; any `%clk` times stay on its moves.
 - Sounds are synthesized with Web Audio, so no audio files ship.
+
+## Phase 2 notes
+
+- Stockfish 19 (stockfish.js 19.0.1, lite single-threaded) runs in a Web Worker. `predev`/`prebuild` copy it from
+  `node_modules/stockfish` into `public/stockfish/` (the .js/.wasm are gitignored; `COPYING` and `SOURCE.md` are committed).
+- All engine calls go through `EngineService` (one queue). It remembers option values and always analyses at full
+  strength; the strength limit applies only to bot moves.
+- Bot levels and the live-eval depth are in `src/config/tunables.ts`. Levels step by 200, so "suggest a level about 100
+  above or below" (SPEC) is implemented as the adjacent level.
+- The bot match (`tests/match/`) uses 0.2 s per engine move instead of play's 1-3 s think time, so it finishes in minutes.
+- Credits and GPL links: the About page (`#/about`).

@@ -26,3 +26,7 @@ dist-ssr
 # Playwright
 test-results
 playwright-report
+
+# Stockfish worker build, copied from node_modules by scripts/copy-stockfish.mjs (COPYING and SOURCE.md are committed)
+public/stockfish/*.js
+public/stockfish/*.wasm

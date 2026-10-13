@@ -1,5 +1,6 @@
-// Feature 3 fills this in; kept opaque until Game Review exists.
-export type GameReview = Record<string, unknown>;
+import type { GameReview } from '../review/types';
+
+export type { GameReview };
 
 export type Color = 'w' | 'b';
 
@@ -27,4 +28,18 @@ export type GameRecord = {
   /** Time control as "base+increment" in seconds, e.g. "180+2". Absent = unlimited. */
   timeControl?: string;
   review?: GameReview;
+};
+
+export type SideChoice = 'w' | 'b' | 'random';
+
+export type Opponent = 'friend' | 'bot';
+
+/** What the New game dialog chose; kept so "Play again" can repeat it. */
+export type NewGameOptions = {
+  side: SideChoice;
+  timeControlId: string;
+  /** Default 'friend'. */
+  opponent?: Opponent;
+  /** Bot level (BOT_LEVELS elo); only used when opponent is 'bot'. */
+  botElo?: number;
 };

@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { Chessboard, defaultPieces, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
 import { useGameStore } from '../game/gameStore';
-import { legalTargets, needsPromotion, replay } from '../game/rules';
+import { botColor, legalTargets, needsPromotion, replay } from '../game/rules';
 
 const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
 
@@ -17,8 +17,9 @@ export function Board() {
   const move = useGameStore((s) => s.move);
 
   const chess = useMemo(() => replay(record, viewPly), [record, viewPly]);
-  const live = viewPly === record.moves.length && record.result === '*';
   const turn = chess.turn();
+  // Against a bot the human only moves on their own turn; on the bot's turn (thinking or failed) nothing moves.
+  const live = viewPly === record.moves.length && record.result === '*' && turn !== botColor(record);
 
   // Selection belongs to one position; a new position (move played, or stepping through the list) clears it.
   const positionKey = `${record.id}:${viewPly}:${record.moves.length}`;

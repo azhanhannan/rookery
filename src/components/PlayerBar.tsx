@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useBotStatus } from '../game/botTurn';
 import { formatClock, remaining } from '../game/clock';
 import { useGameStore } from '../game/gameStore';
 import type { Color } from '../game/types';
@@ -7,6 +8,7 @@ export function PlayerBar({ color }: { color: Color }) {
   const player = useGameStore((s) => (color === 'w' ? s.record.white : s.record.black));
   const clock = useGameStore((s) => s.clock);
   const flag = useGameStore((s) => s.flag);
+  const thinking = useBotStatus((s) => s.thinking) && player.isBot;
   const [now, setNow] = useState(() => Date.now());
   const running = clock?.running === color;
 
@@ -25,13 +27,21 @@ export function PlayerBar({ color }: { color: Color }) {
 
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2">
         <span
           className={`inline-block h-3 w-3 rounded-full border border-muted ${color === 'w' ? 'bg-white' : 'bg-neutral-900'}`}
           aria-hidden
         />
         <span className="font-medium">{player.name}</span>
-        {player.elo !== undefined && <span className="text-sm text-muted">({player.elo})</span>}
+        {/* A bot's name already carries its level. */}
+        {player.elo !== undefined && !player.name.endsWith(String(player.elo)) && <span className="text-sm text-muted">({player.elo})</span>}
+        <span aria-live="polite" className="text-sm text-muted">
+          {thinking && (
+            <span data-testid="bot-thinking" className="animate-pulse">
+              Bot is thinking…
+            </span>
+          )}
+        </span>
       </div>
       {left !== null && (
         <span

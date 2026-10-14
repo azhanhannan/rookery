@@ -38,6 +38,7 @@ function okResponse(req: SaveGameRequest, extra: Partial<SaveGameResponse> = {})
       opponentName: 'Bot',
       rated: req.rated,
       category: null,
+      finalFen: req.record.startFen,
       moves: req.record.moves.length,
       hasReview: !!req.record.review,
       playedAt: req.record.createdAt,

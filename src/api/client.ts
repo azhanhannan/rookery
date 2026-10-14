@@ -3,6 +3,8 @@ import type {
   AccountResponse,
   AuthProvidersResponse,
   AuthResponse,
+  GameFilter,
+  GameIdsResponse,
   GameListResponse,
   GameResponse,
   ProfileResponse,
@@ -50,8 +52,14 @@ export const api = {
   rename: (username: string) => call<AuthResponse>('PATCH', '/auth/me', { username }),
   saveGame: (req: SaveGameRequest) =>
     call<SaveGameResponse>('PUT', `/games/${encodeURIComponent(req.record.id)}`, req),
-  listGames: (before?: string) =>
-    call<GameListResponse>('GET', `/games${before ? `?before=${encodeURIComponent(before)}` : ''}`),
+  listGames: (before?: string, filter: GameFilter = 'all') => {
+    const q = new URLSearchParams();
+    if (filter !== 'all') q.set('filter', filter);
+    if (before) q.set('before', before);
+    const qs = q.toString();
+    return call<GameListResponse>('GET', `/games${qs ? `?${qs}` : ''}`);
+  },
+  gameIds: () => call<GameIdsResponse>('GET', '/games/ids'),
   getGame: (clientId: string) => call<GameResponse>('GET', `/games/${encodeURIComponent(clientId)}`),
   profile: (username: string) => call<ProfileResponse>('GET', `/profile/${encodeURIComponent(username)}`),
   puzzleAttempt: (id: string, req: PuzzleAttemptRequest) =>

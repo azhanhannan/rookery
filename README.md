@@ -103,6 +103,10 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
   personal app; anything competitive needs server-side play.
 - Finished games upload automatically while signed in; failed uploads queue in `rookery.unsynced` and retry.
   Older local games can be uploaded from My games (always unrated).
+- My games (`#/games`): record (won/drawn/lost, win rate), filter chips (All/Won/Lost/Draws/Rated/Casual; server-side
+  via `GET /api/games?filter=`, stats on the first page), rows grouped by day with a final-position thumbnail,
+  ending, full-move count and the rating change. Signed out or offline it lists this device's games the same way.
+  The upload offer only appears for device games not yet in the account (`GET /api/games/ids`).
 - Known gaps: a review run later on an older game (not the current one) isn't re-uploaded automatically;
   saved games keep "You" as the player name; online play (WebSockets) and native-Stockfish server review are not built.
 

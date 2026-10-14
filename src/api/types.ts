@@ -71,10 +71,22 @@ export type GameSummary = {
   timeControl?: string;
   rated: boolean;
   category: RatingCategory | null;
+  /** Plies (half-moves). */
   moves: number;
   hasReview: boolean;
   playedAt: string;
+  /** The final position, for the list's thumbnail. */
+  finalFen: string;
+  /** Rating change this game applied (rounded); absent for unrated games. */
+  ratingDelta?: number;
 };
+
+/** My games filter chips. Won/lost/drawn are from the account holder's side. */
+export type GameFilter = 'all' | 'won' | 'lost' | 'drawn' | 'rated' | 'casual';
+export const GAME_FILTERS: GameFilter[] = ['all', 'won', 'lost', 'drawn', 'rated', 'casual'];
+
+/** Counts over all the account's games (not one page, not the filter). Won/lost/drawn only count games with a side. */
+export type GameStats = { total: number; won: number; lost: number; drawn: number };
 
 export type SaveGameResponse = {
   game: GameSummary;
@@ -85,7 +97,11 @@ export type SaveGameResponse = {
 };
 
 // GET /api/games?before=<ISO playedAt> -> newest first, RATINGS.pageSize per page.
-export type GameListResponse = { games: GameSummary[]; nextBefore: string | null };
+// GET /api/games?filter=<GameFilter>&before=<iso>. `stats` comes with the first page only.
+export type GameListResponse = { games: GameSummary[]; nextBefore: string | null; stats?: GameStats };
+
+// GET /api/games/ids -> every saved game's clientId (to tell which games on this device aren't uploaded yet).
+export type GameIdsResponse = { clientIds: string[] };
 
 // GET /api/games/:clientId -> the stored record (own games only; 404 otherwise).
 export type GameResponse = { game: GameSummary; record: GameRecord };

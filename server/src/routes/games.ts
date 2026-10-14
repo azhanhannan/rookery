@@ -1,12 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import { Prisma, type Game } from '../../generated/prisma/client';
 import { RATINGS } from '../../../src/config/tunables';
-import type {
-  GameListResponse,
-  GameResponse,
-  RatingCategory,
-  SaveGameRequest,
-  SaveGameResponse,
+import {
+  GAME_FILTERS,
+  type GameFilter,
+  type GameIdsResponse,
+  type GameStats,
+  type GameListResponse,
+  type GameResponse,
+  type RatingCategory,
+  type SaveGameRequest,
+  type SaveGameResponse,
 } from '../../../src/api/types';
 import type { GameRecord } from '../../../src/game/types';
 import { isProvisional, rateGame, ratedCategoryFor, ratingIneligibleReason, scoreFor } from '../../../src/rating/glicko';
@@ -16,6 +20,43 @@ import { opponentNameFor, storedRecord, toSummary } from '../games/summary';
 import { validateSaveRequest } from '../games/validate';
 
 type Params = { clientId: string };
+
+const WON: Prisma.GameWhereInput[] = [
+  { userColor: 'w', result: '1-0' },
+  { userColor: 'b', result: '0-1' },
+];
+const LOST: Prisma.GameWhereInput[] = [
+  { userColor: 'w', result: '0-1' },
+  { userColor: 'b', result: '1-0' },
+];
+
+function filterWhere(filter: GameFilter): Prisma.GameWhereInput {
+  switch (filter) {
+    case 'won':
+      return { OR: WON };
+    case 'lost':
+      return { OR: LOST };
+    case 'drawn':
+      return { result: '1/2-1/2', userColor: { not: null } };
+    case 'rated':
+      return { rated: true };
+    case 'casual':
+      return { rated: false };
+    default:
+      return {};
+  }
+}
+
+async function gameStats(db: Db, userId: string): Promise<GameStats> {
+  const count = (where: Prisma.GameWhereInput) => db.game.count({ where: { userId, ...where } });
+  const [total, won, lost, drawn] = await Promise.all([
+    count({}),
+    count(filterWhere('won')),
+    count(filterWhere('lost')),
+    count(filterWhere('drawn')),
+  ]);
+  return { total, won, lost, drawn };
+}
 
 /** Same game: same start, same moves, same result. Anything else under one id is a different game. */
 function sameGame(a: GameRecord, b: GameRecord): boolean {
@@ -133,19 +174,31 @@ export async function gameRoutes(app: FastifyInstance, { db }: { db: Db }) {
     return reply.send(replaced satisfies SaveGameResponse);
   });
 
-  app.get<{ Querystring: { before?: string } }>('/games', async (request, reply) => {
+  app.get('/games/ids', async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const rows = await db.game.findMany({ where: { userId: user.id }, select: { clientId: true } });
+    return reply.send({ clientIds: rows.map((r) => r.clientId) } satisfies GameIdsResponse);
+  });
+
+  app.get<{ Querystring: { before?: string; filter?: string } }>('/games', async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
     const { before } = request.query;
     const beforeDate = before === undefined ? null : new Date(before);
     if (beforeDate && !Number.isFinite(beforeDate.getTime()))
       return reply.code(400).send({ error: '"before" must be a date.' });
+    const filter = (request.query.filter ?? 'all') as GameFilter;
+    if (!GAME_FILTERS.includes(filter))
+      return reply.code(400).send({ error: `"filter" must be one of ${GAME_FILTERS.join(', ')}.` });
+    const scope = { userId: user.id, ...filterWhere(filter) };
 
     const order = [{ playedAt: 'desc' as const }, { id: 'desc' as const }];
     const games = await db.game.findMany({
-      where: { userId: user.id, ...(beforeDate ? { playedAt: { lt: beforeDate } } : {}) },
+      where: { ...scope, ...(beforeDate ? { playedAt: { lt: beforeDate } } : {}) },
       orderBy: order,
       take: RATINGS.pageSize,
+      include: { ratingEvent: true },
     });
     let nextBefore: string | null = null;
     const last = games.at(-1);
@@ -153,17 +206,19 @@ export async function gameRoutes(app: FastifyInstance, { db }: { db: Db }) {
       // The cursor is a bare playedAt, so a page must never split games that share one:
       // take the rest of the last timestamp's games into this page.
       const ties = await db.game.findMany({
-        where: { userId: user.id, playedAt: last.playedAt, id: { notIn: games.map((g) => g.id) } },
+        where: { ...scope, playedAt: last.playedAt, id: { notIn: games.map((g) => g.id) } },
         orderBy: order,
+        include: { ratingEvent: true },
       });
       games.push(...ties);
       const more = await db.game.findFirst({
-        where: { userId: user.id, playedAt: { lt: last.playedAt } },
+        where: { ...scope, playedAt: { lt: last.playedAt } },
         select: { id: true },
       });
       if (more) nextBefore = last.playedAt.toISOString();
     }
-    return reply.send({ games: games.map(toSummary), nextBefore } satisfies GameListResponse);
+    const stats = beforeDate ? undefined : await gameStats(db, user.id);
+    return reply.send({ games: games.map(toSummary), nextBefore, ...(stats ? { stats } : {}) } satisfies GameListResponse);
   });
 
   app.get<{ Params: Params }>('/games/:clientId', async (request, reply) => {

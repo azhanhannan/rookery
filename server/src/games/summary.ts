@@ -1,4 +1,4 @@
-import type { Game } from '../../generated/prisma/client';
+import type { Game, RatingEvent } from '../../generated/prisma/client';
 import type { GameSummary, RatingCategory } from '../../../src/api/types';
 import type { Color, GameRecord } from '../../../src/game/types';
 
@@ -14,8 +14,9 @@ export function opponentNameFor(record: GameRecord, userColor: Color | null): st
 /** Stored records were validated on upload, so reading them back as GameRecord is safe. */
 export const storedRecord = (game: Game): GameRecord => game.record as unknown as GameRecord;
 
-export function toSummary(game: Game): GameSummary {
+export function toSummary(game: Game & { ratingEvent?: RatingEvent | null }): GameSummary {
   const record = storedRecord(game);
+  const event = game.ratingEvent;
   return {
     clientId: game.clientId,
     white: record.white.name,
@@ -30,5 +31,7 @@ export function toSummary(game: Game): GameSummary {
     moves: record.moves.length,
     hasReview: !!record.review,
     playedAt: game.playedAt.toISOString(),
+    finalFen: record.moves.at(-1)?.fenAfter ?? record.startFen,
+    ...(event ? { ratingDelta: Math.round(event.ratingAfter - event.ratingBefore) } : {}),
   };
 }

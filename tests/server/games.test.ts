@@ -61,6 +61,7 @@ describe('games routes', () => {
       moves: 6,
       hasReview: false,
       playedAt: record.createdAt,
+      finalFen: record.moves.at(-1)!.fenAfter,
     });
 
     const list = (await get(app, cookie, '/api/games')).json<GameListResponse>();
@@ -297,5 +298,40 @@ describe('games routes', () => {
     expect(seen).toHaveLength(n);
     expect(seen).toEqual([...seen].sort().reverse());
     expect((await get(app, cookie, '/api/games?before=nonsense')).statusCode).toBe(400);
+  });
+
+  it('filters, stats on the first page, rating change, final position, and the id list', async () => {
+    const app = server.app();
+    const cookie = await signup(app, 'Ana');
+    const win = botWin({ id: 'g-win', createdAt: '2026-10-14T10:00:00.000Z' });
+    const loss = botWin({ id: 'g-loss', result: '0-1', createdAt: '2026-10-14T11:00:00.000Z' });
+    const draw = botWin({ id: 'g-draw', result: '1/2-1/2', termination: 'agreement', createdAt: '2026-10-14T12:00:00.000Z' });
+    const friend = { ...botWin({ id: 'g-friend', createdAt: '2026-10-14T13:00:00.000Z' }), black: { name: 'Ben', isBot: false } };
+    await put(app, cookie, { record: win, userColor: 'w', rated: true });
+    await put(app, cookie, { record: loss, userColor: 'w', rated: false });
+    await put(app, cookie, { record: draw, userColor: 'w', rated: false });
+    await put(app, cookie, { record: friend, userColor: null, rated: false });
+
+    const list = async (q: string) => (await get(app, cookie, `/api/games${q}`)).json<GameListResponse>();
+    const all = await list('');
+    expect(all.stats).toEqual({ total: 4, won: 1, lost: 1, drawn: 1 });
+    const won = all.games.find((x) => x.clientId === 'g-win')!;
+    expect(won.ratingDelta).toBeGreaterThan(0);
+    expect(won.finalFen).toBe(win.moves.at(-1)!.fenAfter);
+    expect(all.games.find((x) => x.clientId === 'g-loss')!.ratingDelta).toBeUndefined();
+
+    const ids = async (q: string) => (await list(q)).games.map((x) => x.clientId).sort();
+    expect(await ids('?filter=won')).toEqual(['g-win']);
+    expect(await ids('?filter=lost')).toEqual(['g-loss']);
+    expect(await ids('?filter=drawn')).toEqual(['g-draw']);
+    expect(await ids('?filter=rated')).toEqual(['g-win']);
+    expect(await ids('?filter=casual')).toEqual(['g-draw', 'g-friend', 'g-loss']);
+    expect((await get(app, cookie, '/api/games?filter=bogus')).statusCode).toBe(400);
+    // Later pages don't repeat the stats.
+    expect((await list('?before=2026-10-14T12:30:00.000Z')).stats).toBeUndefined();
+
+    const idList = (await get(app, cookie, '/api/games/ids')).json<{ clientIds: string[] }>();
+    expect(idList.clientIds.sort()).toEqual(['g-draw', 'g-friend', 'g-loss', 'g-win']);
+    expect((await get(app, undefined, '/api/games/ids')).statusCode).toBe(401);
   });
 });

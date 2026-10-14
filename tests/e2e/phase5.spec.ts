@@ -103,3 +103,14 @@ test('My games asks a signed-out player to log in; an unknown profile says so', 
   await page.goto('/#/profile/nobody_here_123');
   await expect(page.getByRole('alert')).toHaveText('No player called nobody_here_123');
 });
+
+test('"offline" clears by itself once the server can be reached', async ({ page }) => {
+  const api = (u: URL) => u.pathname.startsWith('/api/');
+  await page.route(api, (r) => r.abort());
+  await page.goto('/#/play');
+  await expect(page.getByText('offline')).toBeVisible();
+  await page.unroute(api);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByText('offline')).toBeHidden();
+  await expect(page.getByRole('link', { name: 'Log in', exact: true })).toBeVisible();
+});

@@ -41,6 +41,17 @@ export default function App() {
   const refreshAuth = useAuthStore((s) => s.refresh);
   useEffect(() => {
     void refreshAuth();
+    // While the server is unreachable, check again every 15 s and whenever the tab regains focus,
+    // so starting the server later clears "offline" without a reload.
+    const retry = () => {
+      if (useAuthStore.getState().status === 'offline') void refreshAuth();
+    };
+    const timer = window.setInterval(retry, 15_000);
+    window.addEventListener('focus', retry);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', retry);
+    };
   }, [refreshAuth]);
   // `#/review` and `#/review/<gameId>` carry a parameter, so they are matched by prefix.
   const review = hash === '#/review' || hash.startsWith('#/review/');

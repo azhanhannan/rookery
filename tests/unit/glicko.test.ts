@@ -1,6 +1,6 @@
 import { Glicko2 } from 'glicko2';
 import { describe, expect, it } from 'vitest';
-import { RATINGS } from '../../src/config/tunables';
+import { MAIA, RATINGS } from '../../src/config/tunables';
 import type { GameRecord, PlayerInfo } from '../../src/game/types';
 import {
   categoryFor,
@@ -157,6 +157,29 @@ describe('ratingIneligibleReason', () => {
     expect(ratingIneligibleReason(ratedGame({ black: { name: 'Friend', isBot: false } }), 'w')).toMatch(/against a bot/);
     expect(ratingIneligibleReason(ratedGame({ black: bot(1234) }), 'w')).toMatch(/unknown bot level/);
     expect(ratingIneligibleReason(ratedGame({ black: { name: 'Bot', isBot: true } }), 'w')).toMatch(/unknown bot level/);
+  });
+
+  it('a human-like (Maia) bot game is rated at a MAIA level, and only at one', () => {
+    const maia = (elo: number): PlayerInfo => ({ name: `Maia ${elo}`, isBot: true, elo, engine: 'maia' });
+    for (const elo of MAIA.levels) expect(ratingIneligibleReason(ratedGame({ black: maia(elo) }), 'w')).toBeNull();
+    expect(ratingIneligibleReason(ratedGame({ white: maia(1600), black: you, result: '0-1' }), 'b')).toBeNull();
+    // 400 and 3200 are engine levels but not Maia levels; 1300 is neither.
+    expect(ratingIneligibleReason(ratedGame({ black: maia(400) }), 'w')).toMatch(/unknown bot level/);
+    expect(ratingIneligibleReason(ratedGame({ black: maia(3200) }), 'w')).toMatch(/unknown bot level/);
+    expect(ratingIneligibleReason(ratedGame({ black: maia(1300) }), 'w')).toMatch(/unknown bot level/);
+    expect(ratingIneligibleReason(ratedGame({ black: { name: 'Maia', isBot: true, engine: 'maia' } }), 'w')).toMatch(
+      /unknown bot level/,
+    );
+  });
+
+  it("the engine bot's levels are unchanged, with or without engine: 'stockfish'", () => {
+    const engineBot = (elo: number): PlayerInfo => ({ name: `Bot ${elo}`, isBot: true, elo, engine: 'stockfish' });
+    expect(ratingIneligibleReason(ratedGame({ black: engineBot(400) }), 'w')).toBeNull();
+    expect(ratingIneligibleReason(ratedGame({ black: engineBot(3200) }), 'w')).toBeNull();
+    expect(ratingIneligibleReason(ratedGame({ black: engineBot(1300) }), 'w')).toMatch(/unknown bot level/);
+    // An unknown engine name (e.g. from an uploaded record) is not trusted.
+    const odd = { name: 'Bot', isBot: true, elo: 800, engine: 'other' } as unknown as PlayerInfo;
+    expect(ratingIneligibleReason(ratedGame({ black: odd }), 'w')).toMatch(/unknown bot level/);
   });
 
   it("the player's own side must not be a bot", () => {

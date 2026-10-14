@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { levelFor, levelLabel } from '../bots/botLevels';
+import { maiaBotName, maiaLevelFor } from '../bots/maiaLevels';
 import { findTimeControl, newClock, pressClock, stopClock, type ClockState } from './clock';
 import { fromPgn, toPgn } from './pgn';
 import {
@@ -49,7 +50,11 @@ type GameState = {
 
 const DEFAULT_SETUP: NewGameOptions = { side: 'w', timeControlId: 'unlimited', opponent: 'friend' };
 
-function botPlayer(elo: number | undefined): PlayerInfo {
+function botPlayer(elo: number | undefined, engine: NewGameOptions['botEngine']): PlayerInfo {
+  if (engine === 'maia') {
+    const level = maiaLevelFor(elo ?? 0);
+    return { name: maiaBotName(level), isBot: true, elo: level, engine: 'maia' };
+  }
   const level = levelFor(elo ?? 0);
   return { name: `Bot ${levelLabel(level)}`, isBot: true, elo: level.elo };
 }
@@ -60,7 +65,7 @@ function freshState(setup: NewGameOptions) {
   const tc = findTimeControl(timeControlId);
   const vsBot = setup.opponent === 'bot';
   const you: PlayerInfo = { name: vsBot ? 'You' : 'Player 1', isBot: false };
-  const friend: PlayerInfo = vsBot ? botPlayer(setup.botElo) : { name: 'Player 2', isBot: false };
+  const friend: PlayerInfo = vsBot ? botPlayer(setup.botElo, setup.botEngine) : { name: 'Player 2', isBot: false };
   const record = newRecord({
     white: color === 'w' ? you : friend,
     black: color === 'w' ? friend : you,

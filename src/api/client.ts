@@ -6,6 +6,9 @@ import type {
   GameListResponse,
   GameResponse,
   ProfileResponse,
+  PuzzleAttemptRequest,
+  PuzzleAttemptResponse,
+  PuzzleMeResponse,
   SaveGameRequest,
   SaveGameResponse,
 } from './types';
@@ -51,6 +54,9 @@ export const api = {
     call<GameListResponse>('GET', `/games${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   getGame: (clientId: string) => call<GameResponse>('GET', `/games/${encodeURIComponent(clientId)}`),
   profile: (username: string) => call<ProfileResponse>('GET', `/profile/${encodeURIComponent(username)}`),
+  puzzleAttempt: (id: string, req: PuzzleAttemptRequest) =>
+    call<PuzzleAttemptResponse>('POST', `/puzzles/${encodeURIComponent(id)}/attempt`, req),
+  puzzleMe: () => call<PuzzleMeResponse>('GET', '/puzzles/me'),
 };
 
 /** Full-page URL that starts Google sign-in (login) or links Google to the signed-in account (link). */

@@ -1,5 +1,5 @@
 import type { ClockState } from './clock';
-import type { GameRecord, NewGameOptions } from './types';
+import type { BotEngine, GameRecord, NewGameOptions } from './types';
 
 const CURRENT_KEY = 'rookery.current';
 const HISTORY_KEY = 'rookery.games';
@@ -89,4 +89,27 @@ export function loadEvalBarPref(): boolean | null {
 
 export function saveEvalBarPref(on: boolean): void {
   write(EVAL_BAR_KEY, on);
+}
+
+const BOT_ENGINE_KEY = 'rookery.botEngine';
+const MAIA_ELO_KEY = 'rookery.maiaElo';
+
+/** The bot style this viewer chose last ('stockfish' = Engine, 'maia' = Human-like), if any. */
+export function loadBotEngine(): BotEngine | null {
+  const engine = read<string>(BOT_ENGINE_KEY);
+  return engine === 'stockfish' || engine === 'maia' ? engine : null;
+}
+
+export function saveBotEngine(engine: BotEngine): void {
+  write(BOT_ENGINE_KEY, engine);
+}
+
+/** The human-like bot level this viewer chose last, if any (kept apart from the engine bot's level). */
+export function loadMaiaElo(): number | null {
+  const elo = read<number>(MAIA_ELO_KEY);
+  return typeof elo === 'number' && Number.isFinite(elo) ? elo : null;
+}
+
+export function saveMaiaElo(elo: number): void {
+  write(MAIA_ELO_KEY, elo);
 }

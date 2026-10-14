@@ -37,3 +37,8 @@ server/generated
 
 # Secrets (Google OAuth keys): never commit
 .env
+
+# Maia (human-like bots): model downloaded and ORT runtime copied by scripts/fetch-maia.mjs (46 MB; LICENSE-NOTE.md is committed)
+public/maia/*.onnx
+public/maia/*.part
+public/ort/*

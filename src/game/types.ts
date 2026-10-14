@@ -4,7 +4,16 @@ export type { GameReview };
 
 export type Color = 'w' | 'b';
 
-export type PlayerInfo = { name: string; isBot: boolean; elo?: number };
+export type PlayerInfo = {
+  name: string;
+  isBot: boolean;
+  elo?: number;
+  /** Which program plays a bot side. Absent = 'stockfish' (games saved before Maia have no field). */
+  engine?: BotEngine;
+};
+
+/** 'stockfish' = the engine bot (BOT_LEVELS), 'maia' = the human-like bot (MAIA.levels). */
+export type BotEngine = 'stockfish' | 'maia';
 
 export type GameResult = '1-0' | '0-1' | '1/2-1/2' | '*';
 
@@ -46,4 +55,6 @@ export type NewGameOptions = {
   botElo?: number;
   /** Phase 5: start the game as rated (only offered when signed in, against a bot, with a clock). */
   rated?: boolean;
+  /** Bot style; absent = 'stockfish'. With 'maia', botElo is a MAIA.levels level. */
+  botEngine?: BotEngine;
 };

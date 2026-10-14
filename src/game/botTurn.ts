@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { levelFor } from '../bots/botLevels';
 import { chooseMove, thinkTime } from '../bots/botPlayer';
+import { chooseMaiaMove, maiaThinkTime } from '../bots/maiaPlayer';
 import { getEngine } from '../engine/EngineService';
 import type { Engine } from '../engine/types';
+import { getMaia } from '../maia/MaiaService';
 import { useGameStore } from './gameStore';
 import { botColor, plyKey, replay } from './rules';
 import type { GameRecord } from './types';
@@ -16,7 +18,13 @@ export type BotStatus = {
 
 export const useBotStatus = create<BotStatus>(() => ({ thinking: false, error: null }));
 
-type Job = { key: string; cancelled: boolean; timer?: ReturnType<typeof setTimeout> };
+type Job = {
+  key: string;
+  cancelled: boolean;
+  timer?: ReturnType<typeof setTimeout>;
+  /** A human-like (Maia) bot's turn: Stockfish is not involved, so cancelling must not stop it. */
+  maia?: boolean;
+};
 
 // One runner for the app: the engine is single, so two runners would fight over it.
 let job: Job | null = null;
@@ -35,9 +43,10 @@ function cancel(): void {
   if (!job) return;
   job.cancelled = true;
   if (job.timer) clearTimeout(job.timer);
+  const wasMaia = job.maia === true;
   job = null;
   // Ends the search early; its result is dropped because the job is cancelled.
-  engine?.stop();
+  if (!wasMaia) engine?.stop();
   useBotStatus.setState({ thinking: false });
 }
 
@@ -47,21 +56,37 @@ function wait(current: Job, ms: number): Promise<void> {
   });
 }
 
+/** The Stockfish bot's move and think time (the BOT_LEVELS bots). Null when the job was cancelled. */
+async function engineMove(current: Job, record: GameRecord, elo: number): Promise<{ uci: string; think: number } | null> {
+  const level = levelFor(elo);
+  // getEngine may throw synchronously (stub) or reject; both land in run's catch.
+  const e = await Promise.resolve().then(getEngine);
+  if (current.cancelled) return null;
+  engine = e;
+  // The bot has priority over the live eval bar: end any analysis still running first.
+  e.stop();
+  const uci = await chooseMove(e, replay(record).fen(), level);
+  if (current.cancelled) return null;
+  return { uci, think: thinkTime(level) };
+}
+
+/** The human-like bot's move (MAIA levels); the first call may download the model. */
+async function maiaMove(current: Job, record: GameRecord, elo: number): Promise<{ uci: string; think: number } | null> {
+  const uci = await chooseMaiaMove(getMaia(), replay(record).fen(), elo);
+  if (current.cancelled) return null;
+  return { uci, think: maiaThinkTime() };
+}
+
 async function run(current: Job, record: GameRecord): Promise<void> {
   const started = Date.now();
-  const elo = record[botColor(record) === 'w' ? 'white' : 'black'].elo ?? 0;
-  const level = levelFor(elo);
+  const player = record[botColor(record) === 'w' ? 'white' : 'black'];
+  const elo = player.elo ?? 0;
   try {
-    // getEngine may throw synchronously (stub) or reject; both land in the catch.
-    const e = await Promise.resolve().then(getEngine);
-    if (current.cancelled) return;
-    engine = e;
-    // The bot has priority over the live eval bar: end any analysis still running first.
-    e.stop();
-    const uci = await chooseMove(e, replay(record).fen(), level);
-    if (current.cancelled) return;
+    const choice = current.maia ? await maiaMove(current, record, elo) : await engineMove(current, record, elo);
+    if (!choice) return;
+    const { uci } = choice;
     // A human-feeling pace: the search time counts towards the think time.
-    await wait(current, Math.max(0, thinkTime(level) - (Date.now() - started)));
+    await wait(current, Math.max(0, choice.think - (Date.now() - started)));
     if (current.cancelled || plyKey(useGameStore.getState().record) !== current.key) return;
 
     // Clear the job before moving: move() notifies subscribers, and the next turn must start fresh.
@@ -93,7 +118,9 @@ function sync(): void {
   }
   if (!key || failedKey === key) return;
 
-  const current: Job = { key, cancelled: false };
+  const bot = botColor(record);
+  const maia = bot !== null && record[bot === 'w' ? 'white' : 'black'].engine === 'maia';
+  const current: Job = maia ? { key, cancelled: false, maia } : { key, cancelled: false };
   job = current;
   useBotStatus.setState({ thinking: true, error: null });
   void run(current, record);

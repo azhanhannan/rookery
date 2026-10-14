@@ -73,7 +73,7 @@ async function saveNew(
         WHERE "userId" = ${userId} AND "category" = ${category} FOR UPDATE`;
 
       const bot = userColor === 'w' ? record.black : record.white;
-      // ratingIneligibleReason has checked the bot's elo is a BOT_LEVELS level.
+      // ratingIneligibleReason has checked the bot's elo is a BOT_LEVELS (or, for Maia, a MAIA.levels) level.
       const after = rateGame(before, { rating: bot.elo!, rd: RATINGS.botRd }, scoreFor(record.result, userColor));
       await tx.rating.update({
         where: { userId_category: { userId, category } },

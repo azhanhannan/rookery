@@ -18,11 +18,12 @@ model User {
   passwordHash String?
   createdAt    DateTime @default(now())
 
-  sessions      Session[]
-  oauthAccounts OAuthAccount[]
-  games         Game[]
-  ratings       Rating[]
-  ratingEvents  RatingEvent[]
+  sessions       Session[]
+  oauthAccounts  OAuthAccount[]
+  games          Game[]
+  ratings        Rating[]
+  ratingEvents   RatingEvent[]
+  puzzleAttempts PuzzleAttempt[]
 }
 
 /// A sign-in provider identity (Google) linked to a user. Linked only by signing in with it,
@@ -106,4 +107,21 @@ model RatingEvent {
   createdAt    DateTime @default(now())
 
   @@index([userId, category, createdAt])
+}
+
+/// A player's FIRST attempt at a puzzle: the only one that moves their puzzle rating (the Rating row
+/// with category 'puzzle'). Later attempts at the same puzzle are not stored.
+model PuzzleAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Lichess puzzle id (public/puzzles/puzzles.json).
+  puzzleId     String
+  solved       Boolean
+  ratingBefore Float
+  ratingAfter  Float
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, puzzleId])
+  @@index([userId, createdAt])
 }

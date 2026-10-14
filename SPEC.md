@@ -303,7 +303,7 @@ Stockfish is GPL-3.0 and the MVP sends it to players' browsers, which counts as 
 - [ ] Keep Stockfish as a separate worker file that the app talks to through UCI messages, not merged into the app bundle
 - [ ] List all other open-source libraries and their licenses on the Credits page
 - [ ] Use an original name, logo and design; don't copy Chess.com's branding, bot characters or text
-- [ ] Check the Maia license before adding it
+- [x] Check the Maia license before adding it *(Maia-3 is AGPL-3.0: shipped unmodified as a separate worker + model file, credited on About with its licence text. Get a qualified review before a public or paid launch; Maia-2 is the MIT fallback.)*
 
 This is a practical checklist, not legal advice. Have someone qualified review it before charging money for the app.
 

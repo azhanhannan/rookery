@@ -14,6 +14,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | 3 | Game Review | Done |
 | 4 | Estimated rating | Partly done: estimate works on the placeholder curve; calibration not run |
 | 5 | Accounts and ratings | Done (accounts, saved games, Glicko-2, profile graph); online play and server-side review not built |
+| Later | Google sign-in, human-like Maia bots, puzzles | Done |
 
 ## Run
 
@@ -104,3 +105,32 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
   Older local games can be uploaded from My games (always unrated).
 - Known gaps: a review run later on an older game (not the current one) isn't re-uploaded automatically;
   saved games keep "You" as the player name; online play (WebSockets) and native-Stockfish server review are not built.
+
+## Human-like bots (Maia)
+
+- New game → Bot → Style **Human-like** plays [Maia-3](https://github.com/CSSLab/maia3) (CSSLab, AGPL-3.0) at
+  levels 600–2600 (step 200, `MAIA` in `src/config/tunables.ts`). It predicts the move a Lichess player of that
+  rating would play against an equal opponent; the bot samples from that prediction (temperature 1, top-p 0.95), so
+  it plays human openings and makes human mistakes. **Engine** is the Stockfish bot, unchanged.
+- Files: `npm run dev`/`build` run `scripts/fetch-maia.mjs`, which downloads `public/maia/maia3_simplified.onnx`
+  (46 MB, sha256-checked; `MAIA_MODEL_PATH=<file>` uses a local copy) and copies the onnxruntime-web runtime into
+  `public/ort/`. Both are gitignored. Offline, it only warns and the human-like bot is unavailable
+  (the dialog offers "Use the engine bot instead"). Licence and citation: `public/maia/LICENSE-NOTE.md`.
+- Runtime: `src/maia/` — pure encode/decode (`encoding.ts`), a module Web Worker running onnxruntime-web 1.30
+  (WASM, single thread; never in the main bundle), and `getMaia()` (`MaiaService`), the only way in.
+  First use downloads ~60 MB (model + runtime) with a progress bar; then ~1.5 s to start and ~150–250 ms per move.
+- Games against Maia are rated (`ratingIneligibleReason` accepts `engine: 'maia'` at a `MAIA.levels` Elo); the
+  bot's name is "Maia 1200" and "Play again" stays human-like. The style and level are remembered
+  (`rookery.botEngine`, `rookery.maiaElo`).
+- Tests: `tests/unit/maia.test.ts` (encoding, sampling, service queue), `tests/unit/maia.node.test.ts` (the real
+  model in Node; skipped without the file), `tests/e2e/maia.spec.ts`.
+
+## Puzzles
+
+- 2,880 puzzles sampled from the Lichess puzzle database (CC0), 120 per 100-point band from 400 to 3000,
+  well-played ones only (popularity, play count, rating deviation; see `PUZZLES` in tunables). Rebuild with
+  `node scripts/build-puzzles.mjs` (downloads ~307 MB, streams it; `--cached` reuses `.data/`). Output:
+  `public/puzzles/puzzles.json` (556 KB, 149 KB gzipped), fetched on the Puzzles page, not bundled.
+- Puzzle rating: Glicko-2, each puzzle a fixed opponent at its Lichess rating. Only the first attempt at a
+  puzzle counts; hints and "Show solution" count as a miss. Signed in it's stored on the server (Rating row
+  `puzzle`, `PuzzleAttempt` table; the server looks up the puzzle's rating itself); signed out, in localStorage.

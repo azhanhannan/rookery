@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
 import { describeRatingChange, useSyncStore } from '../account/syncStore';
 import { levelLabel, suggestNextLevel } from '../bots/botLevels';
+import { maiaBotName, suggestNextMaiaLevel } from '../bots/maiaLevels';
 import { Board } from '../components/Board';
 import { EvalBar } from '../components/EvalBar';
 import { MoveList } from '../components/MoveList';
@@ -11,8 +12,8 @@ import { retryBotMove, startBotTurns, useBotStatus } from '../game/botTurn';
 import { useGameStore } from '../game/gameStore';
 import { botColor, describeEnd, replay } from '../game/rules';
 import { setMuted } from '../game/sound';
-import { loadEvalBarPref, saveBotElo, saveEvalBarPref } from '../game/storage';
-import type { GameRecord } from '../game/types';
+import { loadEvalBarPref, saveBotElo, saveEvalBarPref, saveMaiaElo } from '../game/storage';
+import type { GameRecord, NewGameOptions } from '../game/types';
 import { useLiveEval } from './useLiveEval';
 
 const MUTE_KEY = 'rookery.muted';
@@ -49,6 +50,18 @@ function downloadPgn(pgn: string, id: string) {
   a.download = `rookery-${id.slice(0, 8)}.pgn`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+type NextBot = { elo: number; name: string; label: string; engine: NewGameOptions['botEngine'] };
+
+/** The "Play again" suggestion, in the same style (engine or human-like) as the bot just played. */
+function nextBot(botElo: number, outcome: 'win' | 'loss' | 'draw', maia: boolean): NextBot {
+  if (maia) {
+    const elo = suggestNextMaiaLevel(botElo, outcome);
+    return { elo, name: maiaBotName(elo), label: String(elo), engine: 'maia' };
+  }
+  const level = suggestNextLevel(botElo, outcome);
+  return { elo: level.elo, name: `Bot ${levelLabel(level)}`, label: levelLabel(level), engine: undefined };
 }
 
 export function PlayPage() {
@@ -100,8 +113,9 @@ export function PlayPage() {
   const evalOn = evalPref ?? bot !== null;
   const liveEval = useLiveEval(record, viewPly, evalOn);
   const outcome = humanOutcome(record);
-  const botElo = bot ? record[bot === 'w' ? 'white' : 'black'].elo : undefined;
-  const next = outcome && botElo !== undefined ? suggestNextLevel(botElo, outcome) : null;
+  const botInfo = bot ? record[bot === 'w' ? 'white' : 'black'] : null;
+  const botElo = botInfo?.elo;
+  const next = outcome && botElo !== undefined ? nextBot(botElo, outcome, botInfo?.engine === 'maia') : null;
 
   const ended = describeEnd(record);
   const turn = replay(record).turn();
@@ -188,16 +202,17 @@ export function PlayPage() {
           <div data-testid="next-level" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface p-3">
             <span className="text-sm">
               {outcome === 'win' ? 'Nice win. ' : outcome === 'loss' ? '' : 'A draw. '}
-              Suggested next: <strong>Bot {levelLabel(next)}</strong>
+              Suggested next: <strong>{next.name}</strong>
             </span>
             <button
               className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink"
               onClick={() => {
-                saveBotElo(next.elo);
-                newGame({ ...setup, opponent: 'bot', botElo: next.elo });
+                if (next.engine === 'maia') saveMaiaElo(next.elo);
+                else saveBotElo(next.elo);
+                newGame({ ...setup, opponent: 'bot', botElo: next.elo, botEngine: next.engine });
               }}
             >
-              Play again at {levelLabel(next)}
+              Play again at {next.label}
             </button>
           </div>
         )}

@@ -115,3 +115,50 @@ export const RATINGS = {
   /** Failed logins allowed per username+IP per window before 429. */
   loginAttempts: { max: 10, windowMs: 15 * 60_000 },
 };
+
+/** Puzzles (not in the SPEC; added after Phase 5). Data from the Lichess puzzle database (CC0). */
+export const PUZZLES = {
+  /** scripts/build-puzzles.mjs sampling: this many puzzles per 100-point rating bucket. */
+  perBucket: 120,
+  minRating: 400,
+  maxRating: 3000,
+  /** Only well-tested puzzles: Lichess popularity (-100..100), play count and rating deviation. */
+  minPopularity: 85,
+  minPlays: 500,
+  maxRd: 85,
+  /** Next puzzle: rated within ±window of the player, widening ×2 until one is found. */
+  window: 100,
+  /** Don't repeat any of the last this-many puzzles. */
+  recentLimit: 300,
+  /** A puzzle is a fixed opponent at its rating with this RD (Glicko-2, same start as RATINGS.start). */
+  puzzleRd: 75,
+  /** Delay before the opponent's move is played, ms. */
+  opponentDelayMs: 500,
+};
+
+/**
+ * Human-like bots: Maia-3 (SPEC Feature 2 "Later — Maia bots"). The model predicts the move a player of a given
+ * Lichess rating would play; the bot samples from that prediction. Files come from scripts/fetch-maia.mjs.
+ */
+export const MAIA = {
+  /** Levels offered in the bot picker; the model was trained on ratings 600-2600. Also the rated-game whitelist. */
+  levels: [600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600],
+  /** First pick for a new viewer. */
+  defaultElo: 1200,
+  /**
+   * Sampling: logits are divided by this before the softmax. 1 = sample the policy as-is (human-like),
+   * lower = more often the top move, 0 = always the top move.
+   */
+  temperature: 1.0,
+  /** Nucleus cut: sample only from the most likely moves that together reach this probability (1 = no cut). */
+  topP: 0.95,
+  /** The bot's think time, ms (the inference time counts towards it). */
+  thinkMs: [800, 2500] as [number, number],
+  modelUrl: '/maia/maia3_simplified.onnx',
+  /** Exact sizes, for the download progress (servers may compress, so Content-Length is not used). */
+  modelBytes: 45_683_686,
+  /** onnxruntime-web 1.30.0 runtime, copied to public/ort by scripts/fetch-maia.mjs. */
+  ortWasmUrl: '/ort/ort-wasm-simd-threaded.wasm',
+  ortWasmBytes: 14_239_897,
+  ortBaseUrl: '/ort/',
+};

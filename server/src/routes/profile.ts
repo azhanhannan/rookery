@@ -4,6 +4,7 @@ import type { ProfileResponse, RatingCategory, RatingRow } from '../../../src/ap
 import { isProvisional } from '../../../src/rating/glicko';
 import { toPublicUser } from '../auth/session';
 import type { Db } from '../db';
+import { PUZZLE_CATEGORY, puzzleRatingRow } from './puzzles';
 
 /** Categories in the order RATINGS lists them (fastest first). */
 const CATEGORY_ORDER: readonly string[] = RATINGS.categories.map((c) => c.id);
@@ -18,8 +19,9 @@ export async function profileRoutes(app: FastifyInstance, { db }: { db: Db }) {
     });
     if (!user) return reply.code(404).send({ error: `No player called "${username}".` });
 
-    const [ratings, events, games, rated] = await Promise.all([
-      db.rating.findMany({ where: { userId: user.id } }),
+    const [ratings, events, games, rated, puzzle] = await Promise.all([
+      // The puzzle rating lives in Rating too, but it is not a game rating.
+      db.rating.findMany({ where: { userId: user.id, category: { not: PUZZLE_CATEGORY } } }),
       db.ratingEvent.findMany({
         where: { userId: user.id },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -27,6 +29,7 @@ export async function profileRoutes(app: FastifyInstance, { db }: { db: Db }) {
       }),
       db.game.count({ where: { userId: user.id } }),
       db.game.count({ where: { userId: user.id, rated: true } }),
+      puzzleRatingRow(db, user.id),
     ]);
 
     const rows: RatingRow[] = ratings
@@ -48,6 +51,7 @@ export async function profileRoutes(app: FastifyInstance, { db }: { db: Db }) {
         gameClientId: e.game.clientId,
       })),
       counts: { games, rated },
+      puzzle,
     } satisfies ProfileResponse);
   });
 }

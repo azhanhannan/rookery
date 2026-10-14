@@ -12,6 +12,8 @@ import { PlayPage } from './PlayPage';
 // The review screen (and Recharts) loads on first visit, keeping the play page's bundle small.
 const ReviewPage = lazy(() => import('./ReviewPage').then((m) => ({ default: m.ReviewPage })));
 // The profile's rating graph uses Recharts too.
+// Puzzles fetch their data at runtime; the page itself is small but kept out of the main bundle too.
+const PuzzlesPage = lazy(() => import('./PuzzlesPage').then((m) => ({ default: m.PuzzlesPage })));
 const ProfilePage = lazy(() => import('./ProfilePage').then((m) => ({ default: m.ProfilePage })));
 
 const LoginPage = () => <AuthPage mode="login" />;
@@ -60,7 +62,8 @@ export default function App() {
   const gameId = review ? decodeURIComponent(hash.slice('#/review/'.length)) || undefined : undefined;
   // `#/profile/<username>` likewise.
   const profileName = hash.startsWith('#/profile/') ? decodeURIComponent(hash.slice('#/profile/'.length)) : null;
-  const Page = review || profileName ? null : (ROUTES[hash] ?? PlayPage);
+  const puzzles = hash === '#/puzzles';
+  const Page = review || profileName || puzzles ? null : (ROUTES[hash] ?? PlayPage);
 
   return (
     <div className="min-h-screen">
@@ -71,16 +74,21 @@ export default function App() {
           </a>
           <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
           <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
-          <a href="#/import" className={`text-sm ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
+          <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
+          <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
           <span className="ml-auto" />
           <AccountNav />
-          {/* Phones: About moves to the footer so the header stays on one line. */}
+          {/* Phones: Import and About move to the footer so the header stays on one line. */}
           <a href="#/about" className={`hidden text-sm sm:inline ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
         </nav>
       </header>
       <main>
         {Page ? (
           <Page />
+        ) : puzzles ? (
+          <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading puzzles…</p>}>
+            <PuzzlesPage />
+          </Suspense>
         ) : profileName ? (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading profile…</p>}>
             <ProfilePage key={hash} username={profileName} />
@@ -92,6 +100,8 @@ export default function App() {
         )}
       </main>
       <footer className="px-4 py-6 text-center sm:hidden">
+        <a href="#/import" className="text-sm text-muted hover:text-ink">Import PGN</a>
+        <span className="mx-2 text-muted">·</span>
         <a href="#/about" className="text-sm text-muted hover:text-ink">About {APP_NAME}</a>
       </footer>
     </div>

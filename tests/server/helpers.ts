@@ -16,7 +16,7 @@ export function useServer(opts: { google?: OAuthProvider } = {}): { app: () => F
   beforeEach(async () => {
     if (!db) db = createDb(inject('databaseUrl'));
     if (!app) app = await buildApp({ db, google: opts.google ?? null });
-    await db.$executeRawUnsafe('TRUNCATE "RatingEvent", "Rating", "Game", "Session", "OAuthAccount", "User" CASCADE');
+    await db.$executeRawUnsafe('TRUNCATE "PuzzleAttempt", "RatingEvent", "Rating", "Game", "Session", "OAuthAccount", "User" CASCADE');
   });
 
   afterAll(async () => {

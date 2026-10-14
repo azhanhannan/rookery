@@ -26,6 +26,7 @@ const isResult = (v: unknown): v is GameResult => RESULTS.includes(v as GameResu
 
 function isPlayer(v: unknown): v is PlayerInfo {
   if (!isObj(v) || !isStr(v.name, MAX_NAME) || typeof v.isBot !== 'boolean') return false;
+  if (v.engine !== undefined && v.engine !== 'stockfish' && v.engine !== 'maia') return false;
   return v.elo === undefined || (typeof v.elo === 'number' && Number.isFinite(v.elo));
 }
 

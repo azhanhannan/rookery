@@ -92,6 +92,24 @@ export type GameResponse = { game: GameSummary; record: GameRecord };
 
 export type RatingPoint = { category: RatingCategory; rating: number; at: string; gameClientId: string };
 
+// Puzzles. Only the FIRST attempt at each puzzle changes the puzzle rating (stored as a Rating row
+// with category 'puzzle'); the server looks the puzzle's rating up itself, it never trusts the client's.
+export type PuzzleRatingRow = { rating: number; rd: number; attempts: number; solved: number; provisional: boolean };
+// POST /api/puzzles/:id/attempt
+export type PuzzleAttemptRequest = {
+  /** Solved without help. Using a hint or "show solution" counts as not solved. */
+  solved: boolean;
+};
+export type PuzzleAttemptResponse = {
+  /** False when this player had tried the puzzle before: nothing changed. */
+  firstAttempt: boolean;
+  /** Present on a first attempt. */
+  rating?: { before: number; after: number; delta: number; provisional: boolean };
+};
+// GET /api/puzzles/me -> the signed-in player's puzzle rating (null before the first attempt)
+// and the ids they've already tried (newest first, up to PUZZLES.recentLimit), to avoid repeats.
+export type PuzzleMeResponse = { rating: PuzzleRatingRow | null; triedIds: string[] };
+
 // GET /api/profile/:username -> public profile (no games, no PGNs).
 export type ProfileResponse = {
   user: PublicUser;
@@ -99,4 +117,6 @@ export type ProfileResponse = {
   /** Oldest first, every rated game. */
   history: RatingPoint[];
   counts: { games: number; rated: number };
+  /** Puzzle rating, when the player has tried any puzzle. */
+  puzzle: PuzzleRatingRow | null;
 };

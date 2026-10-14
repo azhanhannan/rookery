@@ -1,7 +1,7 @@
 // Glicko-2 for player ratings (SPEC Feature 5). Pure: used by the server, testable without it.
 // The math is the `glicko2` package's; this file only decides what is rated and feeds it one game at a time.
 import { Glicko2 } from 'glicko2';
-import { BOT_LEVELS, RATINGS } from '../config/tunables';
+import { BOT_LEVELS, MAIA, RATINGS } from '../config/tunables';
 import type { RatingCategory } from '../api/types';
 import type { Color, GameRecord } from '../game/types';
 import { START_FEN } from '../game/rules';
@@ -44,6 +44,14 @@ export function ratedCategoryFor(timeControl: string | undefined): RatingCategor
 /** Placement, side to move, castling and en passant: a start position with other move counters is still standard. */
 const fenKey = (fen: string) => fen.trim().split(/\s+/).slice(0, 4).join(' ');
 
+/** The bot side is a level the app offers: a BOT_LEVELS level for the engine bot, a MAIA level for the human-like one. */
+function isKnownBotLevel(bot: GameRecord['white']): boolean {
+  if (bot.elo === undefined) return false;
+  if (bot.engine === 'maia') return MAIA.levels.includes(bot.elo);
+  if (bot.engine !== undefined && bot.engine !== 'stockfish') return false;
+  return BOT_LEVELS.some((l) => l.elo === bot.elo);
+}
+
 /** Why `record` can't be rated for the player on `userColor`, or null when it can. Player-readable. */
 export function ratingIneligibleReason(record: GameRecord, userColor: Color | null): string | null {
   if (!userColor) return 'Games between two people at one screen are not rated';
@@ -51,8 +59,7 @@ export function ratingIneligibleReason(record: GameRecord, userColor: Color | nu
   const user = userColor === 'w' ? record.white : record.black;
   const opponent = userColor === 'w' ? record.black : record.white;
   if (!opponent.isBot) return 'Only games against a bot are rated for now';
-  if (opponent.elo === undefined || !BOT_LEVELS.some((l) => l.elo === opponent.elo))
-    return 'Games against an unknown bot level are not rated';
+  if (!isKnownBotLevel(opponent)) return 'Games against an unknown bot level are not rated';
   if (user.isBot) return "Your side was played by a bot, so it can't be rated";
   if (fenKey(record.startFen) !== fenKey(START_FEN)) return 'Games from a custom position are not rated';
   if (record.result === '*') return 'Unfinished games are not rated';

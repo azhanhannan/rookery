@@ -41,7 +41,7 @@ export function ProfilePage({ username }: { username: string }) {
     );
   }
 
-  const { user, ratings, history, counts } = state.profile;
+  const { user, ratings, history, counts, puzzle } = state.profile;
   const rows = [...ratings].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category));
 
   return (
@@ -74,6 +74,25 @@ export function ProfilePage({ username }: { username: string }) {
               </div>
             </li>
           ))}
+        </ul>
+      )}
+
+      {puzzle && (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="puzzle-card">
+          <li className="rounded-lg bg-surface p-3">
+            <div className="text-xs text-muted">Puzzles</div>
+            <div
+              className="text-2xl font-bold tabular-nums"
+              title={puzzle.provisional ? 'Provisional: the rating settles after more puzzles' : undefined}
+            >
+              {puzzle.rating}
+              {puzzle.provisional && <span className="text-muted">?</span>}
+            </div>
+            <div className="text-xs text-muted">
+              {puzzle.attempts} tried
+              {puzzle.attempts > 0 && `, ${Math.round((100 * puzzle.solved) / puzzle.attempts)}% solved`}
+            </div>
+          </li>
         </ul>
       )}
 

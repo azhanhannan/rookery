@@ -87,6 +87,9 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
   npm), so nothing needs installing; tests and e2e use their own throwaway instances (ports 54321, 54322).
 - Accounts: username + password (no email). Passwords hashed with Node's scrypt; sessions are random
   tokens in an httpOnly SameSite=Lax cookie, stored only as a sha256 hash, 30 days. Failed logins are throttled per username+IP.
+- Google sign-in: put a Google OAuth client's keys in `.env` (see `.env.example`; redirect URI
+  `http://localhost:5173/api/auth/google/callback`). Without keys the button is hidden. A first Google
+  sign-in creates a passwordless account; Google is linked to an existing account only from Settings while signed in.
 - The SPEC's three rating rules, all switchable in `RATINGS` (`src/config/tunables.ts`):
   1. Bot games are rated (the only rated games until online play exists). A bot is a fixed opponent at its
      level's Elo with RD 50; its rating never moves.

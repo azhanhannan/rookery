@@ -1,3 +1,4 @@
+import type { MaiaMatch } from '../rating/maiaMatch';
 import type { GameReview } from '../review/types';
 
 export type { GameReview };
@@ -37,6 +38,8 @@ export type GameRecord = {
   /** Time control as "base+increment" in seconds, e.g. "180+2". Absent = unlimited. */
   timeControl?: string;
   review?: GameReview;
+  /** Rating estimated from playing style (Maia matching); independent of the Stockfish review. */
+  maiaMatch?: MaiaMatch;
   /** The player asked for a rated game when starting it (Phase 5). The server decides whether it qualifies. */
   rated?: boolean;
 };

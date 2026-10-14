@@ -6,6 +6,7 @@ import { EvalGraph } from '../components/EvalGraph';
 import { LABEL_STYLE } from '../components/labelStyle';
 import { MoveBadge } from '../components/MoveBadge';
 import { ReviewMoveList } from '../components/ReviewMoveList';
+import { MaiaMatchPanel } from '../components/MaiaMatchPanel';
 import { ReviewSummary } from '../components/ReviewSummary';
 import type { Orientation } from '../game/gameStore';
 import { botColor, tryLegalMove, type MoveInput } from '../game/rules';
@@ -19,7 +20,9 @@ import {
   moveNumber,
   retryCandidates,
 } from '../review/reviewView';
+import type { MaiaMatch } from '../rating/maiaMatch';
 import type { GameReview, MoveReview } from '../review/types';
+import { useMaiaMatchRun } from './useMaiaMatchRun';
 
 type Mode =
   | { kind: 'game' }
@@ -58,7 +61,19 @@ function NameBar({ color, record }: { color: Color; record: GameRecord }) {
 }
 
 /** Board, eval bar, graph, move list, per-move explanation, best line, Retry and the summary for one reviewed game. */
-export function ReviewScreen({ record, review, header }: { record: GameRecord; review: GameReview; header?: ReactNode }) {
+export function ReviewScreen({
+  record,
+  review,
+  header,
+  onMaiaMatch,
+}: {
+  record: GameRecord;
+  review: GameReview;
+  header?: ReactNode;
+  /** Stores a finished style match; without it the panel is hidden. */
+  onMaiaMatch?: (match: MaiaMatch) => void;
+}) {
+  const maiaRun = useMaiaMatchRun(record, (m) => onMaiaMatch?.(m));
   const bot = botColor(record);
   const [orientation, setOrientation] = useState<Orientation>(bot === 'w' ? 'black' : 'white');
   const [ply, setPly] = useState(0);
@@ -357,7 +372,14 @@ export function ReviewScreen({ record, review, header }: { record: GameRecord; r
           }}
         />
 
-        <ReviewSummary white={record.white} black={record.black} whiteSummary={review.white} blackSummary={review.black} />
+        <ReviewSummary
+          white={record.white}
+          black={record.black}
+          whiteSummary={review.white}
+          blackSummary={review.black}
+          maiaMatch={record.maiaMatch}
+        />
+        {onMaiaMatch && <MaiaMatchPanel record={record} run={maiaRun} />}
       </aside>
     </div>
   );

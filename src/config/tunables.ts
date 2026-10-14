@@ -137,6 +137,22 @@ export const PUZZLES = {
 };
 
 /**
+ * Maia matching (SPEC Feature 4, "Maia matching"): the rating whose Maia-3 model was likeliest to play the player's
+ * moves. Uses RATING.minMoves / RATING.shortGameMoves for "not enough moves" and the wider range.
+ */
+export const MAIA_MATCH = {
+  /** First pass: every position at each of these ratings. */
+  coarse: [600, 1000, 1400, 1800, 2200, 2600],
+  /** Second pass: the best coarse rating's neighbours at this distance (inside the model's 600-2600). */
+  refineStep: 200,
+  /** Probability floor for a move the model gives ~0, so one odd move can't dominate the sum. */
+  minProb: 1e-6,
+  /** Half-width of the shown range; a guess until calibrated (Maia self-play games came out within ~400). */
+  range: 300,
+  shortGameRange: 400,
+};
+
+/**
  * Human-like bots: Maia-3 (SPEC Feature 2 "Later — Maia bots"). The model predicts the move a player of a given
  * Lichess rating would play; the bot samples from that prediction. Files come from scripts/fetch-maia.mjs.
  */

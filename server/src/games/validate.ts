@@ -47,6 +47,7 @@ function shapeError(r: Obj): string | null {
   if (typeof r.createdAt !== 'string') return 'The game has no date.';
   if (!optStr(r.timeControl, 20)) return 'The game has a malformed time control.';
   if (r.review !== undefined && !isObj(r.review)) return 'The game has a malformed review.';
+  if (r.maiaMatch !== undefined && !isObj(r.maiaMatch)) return 'The game has a malformed style match.';
   if (r.rated !== undefined && typeof r.rated !== 'boolean') return 'The game has a malformed rated flag.';
   return null;
 }

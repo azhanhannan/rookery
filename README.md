@@ -14,7 +14,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | 3 | Game Review | Done |
 | 4 | Estimated rating | Partly done: estimate works on the placeholder curve; calibration not run |
 | 5 | Accounts and ratings | Done (accounts, saved games, Glicko-2, profile graph); online play and server-side review not built |
-| Later | Google sign-in, human-like Maia bots, puzzles | Done |
+| Later | Google sign-in, human-like Maia bots, puzzles, Maia matching (style rating) | Done |
 
 ## Run
 
@@ -124,6 +124,20 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
   (`rookery.botEngine`, `rookery.maiaElo`).
 - Tests: `tests/unit/maia.test.ts` (encoding, sampling, service queue), `tests/unit/maia.node.test.ts` (the real
   model in Node; skipped without the file), `tests/e2e/maia.spec.ts`.
+
+## Maia matching (style rating)
+
+- On the review screen, **Estimate from playing style** (opt-in; the result is stored on the game as `maiaMatch`
+  and uploaded with it). For each person in the game (a bot side is skipped), every non-forced move is scored by how
+  likely Maia-3 was to play it at ratings 600, 1000 … 2600, then at ±200 around the best; the peak of a parabola
+  through the best three is the estimate. Shown as "Style rating" in the summary card, with the share of moves that
+  were Maia's top pick. Numbers in `MAIA_MATCH` (`src/config/tunables.ts`); code in `src/rating/maiaMatch.ts`.
+- Cost: about 8 model calls per move, so roughly a minute for a 30-move side in the browser.
+- Maia is asked about a game between equals (the opponent's strength is set to the same rating).
+- **Not calibrated.** The range (±300, ±400 under 20 moves) is a guess. The only check so far is Maia self-play
+  (`tests/match/maiaMatch.test.ts`, in `npm run test:bots`): sides at 800 and 2200 come out within 400 and in the
+  right order. That is the easy case; accuracy on people needs the Phase 4 Lichess games.
+- Tests: `tests/unit/maiaMatch.test.ts` (fake model), `tests/e2e/maiaMatch.spec.ts` (real model).
 
 ## Puzzles
 

@@ -1,5 +1,6 @@
 import type { PlayerInfo } from '../game/types';
 import { estimateRating } from '../rating/estimateRating';
+import type { MaiaMatch, MaiaMatchPlayer } from '../rating/maiaMatch';
 import { MOVE_LABELS, type PlayerSummary } from '../review/types';
 import { MoveBadge } from './MoveBadge';
 
@@ -23,7 +24,41 @@ function EstimatedRating({ summary }: { summary: PlayerSummary }) {
   );
 }
 
-function PlayerCard({ side, player, summary }: { side: 'White' | 'Black'; player: PlayerInfo; summary: PlayerSummary }) {
+function StyleMatch({ match }: { match: MaiaMatchPlayer }) {
+  let text: string;
+  if (match.kind === 'not-enough-moves') text = 'Not enough moves';
+  else if (match.edge === 'low') text = `${match.high} or below`;
+  else if (match.edge === 'high') text = `${match.low} or above`;
+  else text = `${match.low}–${match.high}`;
+  return (
+    <div className="flex items-baseline justify-between gap-2 pt-1" data-testid="style-rating">
+      <span className="text-sm text-muted" title="Rating whose Maia model plays most like these moves">Style rating</span>
+      <span className="text-right">
+        <span className={match.kind === 'estimate' ? 'font-mono font-semibold tabular-nums' : 'text-sm text-muted'} data-testid="style-range">
+          {text}
+        </span>
+        {match.kind === 'estimate' && (
+          <span className="block text-[10px] text-muted">
+            {Math.round(match.agreement * 100)}% of {match.moves} moves were Maia's top pick
+            <span className="block">not yet calibrated</span>
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function PlayerCard({
+  side,
+  player,
+  summary,
+  match,
+}: {
+  side: 'White' | 'Black';
+  player: PlayerInfo;
+  summary: PlayerSummary;
+  match?: MaiaMatchPlayer;
+}) {
   return (
     <section className="min-w-0 rounded-lg bg-surface p-3" data-testid={`summary-${side.toLowerCase()}`} aria-label={`${side} summary`}>
       <div className="flex items-baseline justify-between gap-2">
@@ -42,6 +77,7 @@ function PlayerCard({ side, player, summary }: { side: 'White' | 'Black'; player
         </div>
       </div>
       <EstimatedRating summary={summary} />
+      {match && <StyleMatch match={match} />}
       <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
         {MOVE_LABELS.map((label) => (
           <li key={label} className={`flex items-center gap-1.5 ${summary.counts[label] ? '' : 'opacity-45'}`}>
@@ -61,17 +97,19 @@ export function ReviewSummary({
   black,
   whiteSummary,
   blackSummary,
+  maiaMatch,
 }: {
   white: PlayerInfo;
   black: PlayerInfo;
   whiteSummary: PlayerSummary;
   blackSummary: PlayerSummary;
+  maiaMatch?: MaiaMatch;
 }) {
   return (
     // Side by side where the cards get a full-width row (sm to lg); stacked on phones and in the desktop sidebar.
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1" data-testid="review-summary">
-      <PlayerCard side="White" player={white} summary={whiteSummary} />
-      <PlayerCard side="Black" player={black} summary={blackSummary} />
+      <PlayerCard side="White" player={white} summary={whiteSummary} match={maiaMatch?.white} />
+      <PlayerCard side="Black" player={black} summary={blackSummary} match={maiaMatch?.black} />
     </div>
   );
 }

@@ -52,6 +52,7 @@ function GamePicker({ intro }: { intro: string }) {
 
 function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: GameRecord) => void }) {
   const setReview = useGameStore((s) => s.setReview);
+  const setMaiaMatch = useGameStore((s) => s.setMaiaMatch);
   const review = reviewFits(record, record.review) ? record.review : null;
   const [depth, setDepth] = useState<number>(review ? nextDepth(review.depth, REVIEW.depth) : REVIEW.depth.normal);
   const [rerunOpen, setRerunOpen] = useState(false);
@@ -109,7 +110,18 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
   );
 
   // Keyed by the review so a re-run starts the screen fresh on the new labels.
-  return <ReviewScreen key={review.createdAt} record={record} review={review} header={header} />;
+  return (
+    <ReviewScreen
+      key={review.createdAt}
+      record={record}
+      review={review}
+      header={header}
+      onMaiaMatch={(m) => {
+        const saved = setMaiaMatch(record.id, m);
+        if (saved) onSaved(saved);
+      }}
+    />
+  );
 }
 
 /**

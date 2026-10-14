@@ -276,6 +276,8 @@ Possible improvement: fit a small regression using accuracy plus blunder count, 
 
 For each move, ask each Maia model (1100 to 1900) how likely it was to play the move the human played. The rating whose model gives the highest total likelihood across the game is the estimate. This captures playing style, not only mistakes, but needs Maia running in the browser first (see Feature 2).
 
+*Built (2026-10-14) with Maia-3, which takes the rating as an input, so one model covers 600 to 2600: a coarse pass every 400, a refinement at ±200 around the best, and the peak of a parabola through the best three. Opt-in from the review screen; shown as "Style rating", stored on the game. Not calibrated; see README.*
+
 ## Feature 5 (later): Accounts and player ratings
 
 This is the first phase that needs a server; design the MVP so game records and reviews can later be uploaded unchanged.

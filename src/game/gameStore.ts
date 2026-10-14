@@ -17,6 +17,7 @@ import {
 import { playSound } from './sound';
 import { archiveGame, findArchivedGame, loadSession, saveSession, updateArchivedGame } from './storage';
 import type { Color, GameRecord, GameReview, NewGameOptions, PlayerInfo } from './types';
+import type { MaiaMatch } from '../rating/maiaMatch';
 
 export type { SideChoice } from './types';
 export type Orientation = 'white' | 'black';
@@ -46,6 +47,8 @@ type GameState = {
    * Returns the updated record, or null when no such game exists.
    */
   setReview(gameId: string, review: GameReview): GameRecord | null;
+  /** Stores a Maia matching result the same way as `setReview`. */
+  setMaiaMatch(gameId: string, match: MaiaMatch): GameRecord | null;
 };
 
 const DEFAULT_SETUP: NewGameOptions = { side: 'w', timeControlId: 'unlimited', opponent: 'friend' };
@@ -175,22 +178,31 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setReview(gameId, review) {
-    const current = get().record;
-    if (current.id === gameId) {
-      // Only finished games are reviewed (and archived); a game in progress can't hold a review.
-      if (current.result === '*') return null;
-      const next = { ...current, review };
-      set({ record: next });
-      updateArchivedGame(next);
-      return next;
-    }
-    const saved = findArchivedGame(gameId);
-    if (!saved) return null;
-    const next = { ...saved, review };
-    updateArchivedGame(next);
-    return next;
+    return patchFinished(gameId, { review });
+  },
+
+  setMaiaMatch(gameId, maiaMatch) {
+    return patchFinished(gameId, { maiaMatch });
   },
 }));
+
+/** Adds `patch` to a finished game: the current one (session + archive) or a saved one (archive only). */
+function patchFinished(gameId: string, patch: Partial<GameRecord>): GameRecord | null {
+  const current = useGameStore.getState().record;
+  if (current.id === gameId) {
+    // Only finished games are reviewed (and archived); a game in progress can't hold a review.
+    if (current.result === '*') return null;
+    const next = { ...current, ...patch };
+    useGameStore.setState({ record: next });
+    updateArchivedGame(next);
+    return next;
+  }
+  const saved = findArchivedGame(gameId);
+  if (!saved) return null;
+  const next = { ...saved, ...patch };
+  updateArchivedGame(next);
+  return next;
+}
 
 // Persist every change so a refresh never loses a game.
 useGameStore.subscribe((s) => {

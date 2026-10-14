@@ -17,7 +17,8 @@
     "postinstall": "prisma generate",
     "server": "tsx watch server/src/main.ts",
     "server:start": "tsx server/src/main.ts",
-    "test:server": "vitest run -c vitest.server.config.ts"
+    "test:server": "vitest run -c vitest.server.config.ts",
+    "db:studio": "prisma studio --port 5555"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

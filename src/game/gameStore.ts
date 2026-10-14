@@ -61,13 +61,16 @@ function freshState(setup: NewGameOptions) {
   const vsBot = setup.opponent === 'bot';
   const you: PlayerInfo = { name: vsBot ? 'You' : 'Player 1', isBot: false };
   const friend: PlayerInfo = vsBot ? botPlayer(setup.botElo) : { name: 'Player 2', isBot: false };
+  const record = newRecord({
+    white: color === 'w' ? you : friend,
+    black: color === 'w' ? friend : you,
+    timeControl: tc?.id,
+  });
+  // Phase 5: the player asked for a rated bot game; the server decides whether it qualifies.
+  if (setup.rated === true && vsBot) record.rated = true;
   return {
     setup,
-    record: newRecord({
-      white: color === 'w' ? you : friend,
-      black: color === 'w' ? friend : you,
-      timeControl: tc?.id,
-    }),
+    record,
     clock: tc ? newClock(tc) : null,
     orientation: (color === 'w' ? 'white' : 'black') as Orientation,
     viewPly: 0,

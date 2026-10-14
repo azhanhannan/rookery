@@ -13,18 +13,23 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | 2 | Engine and bots | Done |
 | 3 | Game Review | Done |
 | 4 | Estimated rating | Partly done: estimate works on the placeholder curve; calibration not run |
-| 5 | Accounts and ratings | Not started |
+| 5 | Accounts and ratings | Done (accounts, saved games, Glicko-2, profile graph); online play and server-side review not built |
 
 ## Run
 
 ```
 npm install
-npm run dev        # http://localhost:5173
+npm run server     # API on :5181 with an embedded Postgres in .data/pg (first start ~10 s)
+npm run dev        # http://localhost:5173, proxies /api to the server
 npm test           # unit tests (Vitest)
 npm run test:e2e   # end-to-end (Playwright, uses the installed Chrome)
 npm run test:bots  # bot-vs-bot strength matches, ~6 min; scores in test-results/bot-match.txt
+npm run test:server  # API tests against a throwaway embedded Postgres
 npm run build
 ```
+
+The browser app works without the server (play, review, local history); accounts and ratings need it.
+In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:start`.
 
 `SCREENS=1 npx playwright test screens` writes screenshots to `test-results/` for a visual check.
 
@@ -74,3 +79,25 @@ npm run build
 - Still to do: `scripts/calibrate/` (stream a Lichess month, keep rapid/classical games with `[%eval]`, ~1,000
   player-games per 100-point band, median accuracy per band) writes `calibration.json` with `calibrated: true` and
   `typicalError`, which then becomes the range half-width.
+
+## Phase 5 notes
+
+- Server: Fastify 5 + Prisma 7 (`prisma/schema.prisma`) + PostgreSQL, code in `server/`. The JSON contract is
+  `src/api/types.ts`. With no `DATABASE_URL` the server starts `embedded-postgres` (real Postgres binaries from
+  npm), so nothing needs installing; tests and e2e use their own throwaway instances (ports 54321, 54322).
+- Accounts: username + password (no email). Passwords hashed with Node's scrypt; sessions are random
+  tokens in an httpOnly SameSite=Lax cookie, stored only as a sha256 hash, 30 days. Failed logins are throttled per username+IP.
+- The SPEC's three rating rules, all switchable in `RATINGS` (`src/config/tunables.ts`):
+  1. Bot games are rated (the only rated games until online play exists). A bot is a fixed opponent at its
+     level's Elo with RD 50; its rating never moves.
+  2. Separate ratings for bullet / blitz / rapid / classical, by base + 40 x increment seconds. Untimed games are saved but not rated.
+  3. Everyone starts at 1500 / RD 350 / volatility 0.06; no seeding from the first bot games. Shown as "1500?" while RD > 110.
+- Glicko-2 via the `glicko2` package, one game per rating period (checked against Glickman's worked example).
+  The rating is applied once, in the same transaction that stores the game; re-uploading a game (e.g. with its review) never re-rates it.
+- The server replays every move with chess.js and checks the result against checkmate/stalemate, but it
+  cannot know a bot game was really played against the bot: the browser could fake a win. Fine for a
+  personal app; anything competitive needs server-side play.
+- Finished games upload automatically while signed in; failed uploads queue in `rookery.unsynced` and retry.
+  Older local games can be uploaded from My games (always unrated).
+- Known gaps: a review run later on an older game (not the current one) isn't re-uploaded automatically;
+  saved games keep "You" as the player name; online play (WebSockets) and native-Stockfish server review are not built.

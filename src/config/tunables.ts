@@ -79,3 +79,39 @@ export const RATING = {
   /** Lowest rating ever shown. */
   floor: 100,
 };
+
+/**
+ * Accounts and player ratings (SPEC Feature 5). Glicko-2, one rating per time-control category.
+ * The three "rules to decide before building" are answered here so they can be changed:
+ */
+export const RATINGS = {
+  /** Rule 1: games against bots change the rating (the only rated games until online play exists). */
+  botGamesRated: true,
+  /** Rule 2: separate ratings per category. Estimated duration = base + 40 x increment, in seconds (Lichess's formula). */
+  categories: [
+    { id: 'bullet', maxSeconds: 179 },
+    { id: 'blitz', maxSeconds: 479 },
+    { id: 'rapid', maxSeconds: 1499 },
+    { id: 'classical', maxSeconds: Infinity },
+  ] as const,
+  /** Untimed games have no category, so they are saved but never rated. */
+  rateUntimed: false,
+  /** Rule 3: everyone starts at 1500 / 350 / 0.06 (SPEC); first bot games do not seed the rating. */
+  start: { rating: 1500, rd: 350, volatility: 0.06 },
+  /** Glicko-2 system constant (how fast volatility can change); 0.3-1.2 is usual. */
+  tau: 0.5,
+  /** A bot counts as a fixed opponent at its level's Elo with this RD; bots' ratings never move. */
+  botRd: 50,
+  /** Shown as provisional ("1500?") while RD is above this. */
+  provisionalRd: 110,
+  /** Fewer full moves than this: the game is saved but not rated (stops instant-resign farming). */
+  minMovesToRate: 2,
+  /** Games per page in the saved games list. */
+  pageSize: 30,
+  /** Accounts. */
+  usernamePattern: /^[A-Za-z0-9_-]{3,20}$/,
+  minPasswordLength: 8,
+  sessionDays: 30,
+  /** Failed logins allowed per username+IP per window before 429. */
+  loginAttempts: { max: 10, windowMs: 15 * 60_000 },
+};

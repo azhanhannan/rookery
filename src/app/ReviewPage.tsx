@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '../account/authStore';
+import { api, ApiError } from '../api/client';
 import { REVIEW } from '../config/tunables';
 import { ReviewRunPanel } from '../components/ReviewRunPanel';
 import { useGameStore } from '../game/gameStore';
 import { describeEnd } from '../game/rules';
-import { findArchivedGame, loadHistory } from '../game/storage';
+import { findArchivedGame, loadHistory, updateArchivedGame } from '../game/storage';
 import type { GameRecord } from '../game/types';
 import { nextDepth, reviewableGames, reviewFits } from '../review/reviewView';
 import { ReviewScreen } from './ReviewScreen';
@@ -121,7 +123,45 @@ export function ReviewPage({ gameId }: { gameId?: string }) {
     gameId && gameId !== 'games' && gameId !== current.id ? findArchivedGame(gameId) : null,
   );
 
+  const authStatus = useAuthStore((s) => s.status);
+  const wantsServer = !!gameId && gameId !== 'games' && gameId !== current.id && !saved;
+  // Not on this device: a signed-in player's game is fetched from the server and saved locally,
+  // so the review flow below (which reads and writes local storage) works unchanged.
+  const [remote, setRemote] = useState<'idle' | 'loading' | 'missing' | 'failed'>('idle');
+  const [remoteError, setRemoteError] = useState('');
+  useEffect(() => {
+    if (!wantsServer || authStatus !== 'signed-in' || !gameId) return;
+    let live = true;
+    setRemote('loading');
+    api
+      .getGame(gameId)
+      .then(({ record }) => {
+        if (!live) return;
+        updateArchivedGame(record);
+        setSaved(record);
+        setRemote('idle');
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        if (e instanceof ApiError && e.status === 404) setRemote('missing');
+        else {
+          setRemoteError(e instanceof Error ? e.message : String(e));
+          setRemote('failed');
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [wantsServer, authStatus, gameId]);
+
   if (gameId === 'games') return <GamePicker intro="Pick a finished game to review." />;
+
+  if (wantsServer && (authStatus === 'unknown' || (authStatus === 'signed-in' && remote === 'idle') || remote === 'loading')) {
+    return <p className="p-6 text-center text-sm text-muted">Loading game…</p>;
+  }
+  if (wantsServer && remote === 'failed') {
+    return <GamePicker intro={`Couldn't load that game from the server: ${remoteError} Pick a game saved on this device.`} />;
+  }
 
   const record = !gameId || gameId === current.id ? current : saved;
   if (!gameId && current.result === '*') {

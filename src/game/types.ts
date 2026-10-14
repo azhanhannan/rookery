@@ -28,6 +28,8 @@ export type GameRecord = {
   /** Time control as "base+increment" in seconds, e.g. "180+2". Absent = unlimited. */
   timeControl?: string;
   review?: GameReview;
+  /** The player asked for a rated game when starting it (Phase 5). The server decides whether it qualifies. */
+  rated?: boolean;
 };
 
 export type SideChoice = 'w' | 'b' | 'random';
@@ -42,4 +44,6 @@ export type NewGameOptions = {
   opponent?: Opponent;
   /** Bot level (BOT_LEVELS elo); only used when opponent is 'bot'. */
   botElo?: number;
+  /** Phase 5: start the game as rated (only offered when signed in, against a bot, with a clock). */
+  rated?: boolean;
 };

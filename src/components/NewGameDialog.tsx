@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { DEFAULT_BOT_ELO } from '../config/tunables';
-import { TIME_CONTROLS, UNLIMITED } from '../game/clock';
+import { useAuthStore } from '../account/authStore';
+import { DEFAULT_BOT_ELO, RATINGS } from '../config/tunables';
+import { findTimeControl, TIME_CONTROLS, UNLIMITED } from '../game/clock';
 import { useGameStore } from '../game/gameStore';
 import { loadBotElo, saveBotElo } from '../game/storage';
 import type { Opponent, SideChoice } from '../game/types';
@@ -12,6 +13,14 @@ const SIDES: { id: SideChoice; label: string }[] = [
   { id: 'b', label: 'Black' },
 ];
 
+/** Rating category of a time control, by estimated duration (base + 40 x increment). */
+function categoryName(timeControlId: string): string | null {
+  const tc = findTimeControl(timeControlId);
+  if (!tc) return null;
+  const seconds = (tc.baseMs + 40 * tc.incMs) / 1000;
+  return RATINGS.categories.find((c) => seconds <= c.maxSeconds)?.id ?? null;
+}
+
 export function NewGameDialog({ onClose }: { onClose: () => void }) {
   const newGame = useGameStore((s) => s.newGame);
   // Opens on the choices the current game was started with; Friend stays the first-run default.
@@ -20,6 +29,12 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
   const [botElo, setBotElo] = useState<number>(() => loadBotElo() ?? setup.botElo ?? DEFAULT_BOT_ELO);
   const [side, setSide] = useState<SideChoice>(setup.side);
   const [tc, setTc] = useState<string>(setup.timeControlId);
+  const signedIn = useAuthStore((s) => s.status === 'signed-in');
+  const [ratedChoice, setRatedChoice] = useState(true);
+  const category = categoryName(tc);
+  // Rated is only offered for timed bot games while signed in; hidden means unrated.
+  const canRate = signedIn && opponent === 'bot' && category !== null;
+  const rated = canRate && ratedChoice;
 
   const pill = (active: boolean) =>
     `rounded-lg px-3 py-2 text-sm font-medium ${active ? 'bg-accent text-accent-ink' : 'bg-surface-2 hover:outline-1 hover:outline-accent'}`;
@@ -27,7 +42,7 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
   function start() {
     if (opponent === 'bot') {
       saveBotElo(botElo);
-      newGame({ side, timeControlId: tc, opponent, botElo });
+      newGame({ side, timeControlId: tc, opponent, botElo, rated });
     } else {
       newGame({ side, timeControlId: tc, opponent });
     }
@@ -82,6 +97,23 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </fieldset>
+
+        {canRate && (
+          <div className="mb-5">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-accent"
+                checked={ratedChoice}
+                onChange={(e) => setRatedChoice(e.target.checked)}
+              />
+              Rated
+            </label>
+            <p className="mt-1 pl-6 text-xs text-muted">
+              {rated ? `Changes your ${category} rating.` : 'Saved to your account, rating unchanged.'}
+            </p>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <button className="rounded-lg px-4 py-2 text-sm text-muted hover:text-ink" onClick={onClose}>

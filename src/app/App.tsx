@@ -1,17 +1,29 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useAuthStore } from '../account/authStore';
+import { AccountNav } from '../components/AccountNav';
 import { APP_NAME } from '../config/tunables';
 import { AboutPage } from './AboutPage';
+import { AuthPage } from './AuthPage';
+import { GamesPage } from './GamesPage';
 import { ImportPage } from './ImportPage';
 import { PlayPage } from './PlayPage';
 
 // The review screen (and Recharts) loads on first visit, keeping the play page's bundle small.
 const ReviewPage = lazy(() => import('./ReviewPage').then((m) => ({ default: m.ReviewPage })));
+// The profile's rating graph uses Recharts too.
+const ProfilePage = lazy(() => import('./ProfilePage').then((m) => ({ default: m.ProfilePage })));
+
+const LoginPage = () => <AuthPage mode="login" />;
+const SignupPage = () => <AuthPage mode="signup" />;
 
 // Hash routes keep the app servable from any static host with no rewrite rules.
 const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/play': PlayPage,
   '#/import': ImportPage,
   '#/about': AboutPage,
+  '#/login': LoginPage,
+  '#/signup': SignupPage,
+  '#/games': GamesPage,
 };
 
 function useHash(): string {
@@ -26,33 +38,49 @@ function useHash(): string {
 
 export default function App() {
   const hash = useHash();
+  const refreshAuth = useAuthStore((s) => s.refresh);
+  useEffect(() => {
+    void refreshAuth();
+  }, [refreshAuth]);
   // `#/review` and `#/review/<gameId>` carry a parameter, so they are matched by prefix.
   const review = hash === '#/review' || hash.startsWith('#/review/');
   const gameId = review ? decodeURIComponent(hash.slice('#/review/'.length)) || undefined : undefined;
-  const Page = review ? null : (ROUTES[hash] ?? PlayPage);
+  // `#/profile/<username>` likewise.
+  const profileName = hash.startsWith('#/profile/') ? decodeURIComponent(hash.slice('#/profile/'.length)) : null;
+  const Page = review || profileName ? null : (ROUTES[hash] ?? PlayPage);
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-surface-2 bg-surface">
-        <nav className="mx-auto flex max-w-6xl items-center gap-5 px-4 py-3">
+        <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-5">
           <a href="#/play" className="text-lg font-bold tracking-tight">
             {APP_NAME}
           </a>
           <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
           <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
           <a href="#/import" className={`text-sm ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
-          <a href="#/about" className={`ml-auto text-sm ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
+          <span className="ml-auto" />
+          <AccountNav />
+          {/* Phones: About moves to the footer so the header stays on one line. */}
+          <a href="#/about" className={`hidden text-sm sm:inline ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
         </nav>
       </header>
       <main>
         {Page ? (
           <Page />
+        ) : profileName ? (
+          <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading profile…</p>}>
+            <ProfilePage key={hash} username={profileName} />
+          </Suspense>
         ) : (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading review…</p>}>
             <ReviewPage key={hash} gameId={gameId} />
           </Suspense>
         )}
       </main>
+      <footer className="px-4 py-6 text-center sm:hidden">
+        <a href="#/about" className="text-sm text-muted hover:text-ink">About {APP_NAME}</a>
+      </footer>
     </div>
   );
 }

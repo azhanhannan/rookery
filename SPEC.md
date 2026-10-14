@@ -286,9 +286,9 @@ This is the first phase that needs a server; design the MVP so game records and 
 
 **Rules to decide before building:**
 
-- [ ] Do games against bots change a player's rating, or only games against people?
-- [ ] Separate ratings per time control (bullet, blitz, rapid), as most sites do?
-- [ ] Should the first few bot games set a starting rating instead of 1500?
+- [x] Do games against bots change a player's rating, or only games against people? *Decided: bot games are rated.*
+- [x] Separate ratings per time control (bullet, blitz, rapid), as most sites do? *Decided: yes, plus classical; untimed games unrated.*
+- [x] Should the first few bot games set a starting rating instead of 1500? *Decided: no, start at 1500.*
 
 **Other pieces:** sign-up and login, profile page with rating history graph, saved games list, and server-side review using a native Stockfish binary for long or deep analyses.
 

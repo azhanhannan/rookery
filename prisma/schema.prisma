@@ -1,0 +1,89 @@
+// Phase 5: accounts, saved games, Glicko-2 ratings. See SPEC.md Feature 5.
+generator client {
+  provider = "prisma-client"
+  output   = "../server/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  /// Lowercased username: what uniqueness and login are checked against.
+  usernameKey  String   @unique
+  /// Username as the player typed it, shown everywhere.
+  username     String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  sessions     Session[]
+  games        Game[]
+  ratings      Rating[]
+  ratingEvents RatingEvent[]
+}
+
+model Session {
+  /// sha256 of the cookie token; the token itself is never stored.
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+model Game {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// GameRecord.id from the browser; a re-upload of the same game replaces it.
+  clientId     String
+  /// The browser's GameRecord, stored unchanged (review included when there is one).
+  record       Json
+  result       String
+  /// Side the account holder played; null when both sides were people at one screen.
+  userColor    String?
+  opponentName String
+  /// Rating category ('bullet' | 'blitz' | 'rapid' | 'classical') when the game was rated.
+  category     String?
+  rated        Boolean  @default(false)
+  playedAt     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ratingEvent  RatingEvent?
+
+  @@unique([userId, clientId])
+  @@index([userId, playedAt])
+}
+
+model Rating {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   String
+  rating     Float
+  rd         Float
+  volatility Float
+  games      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, category])
+}
+
+/// One per rated game: what the rating was before and after. The profile graph reads these.
+model RatingEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId       String   @unique
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  category     String
+  ratingBefore Float
+  ratingAfter  Float
+  rdAfter      Float
+  createdAt    DateTime @default(now())
+
+  @@index([userId, category, createdAt])
+}

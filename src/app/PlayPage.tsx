@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useAuthStore } from '../account/authStore';
+import { describeRatingChange, useSyncStore } from '../account/syncStore';
 import { levelLabel, suggestNextLevel } from '../bots/botLevels';
 import { Board } from '../components/Board';
 import { EvalBar } from '../components/EvalBar';
@@ -56,6 +58,8 @@ export function PlayPage() {
   const setup = useGameStore((s) => s.setup);
   const { flip, resign, step, goTo, exportPgn, newGame } = useGameStore.getState();
   const botError = useBotStatus((s) => s.error);
+  const sync = useSyncStore((s) => s.byId[record.id]);
+  const authStatus = useAuthStore((s) => s.status);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmResign, setConfirmResign] = useState(false);
@@ -155,6 +159,22 @@ export function PlayPage() {
           >
             Game Review
           </a>
+        )}
+
+        {ended && sync?.rating && (
+          <div data-testid="rating-change" className="rounded-lg bg-surface p-3 text-center text-sm font-semibold tabular-nums">
+            {describeRatingChange(sync.rating)}
+          </div>
+        )}
+        {ended && record.rated && !sync?.rating && sync?.unratedReason && (
+          <p data-testid="unrated-reason" className="text-center text-xs text-muted">
+            Not rated: {sync.unratedReason}
+          </p>
+        )}
+        {ended && bot && authStatus === 'signed-out' && (
+          <p className="text-center text-xs text-muted">
+            <a href="#/login" className="text-accent hover:underline">Sign in</a> to save games and get a rating
+          </p>
         )}
 
         {botError && (

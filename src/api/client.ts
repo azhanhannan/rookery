@@ -1,5 +1,7 @@
 // Browser side of the Phase 5 API (types in ./types). Same origin: Vite proxies /api in dev.
 import type {
+  AccountResponse,
+  AuthProvidersResponse,
   AuthResponse,
   GameListResponse,
   GameResponse,
@@ -40,6 +42,9 @@ export const api = {
   login: (username: string, password: string) => call<AuthResponse>('POST', '/auth/login', { username, password }),
   logout: () => call<void>('POST', '/auth/logout', {}),
   me: () => call<AuthResponse>('GET', '/auth/me'),
+  providers: () => call<AuthProvidersResponse>('GET', '/auth/providers'),
+  account: () => call<AccountResponse>('GET', '/auth/account'),
+  rename: (username: string) => call<AuthResponse>('PATCH', '/auth/me', { username }),
   saveGame: (req: SaveGameRequest) =>
     call<SaveGameResponse>('PUT', `/games/${encodeURIComponent(req.record.id)}`, req),
   listGames: (before?: string) =>
@@ -47,3 +52,8 @@ export const api = {
   getGame: (clientId: string) => call<GameResponse>('GET', `/games/${encodeURIComponent(clientId)}`),
   profile: (username: string) => call<ProfileResponse>('GET', `/profile/${encodeURIComponent(username)}`),
 };
+
+/** Full-page URL that starts Google sign-in (login) or links Google to the signed-in account (link). */
+export function googleSignInUrl(mode: 'login' | 'link'): string {
+  return `/api/auth/google?mode=${mode}`;
+}

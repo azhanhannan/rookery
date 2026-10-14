@@ -11,6 +11,8 @@ type AuthState = {
   login: (username: string, password: string) => Promise<void>;
   signup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Changes the username (throws ApiError for the form to show). */
+  rename: (username: string) => Promise<void>;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -35,6 +37,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   async signup(username, password) {
     const { user } = await api.signup(username, password);
+    set({ status: 'signed-in', user });
+  },
+
+  async rename(username) {
+    const { user } = await api.rename(username);
     set({ status: 'signed-in', user });
   },
 

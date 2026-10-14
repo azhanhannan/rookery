@@ -34,3 +34,6 @@ public/stockfish/*.wasm
 # Phase 5: embedded Postgres data and the generated Prisma client
 .data
 server/generated
+
+# Secrets (Google OAuth keys): never commit
+.env

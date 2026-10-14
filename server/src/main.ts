@@ -1,11 +1,18 @@
 import { rmSync } from 'node:fs';
 import { buildApp } from './app';
+import { googleFromEnv } from './auth/google';
 import { createDb, migrate } from './db';
 import { freePort, portInUse, startEmbeddedDb, stopStaleEmbeddedDb, type EmbeddedDb } from './embeddedDb';
 
 // Dev: `npm run server` (embedded Postgres in .data/pg, kept between runs).
 // E2E: ROOKERY_EPHEMERAL_DB=1 starts a throwaway database.
 // Production: set DATABASE_URL and no embedded server starts.
+// Settings (Google sign-in keys) come from .env when there is one; see .env.example.
+try {
+  process.loadEnvFile();
+} catch {
+  // no .env: fine
+}
 const port = Number(process.env.PORT ?? 5181);
 let embedded: EmbeddedDb | null = null;
 let url = process.env.DATABASE_URL;
@@ -26,7 +33,9 @@ if (!url) {
 migrate(url);
 
 const db = createDb(url);
-const app = await buildApp({ db, logger: true });
+const google = googleFromEnv();
+const app = await buildApp({ db, logger: true, google });
+app.log.info(google ? 'Google sign-in is on' : 'Google sign-in is off (no GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)');
 
 let stopping = false;
 async function shutdown() {

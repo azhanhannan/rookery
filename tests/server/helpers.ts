@@ -3,19 +3,20 @@ import { afterAll, beforeEach, inject } from 'vitest';
 import { buildApp } from '../../server/src/app';
 import { createDb, type Db } from '../../server/src/db';
 import { SESSION_COOKIE } from '../../server/src/auth/session';
+import type { OAuthProvider } from '../../server/src/auth/google';
 
 /**
  * Call once at the top of a server test file: one app + db for the file, every table emptied
  * before each test. Returns getters because the app is built in a hook.
  */
-export function useServer(): { app: () => FastifyInstance; db: () => Db } {
+export function useServer(opts: { google?: OAuthProvider } = {}): { app: () => FastifyInstance; db: () => Db } {
   let app: FastifyInstance | null = null;
   let db: Db | null = null;
 
   beforeEach(async () => {
     if (!db) db = createDb(inject('databaseUrl'));
-    if (!app) app = await buildApp({ db });
-    await db.$executeRawUnsafe('TRUNCATE "RatingEvent", "Rating", "Game", "Session", "User" CASCADE');
+    if (!app) app = await buildApp({ db, google: opts.google ?? null });
+    await db.$executeRawUnsafe('TRUNCATE "RatingEvent", "Rating", "Game", "Session", "OAuthAccount", "User" CASCADE');
   });
 
   afterAll(async () => {

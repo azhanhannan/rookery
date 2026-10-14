@@ -37,6 +37,7 @@ export function AccountNav() {
         {user.username}
       </a>
       <a href="#/games" className={link} onClick={onClick}>My games</a>
+      <a href="#/account" className={link} onClick={onClick}>Settings</a>
       <button
         type="button"
         className={`${link} text-left`}

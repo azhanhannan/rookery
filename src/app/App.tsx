@@ -3,6 +3,7 @@ import { useAuthStore } from '../account/authStore';
 import { AccountNav } from '../components/AccountNav';
 import { APP_NAME } from '../config/tunables';
 import { AboutPage } from './AboutPage';
+import { AccountPage } from './AccountPage';
 import { AuthPage } from './AuthPage';
 import { GamesPage } from './GamesPage';
 import { ImportPage } from './ImportPage';
@@ -24,6 +25,7 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/login': LoginPage,
   '#/signup': SignupPage,
   '#/games': GamesPage,
+  '#/account': AccountPage,
 };
 
 function useHash(): string {

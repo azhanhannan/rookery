@@ -14,6 +14,23 @@ export type AuthRequest = { username: string; password: string };
 export type AuthResponse = { user: PublicUser };
 // GET /api/auth/me -> AuthResponse, or 401 when signed out. POST /api/auth/logout -> 204.
 
+// GET /api/auth/providers -> which sign-in providers are configured (the Google button hides otherwise).
+export type AuthProvidersResponse = { google: boolean };
+// Google sign-in is a full-page redirect, not a fetch: GET /api/auth/google?mode=login|link.
+// It comes back to `/#/play` (or `/?welcome=1#/account` for a new account, `/#/account` after linking),
+// or with `?authError=<message>` on `/#/login` / `/#/account`.
+
+// GET /api/auth/account -> the signed-in player's own account details.
+export type AccountResponse = {
+  user: PublicUser;
+  /** False for accounts made with Google: they sign in with Google only. */
+  hasPassword: boolean;
+  /** The linked Google account, if any (email shown for recognition only). */
+  google: { email: string | null } | null;
+};
+// PATCH /api/auth/me { username } -> AuthResponse (same rules as sign-up; 409 when taken).
+export type RenameRequest = { username: string };
+
 export type RatingRow = {
   category: RatingCategory;
   /** Rounded for display. */

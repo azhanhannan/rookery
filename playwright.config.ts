@@ -16,7 +16,8 @@ export default defineConfig({
     {
       command: 'npm run server:start',
       url: `${E2E_API}/api/health`,
-      env: { PORT: '5182', ROOKERY_EPHEMERAL_DB: '1' },
+      // Fake Google: "Continue with Google" signs in as a made-up user without leaving the app.
+      env: { PORT: '5182', ROOKERY_EPHEMERAL_DB: '1', ROOKERY_FAKE_GOOGLE: '1' },
       reuseExistingServer: false,
       timeout: 180_000,
       gracefulShutdown: { signal: 'SIGTERM', timeout: 15_000 },

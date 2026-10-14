@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../account/authStore';
+import { takeRedirectParam, useGoogleEnabled } from '../account/redirectParams';
+import { googleSignInUrl } from '../api/client';
+import { GoogleButton } from '../components/GoogleButton';
 import { RATINGS } from '../config/tunables';
 
 /** Signup rules checked before the request; the server checks them again. */
@@ -18,8 +21,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const user = useAuthStore((s) => s.user);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A failed Google sign-in comes back here with ?authError=…
+  const [error, setError] = useState<string | null>(() => takeRedirectParam('authError'));
   const [busy, setBusy] = useState(false);
+  const google = useGoogleEnabled();
 
   const login = mode === 'login';
   const title = login ? 'Log in' : 'Create account';
@@ -67,6 +72,17 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
     <div className="mx-auto max-w-sm px-4 py-10">
       <form onSubmit={submit} className="rounded-2xl bg-surface p-5" noValidate>
         <h1 className="mb-4 text-lg font-semibold">{title}</h1>
+
+        {google && (
+          <>
+            <GoogleButton href={googleSignInUrl('login')} label="Continue with Google" />
+            <div className="my-4 flex items-center gap-3 text-xs text-muted">
+              <span className="h-px flex-1 bg-surface-2" />
+              or with a username
+              <span className="h-px flex-1 bg-surface-2" />
+            </div>
+          </>
+        )}
 
         <label className="mb-3 block">
           <span className="mb-1 block text-sm text-muted">Username</span>

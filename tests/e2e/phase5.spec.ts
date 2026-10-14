@@ -114,3 +114,25 @@ test('"offline" clears by itself once the server can be reached', async ({ page 
   await expect(page.getByText('offline')).toBeHidden();
   await expect(page.getByRole('link', { name: 'Log in', exact: true })).toBeVisible();
 });
+
+test('Continue with Google creates an account, which can be renamed and signed back into', async ({ page }) => {
+  // The e2e server runs a fake Google (ROOKERY_FAKE_GOOGLE=1): the round trip stays on localhost.
+  await page.goto('/#/login');
+  await page.getByRole('link', { name: 'Continue with Google' }).click();
+  await expect(page).toHaveURL(/#\/account$/);
+  await expect(page.getByText(/Welcome! Your account was created with Google/)).toBeVisible();
+  await expect(page.getByText(/none \(this account signs in with Google\)/)).toBeVisible();
+  await expect(page.getByText('fake.player@example.com')).toBeVisible();
+
+  const newName = `g_${Date.now().toString(36)}`;
+  await page.getByLabel('Username').fill(newName);
+  await page.getByRole('button', { name: 'Save username' }).click();
+  await expect(page.getByText('Username saved.')).toBeVisible();
+  await expect(page.getByRole('link', { name: newName })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await page.goto('/#/login');
+  await page.getByRole('link', { name: 'Continue with Google' }).click();
+  await expect(page).toHaveURL(/#\/play$/);
+  await expect(page.getByRole('link', { name: newName })).toBeVisible();
+});

@@ -14,13 +14,33 @@ model User {
   usernameKey  String   @unique
   /// Username as the player typed it, shown everywhere.
   username     String
-  passwordHash String
+  /// Null for accounts created with Google sign-in, which have no password.
+  passwordHash String?
   createdAt    DateTime @default(now())
 
-  sessions     Session[]
-  games        Game[]
-  ratings      Rating[]
-  ratingEvents RatingEvent[]
+  sessions      Session[]
+  oauthAccounts OAuthAccount[]
+  games         Game[]
+  ratings       Rating[]
+  ratingEvents  RatingEvent[]
+}
+
+/// A sign-in provider identity (Google) linked to a user. Linked only by signing in with it,
+/// or by linking it while signed in: never by matching email addresses.
+model OAuthAccount {
+  id             String   @id @default(cuid())
+  /// 'google'
+  provider       String
+  /// The provider's stable user id (Google's "sub"), not the email.
+  providerUserId String
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Shown on the account page only; never used to match accounts.
+  email          String?
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, providerUserId])
+  @@unique([userId, provider])
 }
 
 model Session {
@@ -53,7 +73,7 @@ model Game {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ratingEvent  RatingEvent?
+  ratingEvent RatingEvent?
 
   @@unique([userId, clientId])
   @@index([userId, playedAt])

@@ -3,7 +3,8 @@ import type { BotEngine, GameRecord, NewGameOptions } from './types';
 
 const CURRENT_KEY = 'rookery.current';
 const HISTORY_KEY = 'rookery.games';
-const HISTORY_LIMIT = 100;
+/** Most finished games kept on this device; the oldest saved go first. */
+export const HISTORY_LIMIT = 100;
 
 export type SavedSession = {
   record: GameRecord;
@@ -49,6 +50,21 @@ export function loadHistory(): GameRecord[] {
 export function archiveGame(record: GameRecord): void {
   const rest = loadHistory().filter((g) => g.id !== record.id);
   write(HISTORY_KEY, [record, ...rest].slice(0, HISTORY_LIMIT));
+}
+
+/**
+ * Bulk import: adds finished games (given newest first) in front of the saved list in one write, like
+ * `archiveGame` does one at a time. Returns false when storage refused the write (full or unavailable).
+ */
+export function archiveGames(records: GameRecord[]): boolean {
+  const ids = new Set(records.map((r) => r.id));
+  const rest = loadHistory().filter((g) => !ids.has(g.id));
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([...records, ...rest].slice(0, HISTORY_LIMIT)));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Replaces a saved game in place (keeping the list order); adds it at the front when it isn't saved yet. */

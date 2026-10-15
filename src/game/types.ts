@@ -44,6 +44,11 @@ export type GameRecord = {
   rated?: boolean;
   /** Practice game against a bot: never rated, takebacks and helpers allowed. Absent = not practice (older games). */
   practice?: boolean;
+  /**
+   * The side the player of this device/account played, for imported games where neither side is a bot
+   * (bulk import matches the player's name to a side). Absent = worked out from which side is a bot.
+   */
+  userColor?: Color;
 };
 
 export type SideChoice = 'w' | 'b' | 'random';

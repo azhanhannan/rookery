@@ -41,8 +41,9 @@ export function endedText(termination?: string): string | null {
 /** Full moves from plies: 41 plies = 21 moves. */
 export const fullMoves = (plies: number) => Math.ceil(plies / 2);
 
-/** The non-bot side when exactly one side is a bot; null otherwise. */
+/** The side an imported game says the player played; else the non-bot side when exactly one side is a bot; else null. */
 export function personColor(record: GameRecord): Color | null {
+  if (record.userColor) return record.userColor;
   if (record.white.isBot === record.black.isBot) return null;
   return botColor(record) === 'w' ? 'b' : 'w';
 }

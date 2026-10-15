@@ -61,6 +61,7 @@ export function progressText(done: number, total: number): string {
 
 /** The colours whose moves Retry mode practises: the human in a bot game, both players otherwise. */
 export function retryColors(record: GameRecord): Color[] {
+  if (record.userColor) return [record.userColor];
   const bot = botColor(record);
   if (!bot) return ['w', 'b'];
   return [bot === 'w' ? 'b' : 'w'];

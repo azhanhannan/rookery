@@ -29,6 +29,8 @@ type BoardViewProps = {
   /** Changes whenever the position does, so a selection never outlives its position. Defaults to the FEN. */
   positionKey?: string;
   id?: string;
+  /** Extra per-square styles merged on top of the board's own (e.g. Practice glows). */
+  squareStyles?: Record<string, CSSProperties>;
 };
 
 /**
@@ -36,11 +38,11 @@ type BoardViewProps = {
  * (the review screen), read-only unless `movable` is set.
  */
 export function Board(props: Partial<BoardViewProps> & { position?: string }) {
-  if (props.position === undefined) return <StoreBoard />;
+  if (props.position === undefined) return <StoreBoard arrows={props.arrows} squareStyles={props.squareStyles} />;
   return <BoardView orientation="white" {...props} position={props.position} />;
 }
 
-function StoreBoard() {
+function StoreBoard({ arrows, squareStyles: extraStyles }: Pick<BoardViewProps, 'arrows' | 'squareStyles'> = {}) {
   const record = useGameStore((s) => s.record);
   const viewPly = useGameStore((s) => s.viewPly);
   const orientation = useGameStore((s) => s.orientation);
@@ -62,6 +64,8 @@ function StoreBoard() {
       movable={live}
       onMove={move}
       positionKey={`${record.id}:${viewPly}:${record.moves.length}`}
+      arrows={arrows}
+      squareStyles={extraStyles}
     />
   );
 }
@@ -75,6 +79,7 @@ function BoardView({
   onMove,
   positionKey = position,
   id = 'board',
+  squareStyles: extraStyles,
 }: BoardViewProps) {
   const pieceSet = usePieceSet();
   const pieces = useMemo(() => piecesFor(pieceSet), [pieceSet]);
@@ -139,8 +144,9 @@ function BoardView({
         cursor: 'pointer',
       };
     }
+    if (extraStyles) for (const [sq, st] of Object.entries(extraStyles)) styles[sq] = { ...styles[sq], ...st };
     return styles;
-  }, [chess, lastMove, selected, targets, turn]);
+  }, [chess, lastMove, selected, targets, turn, extraStyles]);
 
   return (
     <div className="relative w-full" data-testid="board">

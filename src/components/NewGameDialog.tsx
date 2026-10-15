@@ -6,6 +6,7 @@ import { useGameStore } from '../game/gameStore';
 import { loadBotElo, loadBotEngine, loadMaiaElo, saveBotElo, saveBotEngine, saveMaiaElo } from '../game/storage';
 import type { BotEngine, Opponent, SideChoice } from '../game/types';
 import { getMaia, type LoadProgress } from '../maia/MaiaService';
+import { loadGameMode, saveGameMode, type GameMode } from '../game/practice';
 import { BotPicker } from './BotPicker';
 
 const SIDES: { id: SideChoice; label: string }[] = [
@@ -49,9 +50,12 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
   const [side, setSide] = useState<SideChoice>(setup.side);
   const [tc, setTc] = useState<string>(setup.timeControlId);
   const signedIn = useAuthStore((s) => s.status === 'signed-in');
-  const [ratedChoice, setRatedChoice] = useState(true);
+  // Bot games are Rated (no help, rated when it qualifies) or Practice (unrated, takebacks and helpers).
+  const [mode, setMode] = useState<GameMode>(() => loadGameMode() ?? 'rated');
+  const ratedChoice = mode === 'rated';
+  const practice = opponent === 'bot' && mode === 'practice';
   const category = categoryName(tc);
-  // Rated is only offered for timed bot games while signed in; hidden means unrated.
+  // A rating only changes for timed bot games while signed in.
   const canRate = signedIn && opponent === 'bot' && category !== null;
   const rated = canRate && ratedChoice;
 
@@ -90,11 +94,13 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
       saveBotEngine('maia');
       saveMaiaElo(maiaElo);
       if (!(await loadMaia())) return;
-      newGame({ side, timeControlId: tc, opponent, botElo: maiaElo, rated, botEngine: 'maia' });
+      saveGameMode(mode);
+      newGame({ side, timeControlId: tc, opponent, botElo: maiaElo, rated, botEngine: 'maia', ...(practice ? { practice } : {}) });
     } else if (opponent === 'bot') {
       saveBotEngine('stockfish');
       saveBotElo(botElo);
-      newGame({ side, timeControlId: tc, opponent, botElo, rated });
+      saveGameMode(mode);
+      newGame({ side, timeControlId: tc, opponent, botElo, rated, ...(practice ? { practice } : {}) });
     } else {
       newGame({ side, timeControlId: tc, opponent });
     }
@@ -185,21 +191,27 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
           </div>
         </fieldset>
 
-        {canRate && (
-          <div className="mb-5">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-accent"
-                checked={ratedChoice}
-                onChange={(e) => setRatedChoice(e.target.checked)}
-              />
-              Rated
-            </label>
-            <p className="mt-1 pl-6 text-xs text-muted">
-              {rated ? `Changes your ${category} rating.` : 'Saved to your account, rating unchanged.'}
+        {opponent === 'bot' && (
+          <fieldset className="mb-5" data-testid="game-mode">
+            <legend className="mb-2 text-sm text-muted">Game type</legend>
+            <div className="grid grid-cols-2 gap-2">
+              <button className={pill(mode === 'rated')} aria-pressed={mode === 'rated'} onClick={() => setMode('rated')}>
+                Rated
+              </button>
+              <button className={pill(mode === 'practice')} aria-pressed={mode === 'practice'} onClick={() => setMode('practice')}>
+                Practice
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted" data-testid="game-mode-note">
+              {mode === 'practice'
+                ? 'Takebacks, hints and threat arrows. Never changes your rating.'
+                : rated
+                  ? `Changes your ${category} rating. No takebacks or hints.`
+                  : !signedIn
+                    ? 'No takebacks or hints. Sign in to get a rating.'
+                    : 'No takebacks or hints. Untimed games are not rated.'}
             </p>
-          </div>
+          </fieldset>
         )}
 
         <div className="flex justify-end gap-2">

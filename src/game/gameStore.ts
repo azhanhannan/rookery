@@ -75,7 +75,9 @@ function freshState(setup: NewGameOptions) {
     timeControl: tc?.id,
   });
   // Phase 5: the player asked for a rated bot game; the server decides whether it qualifies.
-  if (setup.rated === true && vsBot) record.rated = true;
+  if (setup.rated === true && vsBot && setup.practice !== true) record.rated = true;
+  // Practice: unrated, takebacks and helpers allowed (game/practice.ts).
+  if (setup.practice === true && vsBot) record.practice = true;
   return {
     setup,
     record,

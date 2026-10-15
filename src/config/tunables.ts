@@ -178,3 +178,17 @@ export const MAIA = {
   ortWasmBytes: 14_239_897,
   ortBaseUrl: '/ort/',
 };
+
+/** Practice games against a bot (unrated; takebacks and helpers). */
+export const PRACTICE = {
+  /** Glow on the player's hanging pieces (inset shadow on the square). */
+  hangingGlow: 'rgba(230, 70, 40, 0.75)',
+  /** Hanging-pieces glow for a viewer who never toggled it. */
+  hangingDefaultOn: true,
+  /** "Show threat" arrow (the opponent's best move if it were their turn). */
+  threatArrow: 'rgba(214, 48, 32, 0.85)',
+  /** "Hint" outline on the square of the piece the engine would move. */
+  hintGlow: 'rgba(40, 140, 220, 0.9)',
+  /** Engine search for a threat or a hint. */
+  search: { depth: 12, movetime: 600 },
+};

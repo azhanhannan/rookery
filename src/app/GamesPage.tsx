@@ -18,6 +18,8 @@ import { MiniBoard } from '../components/MiniBoard';
 import { CATEGORY_NAMES } from '../components/ratingCategory';
 import { loadHistory } from '../game/storage';
 import type { GameRecord } from '../game/types';
+import { PracticeTag } from '../components/PracticePanel';
+import { practiceIdsOnDevice } from '../game/practice';
 
 function message(e: unknown): string {
   return e instanceof ApiError || e instanceof Error ? e.message : String(e);
@@ -93,7 +95,7 @@ function Filters({ value, onChange }: { value: GameFilter; onChange: (f: GameFil
   );
 }
 
-function GameRow({ g }: { g: GameSummary }) {
+function GameRow({ g, practice = false }: { g: GameSummary; practice?: boolean }) {
   const outcome = outcomeOf(g);
   const ended = endedText(g.termination);
   const time = new Date(g.playedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -129,10 +131,14 @@ function GameRow({ g }: { g: GameSummary }) {
             {fullMoves(g.moves)} move{fullMoves(g.moves) === 1 ? '' : 's'}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-            <span className={g.rated ? 'font-medium text-ink' : ''}>
-              {g.rated ? 'Rated' : 'Casual'}
-              {g.category ? ` · ${CATEGORY_NAMES[g.category]}` : ''}
-            </span>
+            {practice && !g.rated ? (
+              <PracticeTag />
+            ) : (
+              <span className={g.rated ? 'font-medium text-ink' : ''}>
+                {g.rated ? 'Rated' : 'Casual'}
+                {g.category ? ` · ${CATEGORY_NAMES[g.category]}` : ''}
+              </span>
+            )}
             <span>{timeControlLabel(g.timeControl)}</span>
             <span>{time}</span>
           </span>
@@ -156,6 +162,8 @@ function GameRow({ g }: { g: GameSummary }) {
 
 function GameList({ games }: { games: GameSummary[] }) {
   const groups = useMemo(() => groupByDay(games), [games]);
+  // The server's summaries don't carry the practice flag; the games saved on this device do.
+  const practiceIds = useMemo(() => practiceIdsOnDevice(games.map((g) => g.clientId)), [games]);
   return (
     <div className="flex flex-col gap-4" data-testid="games-list">
       {groups.map((group) => (
@@ -163,7 +171,7 @@ function GameList({ games }: { games: GameSummary[] }) {
           <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h2>
           <ul className="flex flex-col gap-2">
             {group.games.map((g) => (
-              <GameRow key={g.clientId} g={g} />
+              <GameRow key={g.clientId} g={g} practice={practiceIds.has(g.clientId)} />
             ))}
           </ul>
         </section>

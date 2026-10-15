@@ -94,7 +94,9 @@ export function ReviewScreen({
   const review = deeper ?? reviewProp;
   const maiaRun = useMaiaMatchRun(record, (m) => onMaiaMatch?.(m));
   const bot = botColor(record);
-  const [orientation, setOrientation] = useState<Orientation>(bot === 'w' ? 'black' : 'white');
+  const [orientation, setOrientation] = useState<Orientation>(
+    (record.userColor ?? (bot === 'w' ? 'b' : 'w')) === 'b' ? 'black' : 'white',
+  );
   useFlipKey(flipOrientation(setOrientation));
   const [ply, setPly] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: 'game' });

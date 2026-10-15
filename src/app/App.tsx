@@ -16,6 +16,13 @@ const ReviewPage = lazy(() => import('./ReviewPage').then((m) => ({ default: m.R
 // Puzzles fetch their data at runtime; the page itself is small but kept out of the main bundle too.
 const PuzzlesPage = lazy(() => import('./PuzzlesPage').then((m) => ({ default: m.PuzzlesPage })));
 const ProfilePage = lazy(() => import('./ProfilePage').then((m) => ({ default: m.ProfilePage })));
+// The Analysis board (variation tree, PGN tools, position editor) loads on first visit too.
+const AnalysisPage = lazy(() => import('./AnalysisPage').then((m) => ({ default: m.AnalysisPage })));
+const AnalysisRoute = () => (
+  <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading analysis…</p>}>
+    <AnalysisPage />
+  </Suspense>
+);
 
 const LoginPage = () => <AuthPage mode="login" />;
 const SignupPage = () => <AuthPage mode="signup" />;
@@ -29,6 +36,7 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/signup': SignupPage,
   '#/games': GamesPage,
   '#/account': AccountPage,
+  '#/analysis': AnalysisRoute,
 };
 
 function useHash(): string {
@@ -66,7 +74,7 @@ export default function App() {
   const puzzles = hash === '#/puzzles';
   const Page = review || profileName || puzzles ? null : (ROUTES[hash] ?? PlayPage);
   // Full screen exists on the board pages only.
-  const boardPage = Page === PlayPage || review || puzzles;
+  const boardPage = Page === PlayPage || review || puzzles || Page === AnalysisRoute;
   const focus = useFocusMode((s) => s.on) && boardPage;
   useEffect(() => {
     if (!boardPage && useFocusMode.getState().on) useFocusMode.getState().exit();
@@ -98,6 +106,7 @@ export default function App() {
             <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
             <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
             <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
+            <a href="#/analysis" className={`text-sm ${Page === AnalysisRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Analysis</a>
             <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
             <span className="ml-auto" />
             <AccountNav />

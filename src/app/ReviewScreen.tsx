@@ -24,6 +24,7 @@ import {
 import type { MaiaMatch } from '../rating/maiaMatch';
 import type { GameReview, MoveReview } from '../review/types';
 import { useMaiaMatchRun } from './useMaiaMatchRun';
+import { openInAnalysis } from '../analysis/analysisStore';
 
 type Mode =
   | { kind: 'game' }
@@ -290,6 +291,9 @@ export function ReviewScreen({
               </button>
               <button className={btn} disabled={candidates.length === 0} onClick={startRetry}>
                 Retry mistakes{candidates.length ? ` (${candidates.length})` : ''}
+              </button>
+              <button className={`${btn} col-span-2`} onClick={() => openInAnalysis(record, ply)} data-testid="analyse-from-here">
+                Analyse from here
               </button>
             </div>
           </div>

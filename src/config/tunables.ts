@@ -178,3 +178,18 @@ export const MAIA = {
   ortWasmBytes: 14_239_897,
   ortBaseUrl: '/ort/',
 };
+
+/** The Analysis board (#/analysis). */
+export const ANALYSIS = {
+  /** Engine lines shown: the user picks 1..maxMultiPV; `multiPV` is the starting choice. */
+  multiPV: 2,
+  maxMultiPV: 3,
+  /** 0 = analyse until stopped (`go infinite`); otherwise stop at this depth. */
+  maxDepth: 0,
+  /** Pause on a position before starting the engine, ms (arrow-key stepping doesn't queue searches). */
+  debounceMs: 150,
+  /** At most one screen update per this many ms while the engine streams lines. */
+  updateMs: 150,
+  /** Moves of each engine line shown in SAN. */
+  pvMoves: 10,
+};

@@ -60,4 +60,6 @@ export type NewGameOptions = {
   rated?: boolean;
   /** Bot style; absent = 'stockfish'. With 'maia', botElo is a MAIA.levels level. */
   botEngine?: BotEngine;
+  /** Start from this position instead of the usual one (the Analysis board's "Play this position"). */
+  startFen?: string;
 };

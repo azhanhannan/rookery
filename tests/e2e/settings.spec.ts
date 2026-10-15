@@ -9,8 +9,8 @@ test('board theme applies to the play board and survives a reload; Rookery resto
 
   const themes = page.getByRole('radiogroup', { name: 'Board theme' });
   await expect(themes.getByRole('radio', { name: 'Rookery' })).toHaveAttribute('aria-checked', 'true');
-  await themes.getByRole('radio', { name: 'Wood' }).click();
-  await expect(themes.getByRole('radio', { name: 'Wood' })).toHaveAttribute('aria-checked', 'true');
+  await themes.getByRole('radio', { name: 'Brown' }).click();
+  await expect(themes.getByRole('radio', { name: 'Brown' })).toHaveAttribute('aria-checked', 'true');
 
   const boardDark = () =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--board-dark').trim());
@@ -60,4 +60,35 @@ test('piece style applies to the play board (moves still work by drag and by cli
   await sq('e7').click();
   await sq('e5').click();
   await expect(sq('e5').locator('img')).toHaveAttribute('src', '/pieces/merida/bP.svg');
+});
+
+test('a textured board shows its picture under transparent squares, with highlights still drawn', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.goto('/#/account');
+  await page.getByRole('radiogroup', { name: 'Board theme' }).getByRole('radio', { name: 'Cherry' }).click();
+  await page.goto('/#/play');
+  const board = page.locator('#main-board-board');
+  await expect(board).toHaveCSS('background-image', /boards\/wood4\.jpg/);
+  await expect(page.locator('[data-square="a1"]')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  const img = await page.evaluate(async () => {
+    const i = new Image();
+    i.src = '/boards/wood4.jpg';
+    await i.decode();
+    return i.naturalWidth;
+  });
+  expect(img).toBeGreaterThan(0);
+  // Selecting a piece still tints its square and dots its targets (drawn over the picture).
+  await page.locator('[data-square="e2"]').click();
+  const tinted = (sq: string) =>
+    page.evaluate((sq) => {
+      const el = document.querySelector(`[data-square="${sq}"]`)!;
+      return [el, ...el.querySelectorAll('*'), el.parentElement!].some((n) => {
+        const cs = getComputedStyle(n as Element);
+        return cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage.includes('gradient');
+      });
+    }, sq);
+  await expect.poll(() => tinted('e2')).toBe(true);
+  await expect.poll(() => tinted('e4')).toBe(true);
+  expect(await tinted('a3')).toBe(false);
 });

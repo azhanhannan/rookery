@@ -157,8 +157,10 @@ function BoardView({
           squareStyles,
           // Boards with app-drawn arrows don't mix in hand-drawn ones.
           ...(arrows ? { arrows, allowDrawingArrows: false } : {}),
-          lightSquareStyle: { backgroundColor: 'var(--board-light)' },
-          darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
+          // Textured themes set --board-image and make the squares transparent (settings/boardTheme.ts).
+          boardStyle: { backgroundImage: 'var(--board-image, none)', backgroundSize: '100% 100%' },
+          lightSquareStyle: { backgroundColor: 'var(--board-square-light, var(--board-light))' },
+          darkSquareStyle: { backgroundColor: 'var(--board-square-dark, var(--board-dark))' },
           // Coordinates in the other square colour, so they follow the board theme.
           lightSquareNotationStyle: { color: 'var(--board-dark)' },
           darkSquareNotationStyle: { color: 'var(--board-light)' },

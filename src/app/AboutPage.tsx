@@ -80,7 +80,21 @@ export function AboutPage() {
           Shapes — <a className={link} href="https://github.com/flugsio/chess_shapes">flugsio</a>,{' '}
           <a className={link} href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
         </li>
+        <li>Retro — RhosGFX, CC0 · Kiwen Suwi — neverRare, Totoy — Kosal Sen, Firi — James Faure, all CC BY 4.0</li>
+        <li>
+          MPChess — Maxime Chupin, <a className={link} href="/pieces/LICENSE-GPL-3.0.txt">GPLv3+</a> · Pixel —
+          therealqtpi, Letters — usolando, Pirouetti — pirouetti, all{' '}
+          <a className={link} href="/pieces/LICENSE-AGPL-3.0.txt">AGPLv3+</a>
+        </li>
       </ul>
+
+      <h2 className="mt-5 mb-1 font-semibold">Board textures</h2>
+      <p>
+        The textured boards (Oak, Teak, Birch, Cherry, Maple, Burl, Jade, Marble, Leather, Metal, Olive, Canvas,
+        Plastic) are by the Lichess authors and pirouetti, unchanged, under the{' '}
+        <a className={link} href="/boards/LICENSE-AGPL-3.0.txt">GNU AGPL v3+</a> (
+        <a className={link} href="/boards/LICENSE-NOTE.md">details</a>).
+      </p>
 
       <h2 className="mt-5 mb-1 font-semibold">Open-source libraries</h2>
       <ul className="list-disc pl-6">

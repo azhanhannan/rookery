@@ -47,7 +47,7 @@ export function AccountPage() {
 
   if (status !== 'signed-in' || !user) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="mb-4 text-xl font-semibold">Settings</h1>
         {linkError && (
           <p role="alert" className="mb-4 rounded-lg bg-surface-2 p-3 text-sm text-danger">
@@ -89,7 +89,7 @@ export function AccountPage() {
   const input = 'w-full rounded-lg border border-surface-2 bg-bg px-3 py-2 text-base outline-none focus:border-accent';
 
   return (
-    <div className="mx-auto max-w-md px-4 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="mb-4 text-xl font-semibold">Settings</h1>
 
       {welcome && (

@@ -151,6 +151,10 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
 - Piece sets other than Classic (react-chessboard's own) are SVGs in `public/pieces/<set>/`, fetched once from the
   Lichess repo at a pinned commit by `scripts/fetch-pieces.mjs` and committed. Only sets whose licence allows
   commercial use were taken; authors and licences in `public/pieces/LICENSE-NOTE.md` and on the About page.
+- Boards: 13 flat colours and 13 textures. Textures are whole-board pictures in `public/boards/` (Lichess, AGPLv3+,
+  `scripts/fetch-boards.mjs`) drawn as the board's background with transparent squares; highlights draw over them.
+- 16 piece sets. GPL/AGPL ones (Merida, MPChess, Pixel, Letters, Pirouetti) carry copyleft terms like Stockfish and
+  Maia; none is non-commercial.
 
 ## Puzzles
 

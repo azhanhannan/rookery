@@ -9,10 +9,21 @@ const PREVIEW_FEN = 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R b
 /** The stylesheet's light-mode colours, for the default theme's swatch. */
 const DEFAULT_SWATCH = { light: '#ece3cf', dark: '#7f9a8f' };
 
+const GRID = 'grid grid-cols-4 gap-1.5 md:grid-cols-5';
+
 const option = (on: boolean) =>
   `flex flex-col items-center gap-1 rounded-lg p-1.5 text-xs ${on ? 'bg-accent/15 outline-2 outline-accent' : 'hover:bg-surface-2'}`;
 
 function Swatch({ theme }: { theme: BoardTheme }) {
+  if (theme.image) {
+    return (
+      <span
+        className="h-11 w-11 rounded bg-cover"
+        style={{ backgroundImage: `url("${theme.image}")`, backgroundSize: '400% 400%' }}
+        aria-hidden
+      />
+    );
+  }
   const { light, dark } = theme.colors ?? DEFAULT_SWATCH;
   return (
     <span className="grid h-11 w-11 grid-cols-2 overflow-hidden rounded" aria-hidden>
@@ -44,36 +55,45 @@ export function BoardThemePicker() {
   const [theme, setTheme] = useState(loadBoardTheme);
   const pieceSet = usePieceSet();
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="pointer-events-none w-48" data-testid="board-preview">
+    // Side by side on wide screens, with the preview kept in view while scrolling the options.
+    <div className="flex flex-col items-center gap-4 md:flex-row md:items-start">
+      <div className="pointer-events-none w-52 shrink-0 md:sticky md:top-4 md:w-60" data-testid="board-preview">
         <Board position={PREVIEW_FEN} orientation="white" id="preview-board" />
       </div>
+      <div className="flex w-full min-w-0 flex-col gap-4">
 
       <div className="w-full">
-        <h3 className="mb-1.5 text-sm font-medium">Colours</h3>
-        <div role="radiogroup" aria-label="Board theme" className="grid grid-cols-4 gap-1.5">
-          {BOARD_THEMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="radio"
-              aria-checked={theme === t.id}
-              onClick={() => {
-                saveBoardTheme(t.id);
-                setTheme(t.id);
-              }}
-              className={option(theme === t.id)}
-            >
-              <Swatch theme={t} />
-              <span className="max-w-full truncate">{t.name}</span>
-            </button>
+        <h3 className="mb-1.5 text-sm font-medium">Board</h3>
+        <div role="radiogroup" aria-label="Board theme" className="flex flex-col gap-2">
+          {(['colour', 'texture'] as const).map((kind) => (
+            <div key={kind}>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted">{kind === 'colour' ? 'Colours' : 'Textures'}</p>
+              <div className={GRID}>
+                {BOARD_THEMES.filter((t) => t.kind === kind).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === t.id}
+                    onClick={() => {
+                      saveBoardTheme(t.id);
+                      setTheme(t.id);
+                    }}
+                    className={option(theme === t.id)}
+                  >
+                    <Swatch theme={t} />
+                    <span className="max-w-full truncate">{t.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="w-full">
         <h3 className="mb-1.5 text-sm font-medium">Pieces</h3>
-        <div role="radiogroup" aria-label="Piece style" className="grid grid-cols-4 gap-1.5">
+        <div role="radiogroup" aria-label="Piece style" className={GRID}>
           {PIECE_SETS.map((s) => (
             <button
               key={s.id}
@@ -89,6 +109,7 @@ export function BoardThemePicker() {
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

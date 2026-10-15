@@ -13,6 +13,14 @@ export const PIECE_SETS: PieceSet[] = [
   { id: 'spatial', name: 'Spatial', dir: '/pieces/spatial' },
   { id: 'papercut', name: 'Papercut', dir: '/pieces/papercut' },
   { id: 'shapes', name: 'Shapes', dir: '/pieces/shapes' },
+  { id: 'mpchess', name: 'MPChess', dir: '/pieces/mpchess' },
+  { id: 'firi', name: 'Firi', dir: '/pieces/firi' },
+  { id: 'totoy', name: 'Totoy', dir: '/pieces/totoy' },
+  { id: 'pirouetti', name: 'Pirouetti', dir: '/pieces/pirouetti' },
+  { id: 'rhosgfx', name: 'Retro', dir: '/pieces/rhosgfx' },
+  { id: 'pixel', name: 'Pixel', dir: '/pieces/pixel' },
+  { id: 'kiwen-suwi', name: 'Kiwen Suwi', dir: '/pieces/kiwen-suwi' },
+  { id: 'letter', name: 'Letters', dir: '/pieces/letter' },
 ];
 
 export const DEFAULT_PIECE_SET = 'classic';

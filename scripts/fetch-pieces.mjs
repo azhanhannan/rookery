@@ -13,10 +13,20 @@ const SETS = {
   spatial: 'spatial',
   papercut: 'papercut',
   shapes: 'shapes',
+  rhosgfx: 'rhosgfx',
+  'kiwen-suwi': 'kiwen-suwi',
+  totoy: 'totoy',
+  firi: 'firi',
+  mpchess: 'mpchess',
+  pixel: 'pixel',
+  letter: 'letter',
+  pirouetti: 'pirouetti',
 };
 const PIECES = ['P', 'N', 'B', 'R', 'Q', 'K'].flatMap((p) => [`w${p}`, `b${p}`]);
 
+const only = process.argv.slice(2);
 for (const [id, lila] of Object.entries(SETS)) {
+  if (only.length && !only.includes(id)) continue;
   mkdirSync(`public/pieces/${id}`, { recursive: true });
   for (const piece of PIECES) {
     const res = await fetch(`${LILA}/${lila}/${piece}.svg`);

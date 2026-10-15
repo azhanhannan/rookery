@@ -40,7 +40,8 @@ type GameState = {
   goTo(ply: number): void;
   step(delta: number): void;
   flip(): void;
-  importPgn(text: string): void;
+  /** `userColor`: the side the player played, when they said (so mistakes and openings know whose moves are theirs). */
+  importPgn(text: string, userColor?: Color): void;
   exportPgn(): string;
   /**
    * Stores a finished review on a finished game: the current one (session + archive) or a saved one (archive only).
@@ -164,13 +165,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ orientation: get().orientation === 'white' ? 'black' : 'white' });
   },
 
-  importPgn(text) {
+  importPgn(text, userColor) {
     const record = fromPgn(text);
+    if (userColor && !record.white.isBot && !record.black.isBot) record.userColor = userColor;
     // An imported game in progress continues without a clock; its %clk times stay on the moves.
     set({
       record,
       clock: null,
-      orientation: 'white',
+      orientation: record.userColor === 'b' ? 'black' : 'white',
       viewPly: record.moves.length,
     });
     if (record.result !== '*') archiveGame(record);

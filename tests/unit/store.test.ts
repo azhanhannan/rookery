@@ -71,6 +71,15 @@ describe('game store', () => {
     expect(r.result).toBe('0-1');
   });
 
+  it('an import can say which side the player played', async () => {
+    const store = await freshStore();
+    store.getState().importPgn('[White "Opp"]\n[Black "Me"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0', 'b');
+    expect(store.getState().record.userColor).toBe('b');
+    expect(store.getState().orientation).toBe('black');
+    store.getState().importPgn('[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0');
+    expect(store.getState().record.userColor).toBeUndefined();
+  });
+
   it('a friend game is the default and names both players', async () => {
     const store = await freshStore();
     store.getState().newGame({ side: 'b', timeControlId: 'unlimited' });

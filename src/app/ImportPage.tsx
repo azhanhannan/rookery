@@ -77,6 +77,7 @@ export function ImportPage() {
   const startBatch = useBatchReview((s) => s.start);
   const [text, setText] = useState('');
   const [player, setPlayer] = useState('');
+  const [side, setSide] = useState<'w' | 'b' | ''>('');
   const [error, setError] = useState<string | null>(null);
   const [lichessUser, setLichessUser] = useState('');
   const [count, setCount] = useState<number>(LICHESS_COUNTS[1]);
@@ -118,7 +119,7 @@ export function ImportPage() {
     if (games.length <= 1) {
       // One game: as before, it goes on the board (and into history when finished).
       try {
-        importPgn(text);
+        importPgn(text, side || undefined);
         location.hash = '#/play';
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -201,6 +202,23 @@ export function ImportPage() {
             <span>Your name in these games <span className="text-muted">(optional: found automatically when one name is in every game)</span></span>
             <input className={field} value={player} onChange={(e) => setPlayer(e.target.value)} aria-label="Your name in these games" />
           </label>
+        )}
+        {gameCount <= 1 && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" role="radiogroup" aria-label="I played">
+            <span>I played</span>
+            {([['w', 'White'], ['b', 'Black'], ['', 'Neither / not sure']] as const).map(([v, label]) => (
+              <button
+                key={label}
+                type="button"
+                role="radio"
+                aria-checked={side === v}
+                onClick={() => setSide(v)}
+                className={`rounded-lg px-3 py-1 ${side === v ? 'bg-accent text-white' : 'bg-surface-2 hover:bg-surface'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         )}
         <div className="mt-3 flex gap-2">
           <button className={primary} disabled={!text.trim() || busy !== null} onClick={submit}>

@@ -37,10 +37,10 @@ test('sign up, play a rated blitz game, see it in My games and on the profile, l
   await dialog.getByRole('group', { name: 'Bot level' }).getByRole('button', { name: '400', exact: true }).click();
   await dialog.getByRole('button', { name: 'White', exact: true }).click();
   await dialog.getByRole('button', { name: '3+2', exact: true }).click();
-  const rated = dialog.getByRole('checkbox', { name: 'Rated' });
-  await expect(rated).toBeVisible();
-  await rated.check();
-  await expect(rated).toBeChecked();
+  const rated = dialog.getByTestId('game-mode').getByRole('button', { name: 'Rated', exact: true });
+  await rated.click();
+  await expect(rated).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.getByTestId('game-mode-note')).toContainText('Changes your');
   await dialog.getByRole('button', { name: 'Start', exact: true }).click();
 
   // Two full moves (the minimum for a rated game), each answered by the bot.
@@ -89,11 +89,12 @@ test('sign up, play a rated blitz game, see it in My games and on the profile, l
   await expect(page.getByRole('heading', { name: /vs Bot 400$/ })).toBeVisible({ timeout: 15_000 });
 });
 
-test('signed out: nav offers Log in and the bot dialog has no Rated option', async ({ page }) => {
+test('signed out: nav offers Log in and the bot dialog says Rated needs a sign-in', async ({ page }) => {
   await expect(nav(page).getByRole('link', { name: 'Log in', exact: true })).toBeVisible();
   const dialog = await openBotDialog(page);
   await dialog.getByRole('button', { name: '3+2', exact: true }).click();
-  await expect(dialog.getByRole('checkbox', { name: 'Rated' })).toHaveCount(0);
+  await dialog.getByTestId('game-mode').getByRole('button', { name: 'Rated', exact: true }).click();
+  await expect(dialog.getByTestId('game-mode-note')).toContainText('Sign in to get a rating');
 });
 
 test('My games asks a signed-out player to log in; an unknown profile says so', async ({ page }) => {

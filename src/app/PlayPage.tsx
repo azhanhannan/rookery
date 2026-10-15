@@ -16,6 +16,8 @@ import { setMuted } from '../game/sound';
 import { loadEvalBarPref, saveBotElo, saveEvalBarPref, saveMaiaElo } from '../game/storage';
 import type { GameRecord, NewGameOptions } from '../game/types';
 import { useLiveEval } from './useLiveEval';
+import { PracticePanel } from '../components/PracticePanel';
+import { usePracticeAids } from './usePracticeAids';
 
 const MUTE_KEY = 'rookery.muted';
 
@@ -113,6 +115,7 @@ export function PlayPage() {
   const bot = botColor(record);
   const evalOn = evalPref ?? bot !== null;
   const liveEval = useLiveEval(record, viewPly, evalOn);
+  const practiceAids = usePracticeAids(record, viewPly);
   const outcome = humanOutcome(record);
   const botInfo = bot ? record[bot === 'w' ? 'white' : 'black'] : null;
   const botElo = botInfo?.elo;
@@ -144,7 +147,7 @@ export function PlayPage() {
         top={<PlayerBar color={top} />}
         bottom={<PlayerBar color={bottom} />}
         evalBar={evalOn ? <EvalBar white={liveEval.white} label={liveEval.label} stale={liveEval.stale} orientation={orientation} /> : undefined}
-        board={<Board />}
+        board={<Board arrows={practiceAids.arrows} squareStyles={practiceAids.squareStyles} />}
       />
 
       <aside className="flex min-w-0 flex-col gap-3">
@@ -211,6 +214,8 @@ export function PlayPage() {
             </button>
           </div>
         )}
+
+        <PracticePanel aids={practiceAids} />
 
         <MoveList />
 

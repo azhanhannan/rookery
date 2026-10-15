@@ -42,6 +42,8 @@ export type GameRecord = {
   maiaMatch?: MaiaMatch;
   /** The player asked for a rated game when starting it (Phase 5). The server decides whether it qualifies. */
   rated?: boolean;
+  /** Practice game against a bot: never rated, takebacks and helpers allowed. Absent = not practice (older games). */
+  practice?: boolean;
 };
 
 export type SideChoice = 'w' | 'b' | 'random';
@@ -60,4 +62,6 @@ export type NewGameOptions = {
   rated?: boolean;
   /** Bot style; absent = 'stockfish'. With 'maia', botElo is a MAIA.levels level. */
   botEngine?: BotEngine;
+  /** Practice game (bot only): unrated, with takebacks and helpers. Wins over `rated`. */
+  practice?: boolean;
 };

@@ -24,6 +24,14 @@ import {
 import type { MaiaMatch } from '../rating/maiaMatch';
 import type { GameReview, MoveReview } from '../review/types';
 import { useMaiaMatchRun } from './useMaiaMatchRun';
+import { REVIEW_STYLE } from '../config/tunables';
+import { ArrowToggles, ReviewMoveDetails } from '../components/ReviewMoveDetails';
+import { AnalystMoveList, LearnerMoveList, SquareLabelBadge, StyleSwitch } from '../components/ReviewStyleParts';
+import { SelfReviewGate } from '../components/SelfReviewGate';
+import { biggestMistake, keyMoments, shouldSelfReview, threatArrowFor } from '../review/reviewStyle';
+import { retryColors } from '../review/reviewView';
+import { saveReviewPrefs } from '../settings/reviewPrefs';
+import { useDeepen, useReviewStyle } from './useReviewStyle';
 
 type Mode =
   | { kind: 'game' }
@@ -32,6 +40,7 @@ type Mode =
   | { kind: 'retry'; index: number; status: 'try' | 'wrong' | 'correct' | 'shown'; tried?: string };
 
 const BEST_ARROW = 'rgba(79, 154, 44, 0.85)';
+const THREAT_ARROW = 'rgba(199, 54, 43, 0.85)';
 const LINE_STEP_MS = 900;
 
 const btn =
@@ -64,21 +73,37 @@ function NameBar({ color, record }: { color: Color; record: GameRecord }) {
 /** Board, eval bar, graph, move list, per-move explanation, best line, Retry and the summary for one reviewed game. */
 export function ReviewScreen({
   record,
-  review,
+  review: reviewProp,
   header,
   onMaiaMatch,
+  onReviewChange,
 }: {
   record: GameRecord;
   review: GameReview;
   header?: ReactNode;
   /** Stores a finished style match; without it the panel is hidden. */
   onMaiaMatch?: (match: MaiaMatch) => void;
+  /** Stores a review updated in place ("Analyse deeper here"); without it the update lasts until the screen closes. */
+  onReviewChange?: (review: GameReview) => void;
 }) {
+  // "Analyse deeper here" replaces the review in place; the parent may also store it.
+  const [deeper, setDeeper] = useState<GameReview | null>(null);
+  const review = deeper ?? reviewProp;
   const maiaRun = useMaiaMatchRun(record, (m) => onMaiaMatch?.(m));
   const bot = botColor(record);
   const [orientation, setOrientation] = useState<Orientation>(bot === 'w' ? 'black' : 'white');
   const [ply, setPly] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: 'game' });
+  const { style, prefs } = useReviewStyle(record);
+  // Asked once per opening of the review: undefined = not answered yet, null = skipped.
+  const [askFirst] = useState(() => shouldSelfReview(prefs.selfReview, style));
+  const [guess, setGuess] = useState<number | null | undefined>(undefined);
+  const biggest = useMemo(() => biggestMistake(review, retryColors(record)), [review, record]);
+  const moments = useMemo(() => keyMoments(review), [review]);
+  const deepen = useDeepen(review, (next) => {
+    setDeeper(next);
+    onReviewChange?.(next);
+  });
 
   const last = review.moves.length;
   const graph = useMemo(() => graphData(review), [review]);
@@ -171,8 +196,10 @@ export function ReviewScreen({
         to: selected.uci.slice(2, 4),
         color: `${LABEL_STYLE[selected.label].color}8c`,
       };
-      const a = bestArrowFor(selected);
+      const a = prefs.betterArrow ? bestArrowFor(selected) : null;
       if (a) arrows = [{ startSquare: a.from, endSquare: a.to, color: BEST_ARROW }];
+      const t = prefs.threatArrow ? threatArrowFor(review, ply) : null;
+      if (t) arrows = [...arrows, { startSquare: t.from, endSquare: t.to, color: THREAT_ARROW }];
     }
   }
   const evalPos = review.positions[evalPly];
@@ -208,6 +235,26 @@ export function ReviewScreen({
 
   const top: Color = orientation === 'white' ? 'b' : 'w';
 
+  if (askFirst && guess === undefined) {
+    return (
+      <SelfReviewGate
+        review={review}
+        orientation={orientation}
+        onDone={(p) => {
+          setGuess(p);
+          if (p !== null) goTo(p);
+        }}
+      />
+    );
+  }
+  const keyIndex = moments.indexOf(ply);
+  const nextKey = moments.find((p) => p > ply);
+  const prevKey = [...moments].reverse().find((p) => p < ply);
+  function jump(p: number) {
+    setMode({ kind: 'game' });
+    goTo(p);
+  }
+
   return (
     <div className="board-layout mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[auto_minmax(18rem,1fr)]">
       <BoardColumn
@@ -217,7 +264,7 @@ export function ReviewScreen({
         evalBar={
           <EvalBar
             white={evalPos.winWhite}
-            label={evalLabel(evalPos)}
+            label={style === 'learner' && !prefs.learnerDetails ? '' : evalLabel(evalPos)}
             orientation={orientation}
             stale={mode.kind === 'line' && mode.step > 0}
           />
@@ -231,6 +278,11 @@ export function ReviewScreen({
             arrows={arrows}
             movable={movable}
             onMove={tryMove}
+            squareBadge={
+              mode.kind === 'game' && selected
+                ? { square: selected.uci.slice(2, 4), node: <SquareLabelBadge style={style} label={selected.label} /> }
+                : null
+            }
           />
         }
       >
@@ -259,6 +311,42 @@ export function ReviewScreen({
       <aside className="flex min-w-0 flex-col gap-3">
         {header}
 
+        <StyleSwitch style={style} />
+
+        {guess !== undefined && guess !== null && (
+          <div className="flex flex-col gap-1 rounded-lg bg-surface p-3 text-sm" data-testid="self-review-result">
+            {biggest?.ply === guess ? (
+              <p>
+                <span className="font-semibold">Spot on.</span> You picked {moveTitle(review.moves[guess - 1])}, and so did
+                the engine.
+              </p>
+            ) : (
+              <>
+                <p>
+                  You picked{' '}
+                  <button className="font-mono font-semibold underline" onClick={() => jump(guess)}>
+                    {moveTitle(review.moves[guess - 1])}
+                  </button>
+                  .
+                </p>
+                <p className="flex flex-wrap items-center gap-1">
+                  {biggest ? (
+                    <>
+                      The engine's biggest mistake:
+                      <button className="font-mono font-semibold underline" onClick={() => jump(biggest.ply)}>
+                        {moveTitle(biggest)}
+                      </button>
+                      <MoveBadge label={biggest.label} />
+                    </>
+                  ) : (
+                    'The engine found no mistakes for you in this game.'
+                  )}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
         {review.opening?.name && (
           <p className="rounded-lg bg-surface px-3 py-2 text-sm" data-testid="opening">
             {review.opening.eco && <span className="mr-2 font-mono text-muted">{review.opening.eco}</span>}
@@ -269,14 +357,7 @@ export function ReviewScreen({
         {mode.kind === 'game' && (
           <div className="flex flex-col gap-2 rounded-lg bg-surface p-3" data-testid="move-panel">
             {selected ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <MoveBadge label={selected.label} size="md" />
-                  <span className="font-mono font-semibold">{moveTitle(selected)}</span>
-                  <span className="text-sm text-muted" data-testid="move-label">{selected.label}</span>
-                </div>
-                <p className="text-sm" data-testid="explanation">{selected.explanation}</p>
-              </>
+              <ReviewMoveDetails style={style} review={review} move={selected} prefs={prefs} />
             ) : (
               <p className="text-sm text-muted">Start position. Step through the moves, or click the graph.</p>
             )}
@@ -291,6 +372,20 @@ export function ReviewScreen({
               <button className={btn} disabled={candidates.length === 0} onClick={startRetry}>
                 Retry mistakes{candidates.length ? ` (${candidates.length})` : ''}
               </button>
+            </div>
+            <ArrowToggles prefs={prefs} />
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button
+                className="rounded-md bg-surface-2 px-2 py-1 font-medium hover:outline-1 hover:outline-accent disabled:opacity-40"
+                disabled={deepen.running !== null}
+                onClick={() => deepen.start(ply, REVIEW_STYLE.deepDepth)}
+              >
+                {deepen.running === ply ? `Analysing at depth ${REVIEW_STYLE.deepDepth}…` : 'Analyse deeper here'}
+              </button>
+              {review.positions[ply].depth !== undefined && deepen.running === null && (
+                <span className="text-muted" data-testid="deeper-depth">Depth {review.positions[ply].depth}</span>
+              )}
+              {deepen.error && <span className="text-danger">{deepen.error}</span>}
             </div>
           </div>
         )}
@@ -366,6 +461,38 @@ export function ReviewScreen({
           </div>
         )}
 
+        {style === 'learner' && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={prefs.keyMomentsOnly}
+                onChange={(e) => saveReviewPrefs({ keyMomentsOnly: e.target.checked })}
+              />
+              Key moments only
+            </label>
+            {prefs.keyMomentsOnly && moments.length > 0 && (
+              <span className="ml-auto flex items-center gap-1">
+                <button className={btn} aria-label="Previous key moment" disabled={prevKey === undefined} onClick={() => jump(prevKey!)}>◀</button>
+                <span className="text-xs text-muted">
+                  {keyIndex >= 0 ? `${keyIndex + 1} of ${moments.length}` : `${moments.length} moments`}
+                </span>
+                <button className={btn} aria-label="Next key moment" disabled={nextKey === undefined} onClick={() => jump(nextKey!)}>▶</button>
+              </span>
+            )}
+          </div>
+        )}
+        {style === 'learner' ? (
+          <LearnerMoveList
+            moves={review.moves}
+            startFen={record.startFen}
+            ply={mode.kind === 'game' ? ply : -1}
+            only={prefs.keyMomentsOnly ? moments : undefined}
+            onSelect={jump}
+          />
+        ) : style === 'analyst' ? (
+          <AnalystMoveList review={review} startFen={record.startFen} ply={mode.kind === 'game' ? ply : -1} onSelect={jump} />
+        ) : (
         <ReviewMoveList
           moves={review.moves}
           startFen={record.startFen}
@@ -375,6 +502,7 @@ export function ReviewScreen({
             goTo(p);
           }}
         />
+        )}
 
         <ReviewSummary
           white={record.white}

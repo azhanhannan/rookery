@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Chessboard, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useGameStore, type Orientation } from '../game/gameStore';
@@ -29,6 +29,8 @@ type BoardViewProps = {
   /** Changes whenever the position does, so a selection never outlives its position. Defaults to the FEN. */
   positionKey?: string;
   id?: string;
+  /** A small marker drawn in the top-right corner of one square (Review's label badge). */
+  squareBadge?: { square: string; node: ReactNode } | null;
 };
 
 /**
@@ -75,6 +77,7 @@ function BoardView({
   onMove,
   positionKey = position,
   id = 'board',
+  squareBadge,
 }: BoardViewProps) {
   const pieceSet = usePieceSet();
   const pieces = useMemo(() => piecesFor(pieceSet), [pieceSet]);
@@ -157,6 +160,23 @@ function BoardView({
           squareStyles,
           // Boards with app-drawn arrows don't mix in hand-drawn ones.
           ...(arrows ? { arrows, allowDrawingArrows: false } : {}),
+          ...(squareBadge
+            ? {
+                squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
+                  <div style={{ width: '100%', height: '100%', position: 'relative', ...squareStyles[square] }}>
+                    {children}
+                    {square === squareBadge.square && (
+                      <div
+                        data-testid="square-badge"
+                        style={{ position: 'absolute', top: '2%', right: '2%', zIndex: 5, pointerEvents: 'none' }}
+                      >
+                        {squareBadge.node}
+                      </div>
+                    )}
+                  </div>
+                ),
+              }
+            : {}),
           // Textured themes set --board-image and make the squares transparent (settings/boardTheme.ts).
           boardStyle: { backgroundImage: 'var(--board-image, none)', backgroundSize: '100% 100%' },
           lightSquareStyle: { backgroundColor: 'var(--board-square-light, var(--board-light))' },

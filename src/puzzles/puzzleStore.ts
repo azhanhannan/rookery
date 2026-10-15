@@ -6,7 +6,7 @@ import { api } from '../api/client';
 import type { PuzzleAttemptResponse, PuzzleRatingRow } from '../api/types';
 import { PUZZLES, RATINGS } from '../config/tunables';
 import type { MoveInput } from '../game/rules';
-import { playSound, type SoundKind } from '../game/sound';
+import { playSound, soundForMove, type SoundKind } from '../game/sound';
 import { loadLocalPuzzleRating, localTriedIds, recordLocalAttempt } from './localRating';
 import { recordDailyResult } from './daily';
 import { dayKey } from './days';
@@ -74,7 +74,7 @@ function playUci(fen: string, uci: string): { fen: string; sound: SoundKind } | 
   try {
     const chess = new Chess(fen);
     const m = chess.move(uciToInput(uci));
-    const sound: SoundKind = chess.inCheck() ? 'check' : m.captured ? 'capture' : 'move';
+    const sound: SoundKind = soundForMove(m);
     return { fen: chess.fen(), sound };
   } catch {
     return null;

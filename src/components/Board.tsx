@@ -4,6 +4,8 @@ import { Chess } from 'chess.js';
 import { useGameStore, type Orientation } from '../game/gameStore';
 import { botColor, legalTargets, needsPromotion, replay, type MoveInput } from '../game/rules';
 import { usePieceSet } from '../settings/pieceSet';
+import { animationMs } from '../settings/playSettings';
+import { mergeSquareStyles, useBoardMarks } from './boardMarks';
 import { piecesFor } from './pieceRender';
 
 const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
@@ -86,6 +88,8 @@ function BoardView({
   const chess = useMemo(() => new Chess(position), [position]);
   const turn = chess.turn();
   const live = movable && !!onMove;
+  const marks = useBoardMarks(positionKey);
+  const shown = marks.settings;
 
   // Selection belongs to one position; a new position (move played, or stepping through the list) clears it.
   const [sel, setSel] = useState<{ key: string; square: string } | null>(null);
@@ -124,7 +128,8 @@ function BoardView({
 
   const squareStyles = useMemo(() => {
     const styles: Record<string, CSSProperties> = {};
-    if (lastMove) {
+    // A coloured "last move" is a marker (the puzzle hint), shown even with the highlight off.
+    if (lastMove && (shown.lastMove || lastMove.color)) {
       const backgroundColor = lastMove.color ?? 'var(--last-move)';
       styles[lastMove.from] = { backgroundColor };
       styles[lastMove.to] = { backgroundColor };
@@ -134,7 +139,7 @@ function BoardView({
       if (k) styles[k] = { ...styles[k], backgroundImage: 'radial-gradient(circle, var(--check) 0%, transparent 72%)' };
     }
     if (selected) styles[selected] = { ...styles[selected], backgroundColor: 'var(--selected)' };
-    for (const t of targets) {
+    for (const t of shown.legalDots ? targets : []) {
       const occupied = chess.get(t as Parameters<typeof chess.get>[0]);
       styles[t] = {
         ...styles[t],
@@ -146,7 +151,7 @@ function BoardView({
     }
     if (extraStyles) for (const [sq, st] of Object.entries(extraStyles)) styles[sq] = { ...styles[sq], ...st };
     return styles;
-  }, [chess, lastMove, selected, targets, turn, extraStyles]);
+  }, [chess, lastMove, selected, targets, turn, extraStyles, shown.lastMove, shown.legalDots]);
 
   return (
     <div className="relative w-full" data-testid="board">
@@ -160,9 +165,12 @@ function BoardView({
           onPieceDrop,
           onSquareClick,
           onPieceDrag: ({ square }) => square && setSel({ key: positionKey, square }),
-          squareStyles,
-          // Boards with app-drawn arrows don't mix in hand-drawn ones.
-          ...(arrows ? { arrows, allowDrawingArrows: false } : {}),
+          squareStyles: mergeSquareStyles(squareStyles, marks.circleStyles),
+          // App-drawn arrows (review) and hand-drawn ones (right-drag) share the board.
+          ...(arrows ? { arrows } : {}),
+          ...marks.options,
+          showNotation: shown.coordinates,
+          showAnimations: animationMs(shown) > 0,
           // Textured themes set --board-image and make the squares transparent (settings/boardTheme.ts).
           boardStyle: { backgroundImage: 'var(--board-image, none)', backgroundSize: '100% 100%' },
           lightSquareStyle: { backgroundColor: 'var(--board-square-light, var(--board-light))' },
@@ -170,7 +178,7 @@ function BoardView({
           // Coordinates in the other square colour, so they follow the board theme.
           lightSquareNotationStyle: { color: 'var(--board-dark)' },
           darkSquareNotationStyle: { color: 'var(--board-light)' },
-          animationDurationInMs: 150,
+          animationDurationInMs: animationMs(shown),
           pieces,
         }}
       />

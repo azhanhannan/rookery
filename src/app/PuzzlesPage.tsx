@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { useAuthStore } from '../account/authStore';
 import { Board } from '../components/Board';
 import { PuzzlePanel } from '../components/PuzzlePanel';
+import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { useFlipKey } from '../components/boardKeys';
 import { popularThemes } from '../puzzles/select';
 import { errorMessage, HINT_COLOR, loadPuzzleSet, usePuzzleStore } from '../puzzles/puzzleStore';
 import type { PuzzleSet } from '../puzzles/types';
@@ -99,6 +101,12 @@ export function PuzzlesPage() {
 
   const mistakeSource = mode === 'mistakes' && puzzle ? allMistakes.find((p) => p.id === puzzle.id)?.source : undefined;
 
+  // X flips the board for the current puzzle only; the next puzzle starts from the solver's side again.
+  const [flippedFor, setFlippedFor] = useState<string | null>(null);
+  const puzzleId = puzzle?.id ?? null;
+  const onFlip = useCallback(() => setFlippedFor((f) => (f === puzzleId ? null : puzzleId)), [puzzleId]);
+  useFlipKey(onFlip);
+
   const themes = useMemo(() => (puzzles ? popularThemes(puzzles) : []), [puzzles]);
 
   if (data.kind === 'loading') return <p className="p-6 text-center text-sm text-muted">Loading puzzles…</p>;
@@ -120,7 +128,8 @@ export function PuzzlesPage() {
   }
 
   // The solver is the side NOT to move in the stored position (the opponent plays first).
-  const orientation = puzzle?.fen.split(' ')[1] === 'w' ? 'black' : 'white';
+  const solverSide = puzzle?.fen.split(' ')[1] === 'w' ? 'black' : 'white';
+  const orientation = flippedFor !== null && flippedFor === puzzleId ? (solverSide === 'white' ? 'black' : 'white') : solverSide;
   const shownMove = hintSquare ? { from: hintSquare, to: hintSquare, color: HINT_COLOR } : lastMove;
 
   return (
@@ -138,6 +147,7 @@ export function PuzzlesPage() {
         }
       >
         <FullscreenButton withText className="self-end rounded-lg bg-surface-2 px-3 py-1.5 text-sm hover:outline-1 hover:outline-accent" />
+        <KeyboardShortcuts page="puzzles" withText className="self-end rounded-lg bg-surface-2 px-3 py-1.5 text-sm hover:outline-1 hover:outline-accent" />
       </BoardColumn>
       <div className="flex min-w-0 flex-col gap-3">
       <PuzzleModeBar mode={mode} due={counts.due} onMode={switchMode} />

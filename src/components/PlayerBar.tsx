@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBotStatus } from '../game/botTurn';
-import { formatClock, remaining } from '../game/clock';
+import { formatClock, isLowTime, lowTimeTickDue, remaining } from '../game/clock';
 import { useGameStore } from '../game/gameStore';
+import { playSound } from '../game/sound';
 import type { Color } from '../game/types';
+import { usePlaySettings } from '../settings/playSettings';
 
 export function PlayerBar({ color }: { color: Color }) {
   const player = useGameStore((s) => (color === 'w' ? s.record.white : s.record.black));
@@ -25,6 +27,16 @@ export function PlayerBar({ color }: { color: Color }) {
     if (running && left !== null && left <= 0) flag(color);
   }, [running, left, flag, color]);
 
+  // A soft tick each second when a person's own clock runs low (bots' clocks stay quiet; mute and Silent apply).
+  const prevLeft = useRef<number | null>(null);
+  const human = !player.isBot;
+  useEffect(() => {
+    const prev = prevLeft.current;
+    prevLeft.current = running ? left : null;
+    if (running && human && left !== null && lowTimeTickDue(prev, left)) playSound('lowTime');
+  }, [running, human, left]);
+  const { hideRating } = usePlaySettings();
+
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2">
@@ -34,7 +46,7 @@ export function PlayerBar({ color }: { color: Color }) {
         />
         <span className="font-medium">{player.name}</span>
         {/* A bot's name already carries its level. */}
-        {player.elo !== undefined && !player.name.endsWith(String(player.elo)) && <span className="text-sm text-muted">({player.elo})</span>}
+        {!hideRating && player.elo !== undefined && !player.name.endsWith(String(player.elo)) && <span className="text-sm text-muted">({player.elo})</span>}
         <span aria-live="polite" className="text-sm text-muted">
           {thinking && (
             <span data-testid="bot-thinking" className="animate-pulse">
@@ -48,7 +60,7 @@ export function PlayerBar({ color }: { color: Color }) {
           data-testid={`clock-${color}`}
           className={`min-w-20 rounded-md px-2.5 py-1 text-right font-mono text-lg tabular-nums ${
             running ? 'bg-ink text-bg' : 'bg-surface-2 text-muted'
-          } ${left < 10_000 ? 'text-danger' : ''}`}
+          } ${isLowTime(left) ? (running ? '!bg-danger !text-white' : '!text-danger') : ''}`}
         >
           {formatClock(left)}
         </span>

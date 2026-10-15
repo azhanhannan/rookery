@@ -24,6 +24,8 @@ import {
 import type { MaiaMatch } from '../rating/maiaMatch';
 import type { GameReview, MoveReview } from '../review/types';
 import { useMaiaMatchRun } from './useMaiaMatchRun';
+import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { flipOrientation, useFlipKey } from '../components/boardKeys';
 
 type Mode =
   | { kind: 'game' }
@@ -77,6 +79,7 @@ export function ReviewScreen({
   const maiaRun = useMaiaMatchRun(record, (m) => onMaiaMatch?.(m));
   const bot = botColor(record);
   const [orientation, setOrientation] = useState<Orientation>(bot === 'w' ? 'black' : 'white');
+  useFlipKey(flipOrientation(setOrientation));
   const [ply, setPly] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: 'game' });
 
@@ -236,13 +239,14 @@ export function ReviewScreen({
       >
 
         {mode.kind === 'game' && (
-          <div className="grid grid-cols-6 gap-2">
+          <div className="grid grid-cols-7 gap-2">
             <button className={btn} onClick={() => goTo(0)} aria-label="First move" disabled={ply === 0}>⏮</button>
             <button className={btn} onClick={() => goTo(ply - 1)} aria-label="Previous move" disabled={ply === 0}>◀</button>
             <button className={btn} onClick={() => goTo(ply + 1)} aria-label="Next move" disabled={ply === last}>▶</button>
             <button className={btn} onClick={() => goTo(last)} aria-label="Last move" disabled={ply === last}>⏭</button>
-            <button className={btn} onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} aria-label="Flip board">⇅</button>
+            <button className={btn} onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} aria-label="Flip board" title="Flip board (X)">⇅</button>
             <FullscreenButton className={btn} />
+            <KeyboardShortcuts page="review" className={btn} />
           </div>
         )}
 

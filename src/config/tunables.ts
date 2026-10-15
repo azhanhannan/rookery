@@ -208,3 +208,17 @@ export const MISTAKES = {
   /** Daily puzzle: candidates rated within ±this of the player's rating (rounded to 100). */
   dailyWindow: 150,
 };
+
+/** Panel cosmetics (Settings → Play): clock warnings, animation speeds, the end-of-game celebration. */
+export const POLISH = {
+  /** The clock turns red below this many ms. */
+  clockRedMs: 20_000,
+  /** The clock shows tenths of a second below this. */
+  clockTenthsMs: 10_000,
+  /** A soft tick each second below this, on the player's own clock only. */
+  clockTickMs: 10_000,
+  /** react-chessboard move animation, ms, per Settings choice. */
+  animationMs: { none: 0, fast: 80, normal: 150 },
+  /** The win celebration and the rating count-up, ms (kept under 1.5 s). */
+  celebrationMs: 1200,
+};

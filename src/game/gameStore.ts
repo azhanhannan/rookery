@@ -14,7 +14,7 @@ import {
   type GameEnd,
   type MoveInput,
 } from './rules';
-import { playSound } from './sound';
+import { playSound, soundForMove } from './sound';
 import { archiveGame, findArchivedGame, loadSession, saveSession, updateArchivedGame } from './storage';
 import type { Color, GameRecord, GameReview, NewGameOptions, PlayerInfo } from './types';
 import type { MaiaMatch } from '../rating/maiaMatch';
@@ -130,7 +130,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ record: next, clock: pressed ? stopClock(pressed, now) : null, viewPly: next.moves.length });
       return true;
     }
-    playSound(move.san.includes('+') ? 'check' : move.captured ? 'capture' : 'move');
+    playSound(soundForMove(move));
     set({ record: next, clock: pressed, viewPly: next.moves.length });
     return true;
   },

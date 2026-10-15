@@ -24,7 +24,7 @@ async function loadSession(page: Page, record: unknown, hash = '', history: unkn
 test('a finished game offers Game Review, which shows the stored review', async ({ page }) => {
   await loadSession(page, SAMPLE_REVIEWED_RECORD);
   await expect(page.getByTestId('status')).toHaveText('Black wins by checkmate');
-  await page.getByRole('link', { name: 'Game Review' }).click();
+  await page.getByRole('link', { name: /^(Game Review|Review this game)$/ }).click();
   await expect(page).toHaveURL(/#\/review\/sample-review-game$/);
 
   await expect(page.getByTestId('opening')).toContainText('Smith-Morra Gambit');

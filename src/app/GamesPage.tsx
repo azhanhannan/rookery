@@ -20,6 +20,7 @@ import { loadHistory } from '../game/storage';
 import type { GameRecord } from '../game/types';
 import { PracticeTag } from '../components/PracticePanel';
 import { practiceIdsOnDevice } from '../game/practice';
+import { usePlaySettings } from '../settings/playSettings';
 
 function message(e: unknown): string {
   return e instanceof ApiError || e instanceof Error ? e.message : String(e);
@@ -99,7 +100,8 @@ function GameRow({ g, practice = false }: { g: GameSummary; practice?: boolean }
   const outcome = outcomeOf(g);
   const ended = endedText(g.termination);
   const time = new Date(g.playedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const delta = g.ratingDelta;
+  // Settings → Play "Hide ratings" leaves the rating change out.
+  const delta = usePlaySettings().hideRating ? undefined : g.ratingDelta;
   return (
     <li>
       <a

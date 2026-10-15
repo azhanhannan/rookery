@@ -18,6 +18,9 @@ import { MiniBoard } from '../components/MiniBoard';
 import { CATEGORY_NAMES } from '../components/ratingCategory';
 import { loadHistory } from '../game/storage';
 import type { GameRecord } from '../game/types';
+import { BatchReviewPanel } from '../components/BatchReviewPanel';
+import { useBatchReview } from './batchReview';
+import { OpeningsReport, type OpeningPick } from './OpeningsReport';
 
 function message(e: unknown): string {
   return e instanceof ApiError || e instanceof Error ? e.message : String(e);
@@ -239,12 +242,15 @@ function UploadLocal({ local, onDone }: { local: GameRecord[]; onDone: () => voi
 /** Signed out or offline: the games saved in this browser, filtered and counted here. */
 function LocalGames({ note }: { note: React.ReactNode }) {
   const [filter, setFilter] = useState<GameFilter>('all');
+  // A background "Review all" run saves reviews while this page is open: re-read after each one.
+  const reviewedInBatch = useBatchReview((s) => s.reviewed);
   const all = useMemo(
     () =>
       localFinished()
         .map(summaryFromRecord)
         .sort((a, b) => b.playedAt.localeCompare(a.playedAt)),
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read storage after each review
+    [reviewedInBatch],
   );
   const shown = all.filter((g) => matchesFilter(g, filter));
   return (
@@ -347,8 +353,32 @@ function AccountGames() {
   );
 }
 
+/** The games of one row of the Openings report (they come from this device, like the report). */
+function OpeningGames({ pick, onClear }: { pick: OpeningPick; onClear: () => void }) {
+  const games = useMemo(() => {
+    const ids = new Set(pick.ids);
+    return localFinished()
+      .filter((g) => ids.has(g.id))
+      .map(summaryFromRecord)
+      .sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+  }, [pick]);
+  return (
+    <>
+      <div className="flex items-center gap-2 self-start rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-ink" data-testid="opening-filter">
+        {pick.name} · as {pick.color === 'w' ? 'White' : 'Black'}
+        <button aria-label="Clear opening filter" className="font-bold" onClick={onClear}>×</button>
+      </div>
+      {games.length === 0 ? <p className="text-sm text-muted">These games are no longer on this device.</p> : <GameList games={games} />}
+    </>
+  );
+}
+
+type GamesTab = 'games' | 'openings';
+
 export function GamesPage() {
   const status = useAuthStore((s) => s.status);
+  const [tab, setTab] = useState<GamesTab>('games');
+  const [pick, setPick] = useState<OpeningPick | null>(null);
 
   let body: React.ReactNode;
   if (status === 'unknown') {
@@ -386,7 +416,33 @@ export function GamesPage() {
           Play →
         </a>
       </div>
-      {body}
+      <div role="tablist" aria-label="My games view" className="flex gap-1 border-b border-surface-2">
+        {(['games', 'openings'] as const).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-3 py-1.5 text-sm font-medium ${tab === t ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'}`}
+          >
+            {t === 'games' ? 'Games' : 'Openings'}
+          </button>
+        ))}
+      </div>
+      <BatchReviewPanel />
+      {tab === 'openings' && status !== 'unknown' ? (
+        <OpeningsReport
+          signedIn={status === 'signed-in'}
+          onPick={(p) => {
+            setPick(p);
+            setTab('games');
+          }}
+        />
+      ) : pick ? (
+        <OpeningGames pick={pick} onClear={() => setPick(null)} />
+      ) : (
+        body
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ const QUEUE_KEY = 'rookery.unsynced';
 
 /** The side the signed-in player played: the human side of a bot game, null for two people at one screen. */
 export function userColorFor(record: GameRecord): Color | null {
+  if (record.userColor) return record.userColor;
   const bot = botColor(record);
   if (!bot) return null;
   const human: Color = bot === 'w' ? 'b' : 'w';
@@ -101,6 +102,16 @@ async function uploadNow(id: string): Promise<void> {
 
 function retryQueue(): void {
   for (const id of readQueue()) void upload(id);
+}
+
+/**
+ * Uploads a saved game that changed outside the board (bulk import, a background review) when signed in.
+ * Signed out it does nothing: like the device's older history, such games are offered on My games instead.
+ */
+export function queueGameUpload(id: string): void {
+  if (useAuthStore.getState().status !== 'signed-in') return;
+  enqueue(id);
+  void upload(id);
 }
 
 /** Resolves once every upload started so far has finished (tests, and anyone who needs to wait). */

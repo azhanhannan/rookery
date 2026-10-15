@@ -42,6 +42,11 @@ export type GameRecord = {
   maiaMatch?: MaiaMatch;
   /** The player asked for a rated game when starting it (Phase 5). The server decides whether it qualifies. */
   rated?: boolean;
+  /**
+   * The side the player of this device/account played, for imported games where neither side is a bot
+   * (bulk import matches the player's name to a side). Absent = worked out from which side is a bot.
+   */
+  userColor?: Color;
 };
 
 export type SideChoice = 'w' | 'b' | 'random';

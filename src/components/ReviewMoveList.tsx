@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { scrollWithin } from './scrollWithin';
 import type { MoveReview } from '../review/types';
 import { MoveBadge } from './MoveBadge';
 
@@ -17,7 +18,7 @@ export function ReviewMoveList({
   const activeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' });
+    scrollWithin(activeRef.current);
   }, [ply]);
 
   // Same layout rules as the play move list: a game set up with Black to move starts on "1...".

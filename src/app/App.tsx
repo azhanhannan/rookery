@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
 import { AccountNav } from '../components/AccountNav';
 import { APP_NAME } from '../config/tunables';
+import { useFocusMode } from './focusMode';
 import { AboutPage } from './AboutPage';
 import { AccountPage } from './AccountPage';
 import { AuthPage } from './AuthPage';
@@ -64,24 +65,47 @@ export default function App() {
   const profileName = hash.startsWith('#/profile/') ? decodeURIComponent(hash.slice('#/profile/'.length)) : null;
   const puzzles = hash === '#/puzzles';
   const Page = review || profileName || puzzles ? null : (ROUTES[hash] ?? PlayPage);
+  // Full screen exists on the board pages only.
+  const boardPage = Page === PlayPage || review || puzzles;
+  const focus = useFocusMode((s) => s.on) && boardPage;
+  useEffect(() => {
+    if (!boardPage && useFocusMode.getState().on) useFocusMode.getState().exit();
+  }, [boardPage]);
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-focus', focus);
+  }, [focus]);
+  // "F" toggles full screen on board pages (not while typing).
+  useEffect(() => {
+    if (!boardPage) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (e.ctrlKey || e.metaKey || e.altKey || t?.closest('input, textarea, select, [contenteditable]')) return;
+      useFocusMode.getState().toggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [boardPage]);
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-surface-2 bg-surface">
-        <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-5">
-          <a href="#/play" className="text-lg font-bold tracking-tight">
-            {APP_NAME}
-          </a>
-          <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
-          <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
-          <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
-          <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
-          <span className="ml-auto" />
-          <AccountNav />
-          {/* Phones: Import and About move to the footer so the header stays on one line. */}
-          <a href="#/about" className={`hidden text-sm sm:inline ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
-        </nav>
-      </header>
+      {!focus && (
+        <header className="border-b border-surface-2 bg-surface">
+          <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-5">
+            <a href="#/play" className="text-lg font-bold tracking-tight">
+              {APP_NAME}
+            </a>
+            <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
+            <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
+            <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
+            <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
+            <span className="ml-auto" />
+            <AccountNav />
+            {/* Phones: Import and About move to the footer so the header stays on one line. */}
+            <a href="#/about" className={`hidden text-sm sm:inline ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
+          </nav>
+        </header>
+      )}
       <main>
         {Page ? (
           <Page />
@@ -99,7 +123,7 @@ export default function App() {
           </Suspense>
         )}
       </main>
-      <footer className="px-4 py-6 text-center sm:hidden">
+      <footer className={`px-4 py-6 text-center sm:hidden ${focus ? 'hidden' : ''}`}>
         <a href="#/import" className="text-sm text-muted hover:text-ink">Import PGN</a>
         <span className="mx-2 text-muted">·</span>
         <a href="#/about" className="text-sm text-muted hover:text-ink">About {APP_NAME}</a>

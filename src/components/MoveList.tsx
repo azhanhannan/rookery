@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { scrollWithin } from './scrollWithin';
 import { useGameStore } from '../game/gameStore';
 
 export function MoveList() {
@@ -8,7 +9,7 @@ export function MoveList() {
   const activeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' });
+    scrollWithin(activeRef.current);
   }, [viewPly]);
 
   // A game set up with Black to move starts its list on "1...".

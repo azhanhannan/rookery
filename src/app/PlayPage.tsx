@@ -8,6 +8,7 @@ import { EvalBar } from '../components/EvalBar';
 import { MoveList } from '../components/MoveList';
 import { NewGameDialog } from '../components/NewGameDialog';
 import { PlayerBar } from '../components/PlayerBar';
+import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { retryBotMove, startBotTurns, useBotStatus } from '../game/botTurn';
 import { useGameStore } from '../game/gameStore';
 import { botColor, describeEnd, replay } from '../game/rules';
@@ -138,19 +139,13 @@ export function PlayPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,640px)_1fr]">
-      <section className="min-w-0">
-        <PlayerBar color={top} />
-        {evalOn ? (
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[1.5rem_minmax(0,1fr)] sm:gap-2">
-            <EvalBar white={liveEval.white} label={liveEval.label} stale={liveEval.stale} orientation={orientation} />
-            <Board />
-          </div>
-        ) : (
-          <Board />
-        )}
-        <PlayerBar color={bottom} />
-      </section>
+    <div className="board-layout mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[auto_minmax(18rem,1fr)]">
+      <BoardColumn
+        top={<PlayerBar color={top} />}
+        bottom={<PlayerBar color={bottom} />}
+        evalBar={evalOn ? <EvalBar white={liveEval.white} label={liveEval.label} stale={liveEval.stale} orientation={orientation} /> : undefined}
+        board={<Board />}
+      />
 
       <aside className="flex min-w-0 flex-col gap-3">
         <div
@@ -234,6 +229,7 @@ export function PlayPage() {
             New game
           </button>
           <button className={btn} onClick={flip}>Flip board</button>
+          <FullscreenButton className={`${btn} col-span-2`} withText />
           {confirmResign ? (
             <button
               className="rounded-lg bg-danger px-3 py-2 text-sm font-semibold text-white"

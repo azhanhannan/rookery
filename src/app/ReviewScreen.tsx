@@ -2,6 +2,7 @@ import { Chess } from 'chess.js';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Board, type BoardArrow } from '../components/Board';
 import { EvalBar } from '../components/EvalBar';
+import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { EvalGraph } from '../components/EvalGraph';
 import { LABEL_STYLE } from '../components/labelStyle';
 import { MoveBadge } from '../components/MoveBadge';
@@ -208,37 +209,40 @@ export function ReviewScreen({
   const top: Color = orientation === 'white' ? 'b' : 'w';
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,640px)_1fr]">
-      <section className="flex min-w-0 flex-col gap-3">
-        <div>
-          <NameBar color={top} record={record} />
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[1.5rem_minmax(0,1fr)] sm:gap-2">
-            <EvalBar
-              white={evalPos.winWhite}
-              label={evalLabel(evalPos)}
-              orientation={orientation}
-              stale={mode.kind === 'line' && mode.step > 0}
-            />
-            <Board
-              id="review-board"
-              position={boardFen}
-              orientation={orientation}
-              lastMove={lastMove}
-              arrows={arrows}
-              movable={movable}
-              onMove={tryMove}
-            />
-          </div>
-          <NameBar color={top === 'w' ? 'b' : 'w'} record={record} />
-        </div>
+    <div className="board-layout mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[auto_minmax(18rem,1fr)]">
+      <BoardColumn
+        controlsBelow
+        top={<NameBar color={top} record={record} />}
+        bottom={<NameBar color={top === 'w' ? 'b' : 'w'} record={record} />}
+        evalBar={
+          <EvalBar
+            white={evalPos.winWhite}
+            label={evalLabel(evalPos)}
+            orientation={orientation}
+            stale={mode.kind === 'line' && mode.step > 0}
+          />
+        }
+        board={
+          <Board
+            id="review-board"
+            position={boardFen}
+            orientation={orientation}
+            lastMove={lastMove}
+            arrows={arrows}
+            movable={movable}
+            onMove={tryMove}
+          />
+        }
+      >
 
         {mode.kind === 'game' && (
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             <button className={btn} onClick={() => goTo(0)} aria-label="First move" disabled={ply === 0}>⏮</button>
             <button className={btn} onClick={() => goTo(ply - 1)} aria-label="Previous move" disabled={ply === 0}>◀</button>
             <button className={btn} onClick={() => goTo(ply + 1)} aria-label="Next move" disabled={ply === last}>▶</button>
             <button className={btn} onClick={() => goTo(last)} aria-label="Last move" disabled={ply === last}>⏭</button>
             <button className={btn} onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} aria-label="Flip board">⇅</button>
+            <FullscreenButton className={btn} />
           </div>
         )}
 
@@ -250,7 +254,7 @@ export function ReviewScreen({
             goTo(p);
           }}
         />
-      </section>
+      </BoardColumn>
 
       <aside className="flex min-w-0 flex-col gap-3">
         {header}

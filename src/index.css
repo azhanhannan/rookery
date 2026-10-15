@@ -51,3 +51,59 @@ body {
   color: var(--text);
   font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
 }
+
+/*
+ * Board column (components/BoardColumn.tsx): from sm up, the board and its name bars fit the window height, so the
+ * whole board is visible without scrolling; at lg the column is exactly that wide and the side panel takes the rest.
+ * --chrome-h = the site header (0 in full screen); --board-reserve = name bars + page padding.
+ */
+:root {
+  --chrome-h: 3.5rem;
+}
+:root[data-focus] {
+  --chrome-h: 0rem;
+}
+.board-column {
+  --eval-w: 0rem;
+  --board-reserve: 7.5rem;
+  --board-col: max(
+    18rem,
+    min(calc(48rem + var(--eval-w)), calc(100dvh - var(--chrome-h) - var(--board-reserve) + var(--eval-w)))
+  );
+  width: 100%;
+  margin-inline: auto;
+}
+.board-column:not([data-bars]) {
+  --board-reserve: 3rem;
+}
+.board-column[data-controls] {
+  --board-reserve: 10.75rem;
+}
+:root[data-focus] .board-column {
+  /* No header, so the board may grow past the usual 640px cap. */
+  --board-col: max(18rem, calc(100dvh - var(--board-reserve) + var(--eval-w)));
+}
+@media (min-width: 640px) {
+  .board-column[data-eval] {
+    --eval-w: 2rem;
+  }
+  .board-column {
+    width: min(100%, var(--board-col));
+  }
+}
+@media (min-width: 1024px) {
+  .board-column {
+    width: var(--board-col);
+    margin-inline: 0;
+  }
+}
+
+:root[data-focus] .board-layout {
+  max-width: none;
+  justify-content: center;
+}
+@media (min-width: 1024px) {
+  :root[data-focus] .board-layout {
+    grid-template-columns: auto minmax(18rem, 26rem);
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { useAuthStore } from '../account/authStore';
 import { Board } from '../components/Board';
 import { PuzzlePanel } from '../components/PuzzlePanel';
@@ -74,16 +75,21 @@ export function PuzzlesPage() {
   const shownMove = hintSquare ? { from: hintSquare, to: hintSquare, color: HINT_COLOR } : lastMove;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,640px)_1fr]">
-      <section className="min-w-0">
-        {fen ? (
-          <Board position={fen} orientation={orientation} lastMove={shownMove} movable={phase === 'solver'} onMove={move} id="puzzle-board" />
-        ) : (
-          <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-surface text-sm text-muted">
-            {empty ? 'No puzzle to show' : 'Loading…'}
-          </div>
-        )}
-      </section>
+    <div className="board-layout mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[auto_minmax(18rem,1fr)]">
+      <BoardColumn
+        bars={false}
+        board={
+          fen ? (
+            <Board position={fen} orientation={orientation} lastMove={shownMove} movable={phase === 'solver'} onMove={move} id="puzzle-board" />
+          ) : (
+            <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-surface text-sm text-muted">
+              {empty ? 'No puzzle to show' : 'Loading…'}
+            </div>
+          )
+        }
+      >
+        <FullscreenButton withText className="self-end rounded-lg bg-surface-2 px-3 py-1.5 text-sm hover:outline-1 hover:outline-accent" />
+      </BoardColumn>
       <PuzzlePanel
         themes={themes}
         theme={theme}

@@ -192,3 +192,19 @@ export const PRACTICE = {
   /** Engine search for a threat or a hint. */
   search: { depth: 12, movetime: 600 },
 };
+
+/** "My mistakes" puzzles, spaced repetition, the daily puzzle and the trained-days streak (src/puzzles/). */
+export const MISTAKES = {
+  /** Review labels on the player's own moves that become puzzles. */
+  labels: ['Mistake', 'Blunder', 'Miss'] as string[],
+  /** Spaced repetition: days until the next showing after each clean solve; solving after the last retires it. */
+  intervals: [1, 3, 7, 21],
+  /** Solver moves in one puzzle at most (more only along a forced mate). */
+  maxSolverMoves: 3,
+  /** Rest days per Monday-Sunday week that keep the streak alive (never two missed days in a row). */
+  freezesPerWeek: 1,
+  /** Profile line: "reviewed X of your last N games". */
+  recentGames: 5,
+  /** Daily puzzle: candidates rated within ±this of the player's rating (rounded to 100). */
+  dailyWindow: 150,
+};

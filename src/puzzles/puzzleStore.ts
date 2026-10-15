@@ -8,6 +8,10 @@ import { PUZZLES, RATINGS } from '../config/tunables';
 import type { MoveInput } from '../game/rules';
 import { playSound, type SoundKind } from '../game/sound';
 import { loadLocalPuzzleRating, localTriedIds, recordLocalAttempt } from './localRating';
+import { recordDailyResult } from './daily';
+import { dayKey } from './days';
+import { recordMistakeAttempt, scheduleNote } from './spacedRepetition';
+import { recordTrainedDay } from './streak';
 import { pickPuzzle } from './select';
 import { hint, playOpponentReply, showSolution, startSession, trySolverMove, type PuzzleSession } from './session';
 import type { Puzzle, PuzzleSet } from './types';
@@ -51,7 +55,12 @@ export type RecordState =
   | { kind: 'done'; response: PuzzleAttemptResponse }
   /** A retry: never recorded. */
   | { kind: 'unrated' }
+  /** A "My mistakes" or daily puzzle: no rating change; `note` says what happens next. */
+  | { kind: 'practice'; note: string }
   | { kind: 'error'; message: string };
+
+/** 'rated': the rated trainer; 'mistakes': puzzles from the player's games (spaced repetition); 'daily': the day's puzzle. */
+export type PuzzleMode = 'rated' | 'mistakes' | 'daily';
 
 /** 'setup': waiting for the opponent's first move. 'opponent': waiting for a reply. 'wrong': a wrong move is on show. */
 export type Phase = 'idle' | 'setup' | 'solver' | 'opponent' | 'wrong' | 'solution' | 'ended';
@@ -144,6 +153,8 @@ type PuzzleState = {
   record: RecordState;
   /** Set when no puzzle matches (e.g. an empty theme). */
   empty: boolean;
+  /** What the current puzzle is for; only 'rated' changes the puzzle rating. */
+  mode: PuzzleMode;
 
   loadRating: (signedIn: boolean) => Promise<void>;
   /** Picks the next puzzle near the rating (optionally a theme) and starts it. */
@@ -155,6 +166,10 @@ type PuzzleState = {
   showSolution: () => void;
   /** Stops pending moves (leaving the page). */
   stop: () => void;
+  /** Starts this puzzle in a non-rated mode (My mistakes, Daily): the result never touches the rating. */
+  play: (puzzle: Puzzle, mode: Exclude<PuzzleMode, 'rated'>) => void;
+  /** Clears the board (keeping the rating), e.g. when no mistake is due. */
+  clear: () => void;
 };
 
 export const usePuzzleStore = create<PuzzleState>((set, get) => {
@@ -181,10 +196,22 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
 
   /** Records the finished attempt once (never for a retry). */
   function finish(session: PuzzleSession, solved: boolean) {
-    const { rated, record, ratingSource, rating } = get();
+    const { rated, record, ratingSource, rating, mode } = get();
+    if (solved) recordTrainedDay();
     if (!rated || record.kind !== 'none') return;
     const puzzle = session.puzzle;
     const clean = solved && !session.usedHelp;
+    if (mode !== 'rated') {
+      const today = dayKey(new Date());
+      if (mode === 'mistakes') {
+        const state = recordMistakeAttempt(puzzle.id, clean, today);
+        set({ record: { kind: 'practice', note: `${clean ? 'Solved first try' : 'Not this time'}: ${scheduleNote(state, today).toLowerCase()}` } });
+      } else {
+        recordDailyResult(today, puzzle.id, clean);
+        set({ record: { kind: 'practice', note: clean ? 'Daily puzzle solved' : 'Daily puzzle: not this time. Retry it, or come back tomorrow for a new one' } });
+      }
+      return;
+    }
     const recent = new Set(get().recent).add(puzzle.id);
 
     if (ratingSource === 'server') {
@@ -245,6 +272,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     rated: true,
     record: { kind: 'none' },
     empty: false,
+    mode: 'rated',
 
     async loadRating(signedIn) {
       if (signedIn) {
@@ -268,6 +296,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     },
 
     next(puzzles, theme) {
+      set({ mode: 'rated' });
       const { rating, recent, puzzle: current } = get();
       const r = rating?.rating ?? RATINGS.start.rating;
       const opts = { theme: theme || undefined };
@@ -282,6 +311,16 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         return;
       }
       begin(p, true);
+    },
+
+    play(puzzle, mode) {
+      set({ mode });
+      begin(puzzle, true);
+    },
+
+    clear() {
+      cancelTimers();
+      set({ puzzle: null, session: null, fen: null, lastMove: null, phase: 'idle', feedback: null, hintSquare: null, empty: false });
     },
 
     retry() {

@@ -6,6 +6,15 @@ import { PuzzlePanel } from '../components/PuzzlePanel';
 import { popularThemes } from '../puzzles/select';
 import { errorMessage, HINT_COLOR, loadPuzzleSet, usePuzzleStore } from '../puzzles/puzzleStore';
 import type { PuzzleSet } from '../puzzles/types';
+import { PuzzleModeBar } from '../components/PuzzleModeBar';
+import { TrainingStreak } from '../components/TrainingStreak';
+import { loadHistory } from '../game/storage';
+import { RATINGS } from '../config/tunables';
+import { dailyPuzzle } from '../puzzles/daily';
+import { todayKey } from '../puzzles/days';
+import { harvestMistakes, sourceText, type MistakePuzzle } from '../puzzles/harvest';
+import type { PuzzleMode } from '../puzzles/puzzleStore';
+import { dueItems, loadSchedule, mistakeCounts } from '../puzzles/spacedRepetition';
 
 type DataState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; set: PuzzleSet };
 
@@ -24,6 +33,12 @@ export function PuzzlesPage() {
   const hintSquare = usePuzzleStore((s) => s.hintSquare);
   const phase = usePuzzleStore((s) => s.phase);
   const { loadRating, next, move, stop } = usePuzzleStore.getState();
+  const [mode, setMode] = useState<PuzzleMode>('rated');
+  const authUser = useAuthStore((s) => s.user);
+  const record = usePuzzleStore((s) => s.record);
+  const rating = usePuzzleStore((s) => s.rating);
+  // Harvested when "My mistakes" opens (games and reviews change on other pages, not this one).
+  const [mistakes, setMistakes] = useState<MistakePuzzle[] | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -47,8 +62,42 @@ export function PuzzlesPage() {
   const puzzles = data.kind === 'ready' ? data.set.puzzles : null;
 
   useEffect(() => {
-    if (puzzles && ratingSource && !puzzle && !empty) next(puzzles, theme);
-  }, [puzzles, ratingSource, puzzle, empty, next, theme]);
+    if (mode === 'rated' && puzzles && ratingSource && !puzzle && !empty) next(puzzles, theme);
+  }, [mode, puzzles, ratingSource, puzzle, empty, next, theme]);
+
+  const allMistakes = useMemo(
+    () => mistakes ?? harvestMistakes(loadHistory(), { userNames: authUser ? [authUser.username] : [] }),
+    [mistakes, authUser],
+  );
+  // Re-read after every result (`record` changes) so the due count stays current.
+  const counts = useMemo(() => mistakeCounts(allMistakes, loadSchedule(), todayKey()), [allMistakes, record]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startMistake(list: MistakePuzzle[], skipId?: string) {
+    const due = dueItems(list, loadSchedule(), todayKey()).filter((p) => p.id !== skipId);
+    if (due[0]) usePuzzleStore.getState().play(due[0], 'mistakes');
+    else usePuzzleStore.getState().clear();
+  }
+
+  function startDaily() {
+    if (!puzzles) return;
+    const d = dailyPuzzle(puzzles, todayKey(), rating?.rating ?? RATINGS.start.rating);
+    if (d) usePuzzleStore.getState().play(d.puzzle, 'daily');
+    else usePuzzleStore.getState().clear();
+  }
+
+  function switchMode(m: PuzzleMode) {
+    setMode(m);
+    if (m === 'rated') {
+      if (puzzles && ratingSource) next(puzzles, theme);
+      else usePuzzleStore.getState().clear();
+    } else if (m === 'mistakes') {
+      const list = harvestMistakes(loadHistory(), { userNames: authUser ? [authUser.username] : [] });
+      setMistakes(list);
+      startMistake(list);
+    } else startDaily();
+  }
+
+  const mistakeSource = mode === 'mistakes' && puzzle ? allMistakes.find((p) => p.id === puzzle.id)?.source : undefined;
 
   const themes = useMemo(() => (puzzles ? popularThemes(puzzles) : []), [puzzles]);
 
@@ -90,6 +139,41 @@ export function PuzzlesPage() {
       >
         <FullscreenButton withText className="self-end rounded-lg bg-surface-2 px-3 py-1.5 text-sm hover:outline-1 hover:outline-accent" />
       </BoardColumn>
+      <div className="flex min-w-0 flex-col gap-3">
+      <PuzzleModeBar mode={mode} due={counts.due} onMode={switchMode} />
+      <TrainingStreak key={`${record.kind}:${puzzle?.id ?? ''}`} />
+      {mode !== 'rated' && (
+        <p data-testid="puzzle-source" className="rounded-lg bg-surface p-3 text-sm">
+          {mode === 'daily'
+            ? `Daily puzzle for ${new Date(`${todayKey()}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · your rating doesn’t change`
+            : mistakeSource
+              ? `${sourceText(mistakeSource)} (${mistakeSource.label.toLowerCase()})`
+              : 'Positions where you went wrong in your reviewed games · your rating doesn’t change'}
+        </p>
+      )}
+      {mode === 'mistakes' && !puzzle ? (
+        <div data-testid="mistakes-empty" className="flex flex-col gap-2 rounded-lg bg-surface p-3 text-sm">
+          {counts.total === 0 ? (
+            <>
+              <p className="font-semibold">No mistakes to practise yet</p>
+              <p className="text-muted">
+                Review your games first: every Mistake, Blunder or Miss you make against a bot (or under your
+                account name) becomes a puzzle here.
+              </p>
+              <a className="text-accent hover:underline" href="#/review/games">Review a game</a>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">All caught up</p>
+              <p className="text-muted">
+                {counts.learning} learning · {counts.retired} retired
+                {counts.nextDue &&
+                  ` · next due ${new Date(`${counts.nextDue}T12:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
       <PuzzlePanel
         themes={themes}
         theme={theme}
@@ -97,9 +181,17 @@ export function PuzzlesPage() {
           setTheme(t);
           if (puzzles) next(puzzles, t);
         }}
-        onNext={() => puzzles && next(puzzles, theme)}
+        onNext={() => {
+          if (mode === 'mistakes') startMistake(allMistakes, puzzle?.id);
+          else if (puzzles) switchMode('rated');
+        }}
         signedOut={authStatus === 'signed-out'}
+        nextLabel={mode === 'mistakes' ? (counts.due > 0 ? `Next mistake (${counts.due} due)` : 'Done for today') : mode === 'daily' ? 'Rated puzzles' : undefined}
+        hideThemes={mode !== 'rated'}
+        info={mode === 'mistakes' && mistakeSource ? <a className="text-xs text-accent hover:underline" href={`#/review/${encodeURIComponent(mistakeSource.gameId)}`}>Open the game review</a> : undefined}
       />
+      )}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { describeEnd } from '../game/rules';
 import { findArchivedGame, loadHistory, updateArchivedGame } from '../game/storage';
 import type { GameRecord } from '../game/types';
 import { nextDepth, reviewableGames, reviewFits } from '../review/reviewView';
+import { recordTrainedDay } from '../puzzles/streak';
 import { ReviewScreen } from './ReviewScreen';
 import { useReviewRun } from './useReviewRun';
 
@@ -59,6 +60,7 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
   const run = useReviewRun(record, (r) => {
     const saved = setReview(record.id, r);
     if (saved) onSaved(saved);
+    if (saved) recordTrainedDay();
     setRerunOpen(false);
   });
 

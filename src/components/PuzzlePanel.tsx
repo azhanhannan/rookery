@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { describePuzzleChange, prettyTheme, usePuzzleStore } from '../puzzles/puzzleStore';
 
 const btn =
@@ -10,10 +11,16 @@ type Props = {
   onTheme: (theme: string) => void;
   onNext: () => void;
   signedOut: boolean;
+  /** Text of the next button (default "Next puzzle"). */
+  nextLabel?: string;
+  /** Replaces the puzzle's id/rating/Lichess line once it ends (puzzles not from Lichess). */
+  info?: ReactNode;
+  /** Hides the theme filter (modes that don't pick by theme). */
+  hideThemes?: boolean;
 };
 
 /** The trainer's side panel: rating, prompt, feedback, controls and credits. */
-export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut }: Props) {
+export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut, nextLabel, info, hideThemes }: Props) {
   const rating = usePuzzleStore((s) => s.rating);
   const ratingSource = usePuzzleStore((s) => s.ratingSource);
   const puzzle = usePuzzleStore((s) => s.puzzle);
@@ -83,6 +90,11 @@ export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut }: Props
         </p>
       )}
       {record.kind === 'unrated' && <p className="text-center text-xs text-muted">Retry: this attempt is not rated</p>}
+      {record.kind === 'practice' && (
+        <p data-testid="puzzle-practice-note" className="rounded-lg bg-surface p-3 text-center text-sm font-semibold">
+          {record.note}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button className={btn} onClick={hint} disabled={phase !== 'solver'}>
@@ -104,10 +116,11 @@ export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut }: Props
           className={`rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink ${failed && ended ? '' : 'col-span-2'}`}
           onClick={onNext}
         >
-          Next puzzle
+          {nextLabel ?? 'Next puzzle'}
         </button>
       </div>
 
+      {!hideThemes && (
       <label className="flex items-center gap-2 text-sm">
         <span className="text-muted">Theme</span>
         <select
@@ -123,8 +136,10 @@ export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut }: Props
           ))}
         </select>
       </label>
+      )}
 
-      {puzzle && ended && (
+      {puzzle && ended && info}
+      {puzzle && ended && !info && (
         <p data-testid="puzzle-info" className="text-xs text-muted">
           Puzzle {puzzle.id} · rated {puzzle.rating} ·{' '}
           <a className="underline underline-offset-2 hover:text-ink" href={`https://lichess.org/training/${puzzle.id}`} target="_blank" rel="noreferrer">

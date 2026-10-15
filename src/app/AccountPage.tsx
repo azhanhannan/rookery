@@ -3,10 +3,24 @@ import { useAuthStore } from '../account/authStore';
 import { takeRedirectParam, useGoogleEnabled } from '../account/redirectParams';
 import { api, googleSignInUrl } from '../api/client';
 import type { AccountResponse } from '../api/types';
+import { BoardThemePicker } from '../components/BoardThemePicker';
 import { GoogleButton } from '../components/GoogleButton';
 import { RATINGS } from '../config/tunables';
 
-/** The signed-in player's settings: change username, link Google. */
+const card = 'mb-4 rounded-2xl bg-surface p-5';
+
+/** Device settings, for everyone (signed in or not). */
+function BoardSection() {
+  return (
+    <section className={card} aria-labelledby="board-heading" data-testid="board-settings">
+      <h2 id="board-heading" className="mb-1 font-semibold">Board</h2>
+      <p className="mb-3 text-xs text-muted">Changes every board at once. Saved on this device.</p>
+      <BoardThemePicker />
+    </section>
+  );
+}
+
+/** Settings: the board theme for everyone; for a signed-in player also username and Google link. */
 export function AccountPage() {
   const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
@@ -31,16 +45,25 @@ export function AccountPage() {
       .catch((e: Error) => setLoadError(e.message));
   }, [status]);
 
-  if (status === 'unknown') return <p className="p-6 text-center text-sm text-muted">Loading…</p>;
   if (status !== 'signed-in' || !user) {
     return (
-      <div className="mx-auto max-w-sm px-4 py-10 text-center text-sm">
+      <div className="mx-auto max-w-md px-4 py-8">
+        <h1 className="mb-4 text-xl font-semibold">Settings</h1>
         {linkError && (
-          <p role="alert" className="mb-4 rounded-lg bg-surface-2 p-3 text-danger">
+          <p role="alert" className="mb-4 rounded-lg bg-surface-2 p-3 text-sm text-danger">
             {linkError}
           </p>
         )}
-        <a href="#/login" className="text-accent hover:underline">Log in</a> to see your account.
+        <BoardSection />
+        <p className="text-sm">
+          {status === 'unknown' ? (
+            <span className="text-muted">Loading account…</span>
+          ) : (
+            <>
+              <a href="#/login" className="text-accent hover:underline">Log in</a> to change your username and sign-in methods.
+            </>
+          )}
+        </p>
       </div>
     );
   }
@@ -63,12 +86,11 @@ export function AccountPage() {
     }
   }
 
-  const card = 'mb-4 rounded-2xl bg-surface p-5';
   const input = 'w-full rounded-lg border border-surface-2 bg-bg px-3 py-2 text-base outline-none focus:border-accent';
 
   return (
     <div className="mx-auto max-w-md px-4 py-8">
-      <h1 className="mb-4 text-xl font-semibold">Account</h1>
+      <h1 className="mb-4 text-xl font-semibold">Settings</h1>
 
       {welcome && (
         <p className="mb-4 rounded-2xl bg-accent/15 p-4 text-sm">
@@ -140,6 +162,8 @@ export function AccountPage() {
           </div>
         )}
       </section>
+
+      <BoardSection />
 
       <a href={`#/profile/${encodeURIComponent(user.username)}`} className="text-sm text-accent hover:underline">
         View your profile

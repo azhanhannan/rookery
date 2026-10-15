@@ -155,6 +155,9 @@ function BoardView({
           ...(arrows ? { arrows, allowDrawingArrows: false } : {}),
           lightSquareStyle: { backgroundColor: 'var(--board-light)' },
           darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
+          // Coordinates in the other square colour, so they follow the board theme.
+          lightSquareNotationStyle: { color: 'var(--board-dark)' },
+          darkSquareNotationStyle: { color: 'var(--board-light)' },
           animationDurationInMs: 150,
         }}
       />

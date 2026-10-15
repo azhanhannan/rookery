@@ -26,6 +26,7 @@ export function AccountNav() {
         <a href="#/login" className={link}>Log in</a>
         {/* Phones: the login page links to sign-up, which keeps the header on one line. */}
         <a href="#/signup" className={`${link} hidden sm:inline`}>Sign up</a>
+        <a href="#/account" className={`${link} hidden sm:inline`}>Settings</a>
       </div>
     );
   }

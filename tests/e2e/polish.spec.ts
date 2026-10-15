@@ -52,9 +52,9 @@ test('right-click circles a square; a left click clears it', async ({ page }) =>
   await page.mouse.move(e4.x, e4.y);
   await page.mouse.down({ button: 'right' });
   await page.mouse.up({ button: 'right' });
-  await expect(page.locator('#main-board-square-e4')).toHaveCSS('background-image', /radial-gradient/);
+  await expect(page.locator('#main-board-square-e4 > div')).toHaveCSS('background-image', /radial-gradient/);
   await page.mouse.click(e4.x, e4.y);
-  await expect(page.locator('#main-board-square-e4')).toHaveCSS('background-image', 'none');
+  await expect(page.locator('#main-board-square-e4 > div')).toHaveCSS('background-image', 'none');
 });
 
 test('Hide ratings removes the player rating from Play', async ({ page }) => {

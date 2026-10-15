@@ -1,11 +1,16 @@
 import { useState } from 'react';
+import { defaultPieces } from 'react-chessboard';
 import { BOARD_THEMES, loadBoardTheme, saveBoardTheme, type BoardTheme } from '../settings/boardTheme';
-import { MiniBoard } from './MiniBoard';
+import { PIECE_SETS, pieceUrl, preloadPieceSet, savePieceSet, usePieceSet, type PieceSet } from '../settings/pieceSet';
+import { Board } from './Board';
 
-/** An Italian Game position, so the preview shows pieces of both colours on both square colours. */
+/** An Italian Game position, so the preview shows every piece type of both colours on both square colours. */
 const PREVIEW_FEN = 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5';
 /** The stylesheet's light-mode colours, for the default theme's swatch. */
 const DEFAULT_SWATCH = { light: '#ece3cf', dark: '#7f9a8f' };
+
+const option = (on: boolean) =>
+  `flex flex-col items-center gap-1 rounded-lg p-1.5 text-xs ${on ? 'bg-accent/15 outline-2 outline-accent' : 'hover:bg-surface-2'}`;
 
 function Swatch({ theme }: { theme: BoardTheme }) {
   const { light, dark } = theme.colors ?? DEFAULT_SWATCH;
@@ -19,31 +24,71 @@ function Swatch({ theme }: { theme: BoardTheme }) {
   );
 }
 
-/** Board colour choice: applies at once to every board and is remembered on this device. */
+/** A white and a black knight from the set, on a neutral tile. */
+function PieceSample({ set }: { set: PieceSet }) {
+  const piece = (key: string) =>
+    set.dir ? <img src={pieceUrl(set, key)!} alt="" className="h-full w-full" draggable={false} /> : defaultPieces[key]();
+  return (
+    <span className="flex h-11 w-11 items-center rounded bg-surface-2" aria-hidden>
+      <span className="h-6 w-6">{piece('wN')}</span>
+      <span className="-ml-1 h-6 w-6">{piece('bN')}</span>
+    </span>
+  );
+}
+
+/**
+ * Board colours and piece style, with a live preview. Both apply at once to every board and are remembered
+ * on this device.
+ */
 export function BoardThemePicker() {
-  const [current, setCurrent] = useState(loadBoardTheme);
+  const [theme, setTheme] = useState(loadBoardTheme);
+  const pieceSet = usePieceSet();
   return (
     <div className="flex flex-col items-center gap-4">
-      <MiniBoard fen={PREVIEW_FEN} size={160} />
-      <div role="radiogroup" aria-label="Board theme" className="grid w-full grid-cols-4 gap-1.5">
-        {BOARD_THEMES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={current === t.id}
-            onClick={() => {
-              saveBoardTheme(t.id);
-              setCurrent(t.id);
-            }}
-            className={`flex flex-col items-center gap-1 rounded-lg p-1.5 text-xs ${
-              current === t.id ? 'bg-accent/15 outline-2 outline-accent' : 'hover:bg-surface-2'
-            }`}
-          >
-            <Swatch theme={t} />
-            <span className="max-w-full truncate">{t.name}</span>
-          </button>
-        ))}
+      <div className="pointer-events-none w-48" data-testid="board-preview">
+        <Board position={PREVIEW_FEN} orientation="white" id="preview-board" />
+      </div>
+
+      <div className="w-full">
+        <h3 className="mb-1.5 text-sm font-medium">Colours</h3>
+        <div role="radiogroup" aria-label="Board theme" className="grid grid-cols-4 gap-1.5">
+          {BOARD_THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.id}
+              onClick={() => {
+                saveBoardTheme(t.id);
+                setTheme(t.id);
+              }}
+              className={option(theme === t.id)}
+            >
+              <Swatch theme={t} />
+              <span className="max-w-full truncate">{t.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="w-full">
+        <h3 className="mb-1.5 text-sm font-medium">Pieces</h3>
+        <div role="radiogroup" aria-label="Piece style" className="grid grid-cols-4 gap-1.5">
+          {PIECE_SETS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={pieceSet.id === s.id}
+              onMouseEnter={() => preloadPieceSet(s.id)}
+              onClick={() => savePieceSet(s.id)}
+              className={option(pieceSet.id === s.id)}
+            >
+              <PieceSample set={s} />
+              <span className="max-w-full truncate">{s.name}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

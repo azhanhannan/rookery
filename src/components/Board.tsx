@@ -1,8 +1,10 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { Chessboard, defaultPieces, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
+import { Chessboard, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useGameStore, type Orientation } from '../game/gameStore';
 import { botColor, legalTargets, needsPromotion, replay, type MoveInput } from '../game/rules';
+import { usePieceSet } from '../settings/pieceSet';
+import { piecesFor } from './pieceRender';
 
 const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
 
@@ -74,6 +76,8 @@ function BoardView({
   positionKey = position,
   id = 'board',
 }: BoardViewProps) {
+  const pieceSet = usePieceSet();
+  const pieces = useMemo(() => piecesFor(pieceSet), [pieceSet]);
   const chess = useMemo(() => new Chess(position), [position]);
   const turn = chess.turn();
   const live = movable && !!onMove;
@@ -159,6 +163,7 @@ function BoardView({
           lightSquareNotationStyle: { color: 'var(--board-dark)' },
           darkSquareNotationStyle: { color: 'var(--board-light)' },
           animationDurationInMs: 150,
+          pieces,
         }}
       />
       {pendingPromotion && (
@@ -178,7 +183,7 @@ function BoardView({
                       onMove?.({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: p });
                     }}
                   >
-                    {defaultPieces[key]?.()}
+                    {pieces[key]?.()}
                   </button>
                 );
               })}

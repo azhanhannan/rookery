@@ -14,7 +14,7 @@ function BoardSection() {
   return (
     <section className={card} aria-labelledby="board-heading" data-testid="board-settings">
       <h2 id="board-heading" className="mb-1 font-semibold">Board</h2>
-      <p className="mb-3 text-xs text-muted">Changes every board at once. Saved on this device.</p>
+      <p className="mb-3 text-xs text-muted">Colours and pieces change every board at once. Saved on this device.</p>
       <BoardThemePicker />
     </section>
   );

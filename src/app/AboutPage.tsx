@@ -56,6 +56,32 @@ export function AboutPage() {
         </li>
       </ul>
 
+      <h2 className="mt-5 mb-1 font-semibold">Piece styles</h2>
+      <p>
+        Apart from Classic, the piece styles come unchanged from the{' '}
+        <a className={link} href="https://github.com/lichess-org/lila/tree/master/public/piece">Lichess repository</a>.{' '}
+        <a className={link} href="/pieces/LICENSE-NOTE.md">Licences and authors</a>.
+      </p>
+      <ul className="mt-2 list-disc pl-6">
+        <li>Merida — Armando Hernandez Marroquin, <a className={link} href="/pieces/LICENSE-GPL-2.0.txt">GPLv2+</a></li>
+        <li>
+          Chessnut — <a className={link} href="https://github.com/LexLuengas/chessnut-pieces">Alexis Luengas</a>,{' '}
+          <a className={link} href="/pieces/LICENSE-Apache-2.0-chessnut.txt">Apache 2.0</a>
+        </li>
+        <li>
+          Fantasy, Celtic, Spatial — <a className={link} href="https://github.com/maurimo/chess-art">Maurizio Monge</a>,{' '}
+          <a className={link} href="/pieces/LICENSE-MIT-chess-art.txt">MIT</a>
+        </li>
+        <li>
+          Papercut — <a className={link} href="https://nikoichu.itch.io/">Nikolay Anzarov</a>,{' '}
+          <a className={link} href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>
+        </li>
+        <li>
+          Shapes — <a className={link} href="https://github.com/flugsio/chess_shapes">flugsio</a>,{' '}
+          <a className={link} href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>
+        </li>
+      </ul>
+
       <h2 className="mt-5 mb-1 font-semibold">Open-source libraries</h2>
       <ul className="list-disc pl-6">
         {LIBRARIES.map((l) => (

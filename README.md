@@ -143,6 +143,15 @@ In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:st
   right order. That is the easy case; accuracy on people needs the Phase 4 Lichess games.
 - Tests: `tests/unit/maiaMatch.test.ts` (fake model), `tests/e2e/maiaMatch.spec.ts` (real model).
 
+## Board appearance (Settings)
+
+- Settings (`#/account`, open to signed-out players too) has a live preview, **Colours** (`src/settings/boardTheme.ts`:
+  overrides `--board-light`/`--board-dark` on `<html>`) and **Pieces** (`src/settings/pieceSet.ts`). Both are saved per
+  device (`rookery.boardTheme`, `rookery.pieceSet`) and apply to every board.
+- Piece sets other than Classic (react-chessboard's own) are SVGs in `public/pieces/<set>/`, fetched once from the
+  Lichess repo at a pinned commit by `scripts/fetch-pieces.mjs` and committed. Only sets whose licence allows
+  commercial use were taken; authors and licences in `public/pieces/LICENSE-NOTE.md` and on the About page.
+
 ## Puzzles
 
 - 2,880 puzzles sampled from the Lichess puzzle database (CC0), 120 per 100-point band from 400 to 3000,

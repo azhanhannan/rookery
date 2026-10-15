@@ -3,6 +3,8 @@ import { api, ApiError } from '../api/client';
 import type { ProfileResponse } from '../api/types';
 import { CATEGORY_NAMES, CATEGORY_ORDER } from '../components/ratingCategory';
 import { RatingHistoryChart } from '../components/RatingHistoryChart';
+import { TrainingStreak } from '../components/TrainingStreak';
+import { useAuthStore } from '../account/authStore';
 
 type State =
   | { kind: 'loading' }
@@ -13,6 +15,8 @@ type State =
 /** `#/profile/<username>`: public ratings and rating history. App keys it by the hash, so it mounts per player. */
 export function ProfilePage({ username }: { username: string }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  // The streak and review count live on this device, so they only show on the viewer's own profile.
+  const own = useAuthStore((s) => s.user?.username.toLowerCase() === username.toLowerCase());
 
   useEffect(() => {
     let live = true;
@@ -46,6 +50,7 @@ export function ProfilePage({ username }: { username: string }) {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-6">
+      {own && <TrainingStreak showReviewed />}
       <div className="min-w-0">
         <h1 className="truncate text-xl font-bold">{user.username}</h1>
         <p className="text-sm text-muted">

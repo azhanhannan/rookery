@@ -69,4 +69,6 @@ export type NewGameOptions = {
   botEngine?: BotEngine;
   /** Practice game (bot only): unrated, with takebacks and helpers. Wins over `rated`. */
   practice?: boolean;
+  /** Start from this position instead of the usual one (the Analysis board's "Play this position"). */
+  startFen?: string;
 };

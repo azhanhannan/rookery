@@ -73,6 +73,7 @@ function freshState(setup: NewGameOptions) {
     white: color === 'w' ? you : friend,
     black: color === 'w' ? friend : you,
     timeControl: tc?.id,
+    startFen: setup.startFen,
   });
   // Phase 5: the player asked for a rated bot game; the server decides whether it qualifies.
   if (setup.rated === true && vsBot && setup.practice !== true) record.rated = true;

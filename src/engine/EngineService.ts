@@ -1,7 +1,7 @@
 // The only code that talks to Stockfish. One request runs at a time; the rest wait in a FIFO queue,
 // because UCI is a single stream and a second `go` would silently cancel the first.
 import { ENGINE_URL } from '../config/tunables';
-import type { AnalysisResult, AnalyzeOptions, Engine, EngineLine } from './types';
+import type { AnalysisResult, AnalyzeOptions, Engine, EngineLine, StreamOptions } from './types';
 import { parseBestMove, parseInfo, parseSpinOption, type InfoLine } from './uci';
 
 /** A UCI text pipe: a Web Worker in the browser, the `stockfish` package in Node (nodeTransport.ts). */
@@ -23,6 +23,8 @@ type Job = {
   fail(err: Error): void;
   /** True while a `go` is outstanding, so `stop()` knows there is something to stop. */
   searching: boolean;
+  /** A continuous analysis: any request queued behind it stops it, so it never blocks the bot or a review. */
+  yields?: boolean;
 };
 
 export class EngineService implements Engine {
@@ -64,6 +66,23 @@ export class EngineService implements Engine {
       const sorted = [...lines.values()].sort((a, b) => a.rank - b.rank);
       return { fen, lines: sorted, depth: sorted[0]?.depth ?? 0 };
     });
+  }
+
+  /**
+   * Continuous analysis (the Analysis board): `go infinite`, or `go depth N` when `depth` is given, with MultiPV.
+   * `onUpdate` gets the lines (sorted by rank) every time the engine reports a deeper or changed line.
+   * Resolves with the last lines once `stop()` ends it (or the depth is reached). It yields: any other request
+   * queued while it runs stops it first, so the rest of the app never waits on it.
+   */
+  analyzeStream(fen: string, opts: StreamOptions, onUpdate: (r: AnalysisResult) => void): Promise<AnalysisResult> {
+    const go = opts.depth !== undefined ? `go depth ${opts.depth}` : 'go infinite';
+    const result = (lines: Map<number, EngineLine>): AnalysisResult => {
+      const sorted = [...lines.values()].sort((a, b) => a.rank - b.rank);
+      return { fen, lines: sorted, depth: sorted[0]?.depth ?? 0 };
+    };
+    return this.search(fen, opts.multiPV ?? 1, go, true, (lines) => onUpdate(result(lines))).then(({ lines }) =>
+      result(lines),
+    );
   }
 
   goMovetime(fen: string, movetimeMs: number): Promise<string> {
@@ -138,11 +157,18 @@ export class EngineService implements Engine {
     return Promise.race([handshake, timeout]).finally(() => clearTimeout(timer));
   }
 
-  private search(fen: string, multiPV: number, goCommand: string, fullStrength: boolean) {
+  private search(
+    fen: string,
+    multiPV: number,
+    goCommand: string,
+    fullStrength: boolean,
+    onInfo?: (lines: Map<number, EngineLine>) => void,
+  ) {
     return this.enqueue<{ lines: Map<number, EngineLine>; best: string | null }>((done) => {
       const lines = new Map<number, EngineLine>();
       const job: Job = {
         searching: false,
+        yields: onInfo !== undefined,
         start: () => {
           // Analysis is always full strength; only goMovetime plays at the bot's limit.
           if (fullStrength && this.options.get('uci_limitstrength') === 'true') {
@@ -157,6 +183,7 @@ export class EngineService implements Engine {
           const info = parseInfo(line, fen);
           if (info) {
             lines.set(info.multipv, toLine(info));
+            onInfo?.(lines);
             return;
           }
           const best = parseBestMove(line);
@@ -201,6 +228,8 @@ export class EngineService implements Engine {
     if (!this.transport) return Promise.reject(new Error('Engine not started: call init() first'));
     return new Promise<T>((resolve, reject) => {
       this.queue.push(makeJob({ resolve, reject }));
+      // A continuous analysis gives way to anything else; its promise still resolves with what it had.
+      if (this.current?.yields) this.stop();
       this.pump();
     });
   }

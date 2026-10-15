@@ -24,6 +24,9 @@ export type AnalysisResult = {
 
 export type AnalyzeOptions = { depth?: number; movetime?: number; multiPV?: number };
 
+/** EngineService.analyzeStream: no depth = until stopped. */
+export type StreamOptions = { depth?: number; multiPV?: number };
+
 export type BotLevel = {
   /** Display Elo; also the id. */
   elo: number;

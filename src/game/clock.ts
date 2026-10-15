@@ -1,3 +1,4 @@
+import { POLISH } from '../config/tunables';
 import type { Color } from './types';
 
 export type TimeControl = { id: string; label: string; baseMs: number; incMs: number };
@@ -65,8 +66,22 @@ export function formatClock(ms: number): string {
   const totalSec = Math.floor(clamped / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
-  if (clamped < 10_000) return `${m}:${String(s).padStart(2, '0')}.${Math.floor((clamped % 1000) / 100)}`;
+  if (clamped < POLISH.clockTenthsMs) return `${m}:${String(s).padStart(2, '0')}.${Math.floor((clamped % 1000) / 100)}`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** The clock is in its red zone. */
+export function isLowTime(ms: number): boolean {
+  return ms < POLISH.clockRedMs;
+}
+
+/**
+ * Whether the low-time tick should sound now: the clock went from `prevMs` to `ms`, is under the tick threshold and
+ * crossed a whole second (so it ticks once per second, never twice for one second, and never at zero).
+ */
+export function lowTimeTickDue(prevMs: number | null, ms: number): boolean {
+  if (prevMs === null || ms <= 0 || ms >= POLISH.clockTickMs || ms >= prevMs) return false;
+  return Math.floor(ms / 1000) !== Math.floor(prevMs / 1000);
 }
 
 /** PGN %clk format, h:mm:ss. */

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
-import { describeRatingChange, useSyncStore } from '../account/syncStore';
+import { useSyncStore } from '../account/syncStore';
 import { levelLabel, suggestNextLevel } from '../bots/botLevels';
 import { maiaBotName, suggestNextMaiaLevel } from '../bots/maiaLevels';
 import { Board } from '../components/Board';
@@ -16,6 +16,9 @@ import { setMuted } from '../game/sound';
 import { loadEvalBarPref, saveBotElo, saveEvalBarPref, saveMaiaElo } from '../game/storage';
 import type { GameRecord, NewGameOptions } from '../game/types';
 import { useLiveEval } from './useLiveEval';
+import { EndScreen } from '../components/EndScreen';
+import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
+import { useFlipKey } from '../components/boardKeys';
 
 const MUTE_KEY = 'rookery.muted';
 
@@ -110,6 +113,8 @@ export function PlayPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [step, goTo]);
 
+  useFlipKey(flip);
+
   const bot = botColor(record);
   const evalOn = evalPref ?? bot !== null;
   const liveEval = useLiveEval(record, viewPly, evalOn);
@@ -160,21 +165,7 @@ export function PlayPage() {
           )}
         </div>
 
-        {ended && (
-          <a
-            href={`#/review/${record.id}`}
-            className="rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-accent-ink"
-            data-testid="game-review-link"
-          >
-            Game Review
-          </a>
-        )}
-
-        {ended && sync?.rating && (
-          <div data-testid="rating-change" className="rounded-lg bg-surface p-3 text-center text-sm font-semibold tabular-nums">
-            {describeRatingChange(sync.rating)}
-          </div>
-        )}
+        {ended && <EndScreen record={record} outcome={outcome} rating={sync?.rating} />}
         {ended && record.rated && !sync?.rating && sync?.unratedReason && (
           <p data-testid="unrated-reason" className="text-center text-xs text-muted">
             Not rated: {sync.unratedReason}
@@ -215,10 +206,10 @@ export function PlayPage() {
         <MoveList />
 
         <div className="grid grid-cols-4 gap-2">
-          <button className={btn} onClick={() => goTo(0)} aria-label="First move" disabled={viewPly === 0}>⏮</button>
-          <button className={btn} onClick={() => step(-1)} aria-label="Previous move" disabled={viewPly === 0}>◀</button>
-          <button className={btn} onClick={() => step(1)} aria-label="Next move" disabled={live}>▶</button>
-          <button className={btn} onClick={() => goTo(record.moves.length)} aria-label="Last move" disabled={live}>⏭</button>
+          <button className={btn} onClick={() => goTo(0)} aria-label="First move" title="First move (Home)" disabled={viewPly === 0}>⏮</button>
+          <button className={btn} onClick={() => step(-1)} aria-label="Previous move" title="Previous move (←)" disabled={viewPly === 0}>◀</button>
+          <button className={btn} onClick={() => step(1)} aria-label="Next move" title="Next move (→)" disabled={live}>▶</button>
+          <button className={btn} onClick={() => goTo(record.moves.length)} aria-label="Last move" title="Last move (End)" disabled={live}>⏭</button>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -228,7 +219,7 @@ export function PlayPage() {
           >
             New game
           </button>
-          <button className={btn} onClick={flip}>Flip board</button>
+          <button className={btn} onClick={flip} title="Flip board (X)">Flip board</button>
           <FullscreenButton className={`${btn} col-span-2`} withText />
           {confirmResign ? (
             <button
@@ -260,6 +251,7 @@ export function PlayPage() {
           >
             {evalOn ? 'Eval bar on' : 'Eval bar off'}
           </button>
+          <KeyboardShortcuts page="play" className={`${btn} col-span-2`} withText />
         </div>
         {evalOn && liveEval.engine === 'loading' && <p className="text-xs text-muted">Engine loading…</p>}
         {evalOn && liveEval.error && (

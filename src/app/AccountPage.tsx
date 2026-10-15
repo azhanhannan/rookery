@@ -5,6 +5,7 @@ import { api, googleSignInUrl } from '../api/client';
 import type { AccountResponse } from '../api/types';
 import { BoardThemePicker } from '../components/BoardThemePicker';
 import { GoogleButton } from '../components/GoogleButton';
+import { PlaySettingsSection } from '../components/PlaySettingsSection';
 import { RATINGS } from '../config/tunables';
 
 const card = 'mb-4 rounded-2xl bg-surface p-5';
@@ -55,6 +56,7 @@ export function AccountPage() {
           </p>
         )}
         <BoardSection />
+        <PlaySettingsSection />
         <p className="text-sm">
           {status === 'unknown' ? (
             <span className="text-muted">Loading account…</span>
@@ -164,6 +166,7 @@ export function AccountPage() {
       </section>
 
       <BoardSection />
+      <PlaySettingsSection />
 
       <a href={`#/profile/${encodeURIComponent(user.username)}`} className="text-sm text-accent hover:underline">
         View your profile

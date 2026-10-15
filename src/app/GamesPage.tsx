@@ -18,6 +18,7 @@ import { MiniBoard } from '../components/MiniBoard';
 import { CATEGORY_NAMES } from '../components/ratingCategory';
 import { loadHistory } from '../game/storage';
 import type { GameRecord } from '../game/types';
+import { usePlaySettings } from '../settings/playSettings';
 
 function message(e: unknown): string {
   return e instanceof ApiError || e instanceof Error ? e.message : String(e);
@@ -97,7 +98,8 @@ function GameRow({ g }: { g: GameSummary }) {
   const outcome = outcomeOf(g);
   const ended = endedText(g.termination);
   const time = new Date(g.playedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const delta = g.ratingDelta;
+  // Settings → Play "Hide ratings" leaves the rating change out.
+  const delta = usePlaySettings().hideRating ? undefined : g.ratingDelta;
   return (
     <li>
       <a

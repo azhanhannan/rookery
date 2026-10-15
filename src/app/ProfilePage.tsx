@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import type { ProfileResponse } from '../api/types';
 import { CATEGORY_NAMES, CATEGORY_ORDER } from '../components/ratingCategory';
 import { RatingHistoryChart } from '../components/RatingHistoryChart';
+import { usePlaySettings } from '../settings/playSettings';
 
 type State =
   | { kind: 'loading' }
@@ -13,6 +14,8 @@ type State =
 /** `#/profile/<username>`: public ratings and rating history. App keys it by the hash, so it mounts per player. */
 export function ProfilePage({ username }: { username: string }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  // Settings → Play "Hide ratings": rating numbers and the history graph stay hidden.
+  const { hideRating } = usePlaySettings();
 
   useEffect(() => {
     let live = true;
@@ -66,8 +69,8 @@ export function ProfilePage({ username }: { username: string }) {
                 className="text-2xl font-bold tabular-nums"
                 title={r.provisional ? 'Provisional: the rating settles after more rated games' : undefined}
               >
-                {r.rating}
-                {r.provisional && <span className="text-muted">?</span>}
+                {hideRating ? <span className="text-muted">•••</span> : r.rating}
+                {!hideRating && r.provisional && <span className="text-muted">?</span>}
               </div>
               <div className="text-xs text-muted">
                 {r.games} game{r.games === 1 ? '' : 's'}
@@ -85,8 +88,8 @@ export function ProfilePage({ username }: { username: string }) {
               className="text-2xl font-bold tabular-nums"
               title={puzzle.provisional ? 'Provisional: the rating settles after more puzzles' : undefined}
             >
-              {puzzle.rating}
-              {puzzle.provisional && <span className="text-muted">?</span>}
+              {hideRating ? <span className="text-muted">•••</span> : puzzle.rating}
+              {!hideRating && puzzle.provisional && <span className="text-muted">?</span>}
             </div>
             <div className="text-xs text-muted">
               {puzzle.attempts} tried
@@ -96,7 +99,7 @@ export function ProfilePage({ username }: { username: string }) {
         </ul>
       )}
 
-      {history.length > 0 && (
+      {history.length > 0 && !hideRating && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold">Rating history</h2>
           <RatingHistoryChart history={history} />

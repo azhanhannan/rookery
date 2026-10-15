@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Chessboard, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useGameStore, type Orientation } from '../game/gameStore';
@@ -33,6 +33,8 @@ type BoardViewProps = {
   id?: string;
   /** Extra per-square styles merged on top of the board's own (e.g. Practice glows). */
   squareStyles?: Record<string, CSSProperties>;
+  /** A small marker drawn in the top-right corner of one square (Review's label badge). */
+  squareBadge?: { square: string; node: ReactNode } | null;
 };
 
 /**
@@ -82,6 +84,7 @@ function BoardView({
   positionKey = position,
   id = 'board',
   squareStyles: extraStyles,
+  squareBadge,
 }: BoardViewProps) {
   const pieceSet = usePieceSet();
   const pieces = useMemo(() => piecesFor(pieceSet), [pieceSet]);
@@ -153,6 +156,8 @@ function BoardView({
     return styles;
   }, [chess, lastMove, selected, targets, turn, extraStyles, shown.lastMove, shown.legalDots]);
 
+  const allStyles = mergeSquareStyles(squareStyles, marks.circleStyles);
+
   return (
     <div className="relative w-full" data-testid="board">
       <Chessboard
@@ -165,12 +170,29 @@ function BoardView({
           onPieceDrop,
           onSquareClick,
           onPieceDrag: ({ square }) => square && setSel({ key: positionKey, square }),
-          squareStyles: mergeSquareStyles(squareStyles, marks.circleStyles),
+          squareStyles: allStyles,
           // App-drawn arrows (review) and hand-drawn ones (right-drag) share the board.
           ...(arrows ? { arrows } : {}),
           ...marks.options,
           showNotation: shown.coordinates,
           showAnimations: animationMs(shown) > 0,
+          ...(squareBadge
+            ? {
+                squareRenderer: ({ square, children }: { square: string; children?: ReactNode }) => (
+                  <div style={{ width: '100%', height: '100%', position: 'relative', ...allStyles[square] }}>
+                    {children}
+                    {square === squareBadge.square && (
+                      <div
+                        data-testid="square-badge"
+                        style={{ position: 'absolute', top: '2%', right: '2%', zIndex: 5, pointerEvents: 'none' }}
+                      >
+                        {squareBadge.node}
+                      </div>
+                    )}
+                  </div>
+                ),
+              }
+            : {}),
           // Textured themes set --board-image and make the squares transparent (settings/boardTheme.ts).
           boardStyle: { backgroundImage: 'var(--board-image, none)', backgroundSize: '100% 100%' },
           lightSquareStyle: { backgroundColor: 'var(--board-square-light, var(--board-light))' },

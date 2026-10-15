@@ -6,6 +6,7 @@ import type { AccountResponse } from '../api/types';
 import { BoardThemePicker } from '../components/BoardThemePicker';
 import { GoogleButton } from '../components/GoogleButton';
 import { PlaySettingsSection } from '../components/PlaySettingsSection';
+import { ReviewSettingsSection } from '../components/ReviewStyleParts';
 import { RATINGS } from '../config/tunables';
 
 const card = 'mb-4 rounded-2xl bg-surface p-5';
@@ -57,6 +58,7 @@ export function AccountPage() {
         )}
         <BoardSection />
         <PlaySettingsSection />
+        <ReviewSettingsSection className={card} />
         <p className="text-sm">
           {status === 'unknown' ? (
             <span className="text-muted">Loading account…</span>
@@ -167,6 +169,7 @@ export function AccountPage() {
 
       <BoardSection />
       <PlaySettingsSection />
+      <ReviewSettingsSection className={card} />
 
       <a href={`#/profile/${encodeURIComponent(user.username)}`} className="text-sm text-accent hover:underline">
         View your profile

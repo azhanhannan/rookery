@@ -237,3 +237,14 @@ export const ANALYSIS = {
   /** Moves of each engine line shown in SAN. */
   pvMoves: 10,
 };
+
+/** Game Review styles (Learner / Club / Analyst), key moments and "Analyse deeper here". */
+export const REVIEW_STYLE = {
+  /** Default style from the player's rating: below `learnerBelow` = Learner, below `clubBelow` = Club, else Analyst. */
+  learnerBelow: 1000,
+  clubBelow: 1900,
+  /** Key moments: the biggest win-chance swings (`loss`), at least `min` when the game has them, at most `max`. */
+  keyMoments: { min: 3, max: 5, minSwing: 10 },
+  /** Search depth for "Analyse deeper here". */
+  deepDepth: 24,
+};

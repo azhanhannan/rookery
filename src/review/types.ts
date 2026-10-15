@@ -38,6 +38,8 @@ export type PositionReview = {
   bestMove?: string;
   /** Engine's principal variation from here, UCI. */
   bestLine: string[];
+  /** Search depth of this position when it differs from the review's (after "Analyse deeper here"). */
+  depth?: number;
 };
 
 export type MoveReview = {

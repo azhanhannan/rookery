@@ -122,6 +122,10 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
         const saved = setMaiaMatch(record.id, m);
         if (saved) onSaved(saved);
       }}
+      onReviewChange={(r) => {
+        const saved = setReview(record.id, r);
+        if (saved) onSaved(saved);
+      }}
     />
   );
 }

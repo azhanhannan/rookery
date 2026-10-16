@@ -9,7 +9,8 @@
 // - Daily puzzle: the later day wins; on the same day a solve is kept.
 // - Stamped records: the newer embedded `updatedAt` wins (else the change time, like a preference).
 // - Opening repertoires: union by id, the newer repertoire wins; cards merge per position like My mistakes.
-//   (No delete markers: a repertoire deleted on one device comes back if another still has it.)
+//   A deleted repertoire leaves a delete marker (`deleted[id]` = when); the marker beats any copy last changed
+//   before it, and markers are dropped after SYNC.tombstoneDays.
 // Training merges are commutative and idempotent, so the order devices sync in doesn't matter.
 import type { StateItem } from '../api/types';
 import { MISTAKES, OPENING_TRAINER, SYNC } from '../config/tunables';
@@ -78,7 +79,14 @@ export function emptyValue(kind: SyncKind): unknown {
 
 type RepCard = CardState & { reps: number; fails: number };
 type RepEntry = { id: string; createdAt: string; updatedAt: string } & Record<string, unknown>;
-export type RepertoireValue = { version: 1; updatedAt: string; repertoires: RepEntry[]; cards: Record<string, Record<string, RepCard>> };
+export type RepertoireValue = {
+  version: 1;
+  updatedAt: string;
+  repertoires: RepEntry[];
+  cards: Record<string, Record<string, RepCard>>;
+  /** Delete markers: repertoire id → ISO time it was deleted. Absent when there are none (older values never had it). */
+  deleted?: Record<string, string>;
+};
 
 /** Same data with object keys sorted at every level (Postgres jsonb reorders keys; comparisons must not care). */
 function canonical(v: unknown): unknown {
@@ -97,7 +105,7 @@ const repOrder = (a: RepEntry, b: RepEntry) =>
 
 function normalizeRepertoires(value: unknown): RepertoireValue | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const v = value as { updatedAt?: unknown; repertoires?: unknown; cards?: unknown };
+  const v = value as { updatedAt?: unknown; repertoires?: unknown; cards?: unknown; deleted?: unknown };
   if (!Array.isArray(v.repertoires)) return undefined;
   const reps: RepEntry[] = [];
   const seen = new Set<string>();
@@ -121,7 +129,44 @@ function normalizeRepertoires(value: unknown): RepertoireValue | undefined {
     }
     cards[r.id] = out;
   }
-  return { version: 1, updatedAt: str(v.updatedAt), repertoires: reps, cards };
+  const deleted = normalizeDeleted(v.deleted);
+  return { version: 1, updatedAt: str(v.updatedAt), repertoires: reps, cards, ...(deleted ? { deleted } : {}) };
+}
+
+/** Delete markers with sorted ids and ISO-time values; undefined when there are none. */
+function normalizeDeleted(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const out: Record<string, string> = {};
+  for (const id of Object.keys(value).sort()) {
+    const at = (value as Record<string, unknown>)[id];
+    if (typeof at === 'string' && Number.isFinite(Date.parse(at))) out[id] = at;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Union of two marker sets (the later time per id), without markers older than SYNC.tombstoneDays before `now`. */
+export function mergeTombstones(
+  a: Record<string, string> | undefined,
+  b: Record<string, string> | undefined,
+  now: number = Date.now(),
+  keepDays: number = SYNC.tombstoneDays,
+): Record<string, string> | undefined {
+  const oldest = now - keepDays * 86_400_000;
+  const out: Record<string, string> = {};
+  for (const id of [...new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])].sort()) {
+    const x = a?.[id];
+    const y = b?.[id];
+    const at = x && y ? (Date.parse(x) >= Date.parse(y) ? x : y) : (x ?? y)!;
+    if (Date.parse(at) >= oldest) out[id] = at;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** A delete marker at `deletedAt` beats a copy last changed at `updatedAt` (or never: an empty stamp). */
+function deletedAfter(deletedAt: string | undefined, updatedAt: string): boolean {
+  if (!deletedAt) return false;
+  const u = Date.parse(updatedAt);
+  return !Number.isFinite(u) || Date.parse(deletedAt) >= u;
 }
 
 function pickRepCard(a: RepCard, b: RepCard): RepCard {
@@ -133,8 +178,14 @@ function pickRepCard(a: RepCard, b: RepCard): RepCard {
   return a.fails >= b.fails ? a : b;
 }
 
-export function mergeRepertoires(a: RepertoireValue | null, b: RepertoireValue | null): RepertoireValue | null {
+export function mergeRepertoires(
+  a: RepertoireValue | null,
+  b: RepertoireValue | null,
+  now: number = Date.now(),
+): RepertoireValue | null {
   if (!a || !b) return a ?? b;
+  // Every marker from both sides decides this merge; expired ones are only left out of the result.
+  const markers = mergeTombstones(a.deleted, b.deleted, now, Infinity) ?? {};
   const byId = new Map<string, RepEntry>();
   for (const r of [...a.repertoires, ...b.repertoires]) {
     const cur = byId.get(r.id);
@@ -142,7 +193,7 @@ export function mergeRepertoires(a: RepertoireValue | null, b: RepertoireValue |
     else if (r.updatedAt !== cur.updatedAt) byId.set(r.id, r.updatedAt > cur.updatedAt ? r : cur);
     else if (JSON.stringify(r) > JSON.stringify(cur)) byId.set(r.id, r); // same time, different content: any fixed rule
   }
-  const repertoires = [...byId.values()].sort(repOrder);
+  const repertoires = [...byId.values()].filter((r) => !deletedAfter(markers[r.id], r.updatedAt)).sort(repOrder);
   const cards: RepertoireValue['cards'] = {};
   for (const { id } of repertoires) {
     const x = a.cards[id] ?? {};
@@ -152,7 +203,14 @@ export function mergeRepertoires(a: RepertoireValue | null, b: RepertoireValue |
       book[k] = x[k] && y[k] ? pickRepCard(x[k], y[k]) : (x[k] ?? y[k]);
     if (Object.keys(book).length || a.cards[id] || b.cards[id]) cards[id] = book;
   }
-  return { version: 1, updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt, repertoires, cards };
+  const deleted = mergeTombstones(a.deleted, b.deleted, now);
+  return {
+    version: 1,
+    updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt,
+    repertoires,
+    cards,
+    ...(deleted ? { deleted } : {}),
+  };
 }
 
 /** The `updatedAt` a stamped record carries (ISO text or ms), as ms; null when it has none. */

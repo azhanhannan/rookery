@@ -36,6 +36,8 @@ export type RepertoireData = {
   updatedAt: string;
   repertoires: Repertoire[];
   cards: CardBook;
+  /** Delete markers for account sync: repertoire id → ISO time it was deleted (src/sync/merge.ts). */
+  deleted?: Record<string, string>;
 };
 
 export const emptyData = (): RepertoireData => ({ version: 1, updatedAt: new Date(0).toISOString(), repertoires: [], cards: {} });
@@ -340,7 +342,16 @@ export function parseRepertoireData(raw: string | null): RepertoireData {
       if (!book || typeof book !== 'object') continue;
       cards[r.id] = Object.fromEntries(Object.entries(book).filter(([, c]) => validCard(c)));
     }
-    return { version: 1, updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : emptyData().updatedAt, repertoires, cards };
+    const deleted: Record<string, string> = {};
+    if (p.deleted && typeof p.deleted === 'object')
+      for (const [id, at] of Object.entries(p.deleted)) if (typeof at === 'string') deleted[id] = at;
+    return {
+      version: 1,
+      updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : emptyData().updatedAt,
+      repertoires,
+      cards,
+      ...(Object.keys(deleted).length ? { deleted } : {}),
+    };
   } catch {
     return emptyData();
   }

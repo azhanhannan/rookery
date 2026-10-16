@@ -1,6 +1,7 @@
 // The user's opening repertoires and their spaced-repetition cards, kept per device in one localStorage key
 // (`rookery.repertoires`, a single JSON value with an `updatedAt`, so account sync can carry it as is).
 import { create } from 'zustand';
+import { mergeTombstones } from '../sync/merge';
 import type { Color } from '../game/types';
 import { createTree, type VariationTree } from '../game/variationTree';
 import {
@@ -52,7 +53,9 @@ const now = () => new Date().toISOString();
 
 export const useRepertoireStore = create<RepertoireState>((set, get) => {
   const commit = (data: Omit<RepertoireData, 'updatedAt' | 'version'>) => {
-    const next: RepertoireData = { version: 1, updatedAt: now(), ...data };
+    // Delete markers ride along with every change (only `remove` adds one).
+    const deleted = data.deleted ?? get().data.deleted;
+    const next: RepertoireData = { version: 1, updatedAt: now(), ...data, ...(deleted ? { deleted } : {}) };
     set({ data: next });
     write(next);
   };
@@ -87,7 +90,9 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
       const { repertoires, cards } = get().data;
       const rest = { ...cards };
       delete rest[id];
-      commit({ repertoires: repertoires.filter((r) => r.id !== id), cards: rest });
+      // A delete marker, so account sync removes it on other devices too instead of bringing it back.
+      const deleted = mergeTombstones(get().data.deleted, { [id]: now() }) ?? {};
+      commit({ repertoires: repertoires.filter((r) => r.id !== id), cards: rest, deleted });
     },
     setTree(id, tree) {
       withTree(id, tree);

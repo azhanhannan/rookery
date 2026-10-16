@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { StateItem } from '../../src/api/types';
 import type { CardState, Schedule } from '../../src/puzzles/spacedRepetition';
 import { schedule } from '../../src/puzzles/spacedRepetition';
+import { SYNC } from '../../src/config/tunables';
 import { SYNC_KEYS, syncKind } from '../../src/sync/keys';
 import {
   emptyValue,
   mergeDaily,
   mergeItem,
+  mergeRepertoires,
   mergeSchedules,
+  mergeTombstones,
   mergeTrainedDays,
   normalizeValue,
   pickCard,
@@ -326,6 +329,63 @@ describe('opening repertoires', () => {
     const m = (x: unknown, y: unknown) => (mergeItem('repertoires', item(x, 0), item(y, 0))!.value as { cards: Record<string, Record<string, { reps: number }>> }).cards.a.p.reps;
     expect(m(a, b)).toBe(4);
     expect(m(b, a)).toBe(4);
+  });
+
+  describe('delete markers', () => {
+    const NOW = Date.parse('2026-10-16T12:00:00Z');
+    const withDel = (updatedAt: string, repertoires: unknown[], deleted?: Record<string, string>) =>
+      normalizeValue('repertoires', { version: 1, updatedAt, repertoires, cards: {}, ...(deleted ? { deleted } : {}) }) as never;
+    const ids = (v: unknown) => (v as { repertoires: { id: string }[] }).repertoires.map((r) => r.id);
+
+    it('a delete beats an older copy from another device, in either order, and sticks', () => {
+      const phone = withDel('2026-10-16T10:00:00Z', [rep('b', '2026-10-10T00:00:00Z')], { a: '2026-10-16T10:00:00Z' });
+      const laptop = withDel('2026-10-15T00:00:00Z', [rep('a', '2026-10-15T00:00:00Z'), rep('b', '2026-10-10T00:00:00Z')]);
+      const m = mergeRepertoires(phone, laptop, NOW)!;
+      expect(ids(m)).toEqual(['b']);
+      expect(m.deleted).toEqual({ a: '2026-10-16T10:00:00Z' });
+      expect(mergeRepertoires(laptop, phone, NOW)).toEqual(m);
+      // The laptop takes the merged value; merging its old copy in again changes nothing.
+      expect(mergeRepertoires(m, laptop, NOW)).toEqual(m);
+    });
+
+    it("drops the deleted repertoire's cards too", () => {
+      const phone = withDel('t', [], { a: '2026-10-16T10:00:00Z' });
+      const laptop = data('t', [rep('a', '2026-10-15T00:00:00Z')], { a: { p: rc(1, '2026-10-17', 1) } });
+      expect(mergeRepertoires(phone, laptop, NOW)!.cards).toEqual({});
+    });
+
+    it('an edit made after the delete keeps the repertoire', () => {
+      const phone = withDel('t', [], { a: '2026-10-14T00:00:00Z' });
+      const laptop = withDel('t', [rep('a', '2026-10-15T00:00:00Z')]);
+      expect(ids(mergeRepertoires(phone, laptop, NOW))).toEqual(['a']);
+    });
+
+    it('markers expire after SYNC.tombstoneDays', () => {
+      const old = new Date(NOW - (SYNC.tombstoneDays + 1) * 86_400_000).toISOString();
+      const fresh = new Date(NOW - 86_400_000).toISOString();
+      expect(mergeTombstones({ a: old, b: fresh }, { c: fresh }, NOW)).toEqual({ b: fresh, c: fresh });
+      expect(mergeTombstones({ a: old }, undefined, NOW)).toBeUndefined();
+      // The later time per id wins.
+      expect(mergeTombstones({ b: '2026-10-10T00:00:00Z' }, { b: '2026-10-12T00:00:00Z' }, NOW)).toEqual({ b: '2026-10-12T00:00:00Z' });
+    });
+
+    it('values stored before markers existed still normalize and merge (no `deleted` key added)', () => {
+      const legacy = { version: 1, updatedAt: 't', repertoires: [rep('a', 't')], cards: {} };
+      const n = normalizeValue('repertoires', legacy) as Record<string, unknown>;
+      expect('deleted' in n).toBe(false);
+      expect('deleted' in mergeRepertoires(n as never, n as never, NOW)!).toBe(false);
+      // Bad markers are dropped.
+      expect((normalizeValue('repertoires', { ...legacy, deleted: { x: 'nope', y: 3 } }) as Record<string, unknown>).deleted).toBeUndefined();
+    });
+
+    it('reconcile writes the delete locally and pushes nothing back', () => {
+      const server = withDel('2026-10-16T10:00:00Z', [], { a: '2026-10-16T10:00:00Z' });
+      const local = withDel('2026-10-15T00:00:00Z', [rep('a', '2026-10-15T00:00:00Z')]);
+      const keys = { 'rookery.repertoires': 'repertoires' } as const;
+      const r = reconcile({ 'rookery.repertoires': item(local, 5) }, { 'rookery.repertoires': item(server, 9) }, keys);
+      expect(ids(r.write['rookery.repertoires'].value)).toEqual([]);
+      expect(r.push).toEqual({});
+    });
   });
 
   it('survives a jsonb key reorder without wanting to push again', () => {

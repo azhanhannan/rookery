@@ -15,7 +15,8 @@
  * 'stamped': a raw JSON string carrying its own `updatedAt`; the newer one wins (training records whose
  *   owners keep that field current: endgame drills, timed-puzzle bests, the training log).
  * 'repertoires': the opening trainer (`{version, updatedAt, repertoires, cards}`); repertoires merge by id
- *   (newer `updatedAt` wins), their cards per position like My-mistakes cards.
+ *   (newer `updatedAt` wins), their cards per position like My-mistakes cards; delete markers (`deleted`)
+ *   remove a repertoire everywhere and expire after SYNC.tombstoneDays.
  */
 export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires';
 

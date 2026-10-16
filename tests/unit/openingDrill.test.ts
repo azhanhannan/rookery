@@ -23,6 +23,19 @@ describe('opening drill', () => {
     vi.useRealTimers();
   });
 
+  it('deleting a repertoire leaves a delete marker that later changes keep (for account sync)', async () => {
+    const { reps, KEY } = await fresh();
+    const a = reps.getState().create('A', 'w');
+    const b = reps.getState().create('B', 'b');
+    reps.getState().remove(a);
+    reps.getState().rename(b, 'B2');
+    const stored = JSON.parse(localStorage.getItem(KEY)!);
+    expect(stored.repertoires.map((r: { id: string }) => r.id)).toEqual([b]);
+    expect(Object.keys(stored.deleted)).toEqual([a]);
+    expect(stored.deleted[a]).toMatch(/^2026-10-16T/);
+    expect((await fresh()).reps.getState().data.deleted).toEqual(stored.deleted);
+  });
+
   it('persists repertoires in one key with updatedAt, and edits prune cards', async () => {
     const { reps, KEY } = await fresh();
     const id = reps.getState().create('Spanish', 'w', parsePgnTree('1. e4 e5 2. Nf3 *'));

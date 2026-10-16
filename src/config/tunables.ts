@@ -282,6 +282,11 @@ export const SYNC = {
   maxValueBytes: 1024 * 1024,
   /** Trained days kept (the streak storage keeps the same number). */
   trainedDaysLimit: 400,
+  /**
+   * Delete markers (a deleted repertoire) are kept this many days, then dropped. A device that stays offline
+   * longer than this can bring a deleted item back.
+   */
+  tombstoneDays: 90,
 };
 
 /** The opening trainer (#/openings): repertoires drilled with spaced repetition. */

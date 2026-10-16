@@ -25,6 +25,14 @@ model User {
   ratingEvents   RatingEvent[]
   puzzleAttempts PuzzleAttempt[]
   state          UserState[]
+
+  coachInvites     CoachInvite[]   @relation("InviteStudent")
+  coachLinks       CoachLink[]     @relation("LinkCoach")
+  studentLinks     CoachLink[]     @relation("LinkStudent")
+  commentsWritten  CoachComment[]  @relation("CommentCoach")
+  commentsReceived CoachComment[]  @relation("CommentStudent")
+  homeworkSet      Homework[]      @relation("HomeworkCoach")
+  homeworkGiven    Homework[]      @relation("HomeworkStudent")
 }
 
 /// A sign-in provider identity (Google) linked to a user. Linked only by signing in with it,
@@ -76,6 +84,7 @@ model Game {
   updatedAt    DateTime @updatedAt
 
   ratingEvent RatingEvent?
+  comments    CoachComment[]
 
   @@unique([userId, clientId])
   @@index([userId, playedAt])
@@ -139,4 +148,82 @@ model UserState {
   updatedAt DateTime
 
   @@id([userId, key])
+}
+
+/// A student's one-use invite code for a coach. Only the code's sha256 is stored. A new code replaces
+/// the student's unused ones; redeeming sets usedAt (a used or expired code links nobody).
+model CoachInvite {
+  /// sha256 of the normalised code.
+  id        String    @id
+  studentId String
+  student   User      @relation("InviteStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([studentId])
+}
+
+/// An active coach–student link. Unlinking (either side) deletes the row; every coach endpoint checks it.
+model CoachLink {
+  coachId   String
+  coach     User     @relation("LinkCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation("LinkStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([coachId, studentId])
+  @@index([studentId])
+}
+
+/// A coach's comment on one of a student's saved games, optionally on one ply. Stays on the game after an
+/// unlink (the student keeps it; the coach can no longer read the game).
+model CoachComment {
+  id        String    @id @default(cuid())
+  coachId   String
+  coach     User      @relation("CommentCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User      @relation("CommentStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  gameId    String
+  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /// 1-based ply the comment is about; null for the whole game.
+  ply       Int?
+  body      String
+  /// When the student saw it; null = unread.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([gameId, createdAt])
+  @@index([studentId, readAt])
+}
+
+/// Puzzle homework a coach set a student: positions (solver to move) with solution lines.
+model Homework {
+  id        String            @id @default(cuid())
+  coachId   String
+  coach     User              @relation("HomeworkCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User              @relation("HomeworkStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  title     String
+  /// HomeworkItem[] (src/api/types.ts), validated on create.
+  items     Json
+  dueAt     DateTime?
+  createdAt DateTime          @default(now())
+  attempts  HomeworkAttempt[]
+
+  @@index([studentId, createdAt])
+  @@index([coachId, studentId])
+}
+
+/// Every attempt the student makes at one homework position (the coach sees attempts and solved).
+model HomeworkAttempt {
+  id         String   @id @default(cuid())
+  homeworkId String
+  homework   Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  /// Index into Homework.items.
+  item       Int
+  solved     Boolean
+  createdAt  DateTime @default(now())
+
+  @@index([homeworkId, item])
 }

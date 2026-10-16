@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { useAuthStore } from '../account/authStore';
+import { useCoachBadge, useCoachBadgePolling } from '../coach/coachStore';
 
 const link = 'text-sm text-muted hover:text-ink';
 
@@ -14,6 +15,9 @@ export function AccountNav() {
   const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  useCoachBadgePolling();
+  // Unread coach comments plus unfinished homework.
+  const coachBadge = useCoachBadge((s) => s.unread.count + s.homeworkOpen);
 
   if (status !== 'signed-in' || !user) {
     return (
@@ -38,6 +42,14 @@ export function AccountNav() {
         {user.username}
       </a>
       <a href="#/games" className={link} onClick={onClick}>My games</a>
+      <a href="#/coach" className={link} onClick={onClick} data-testid="nav-coach">
+        Coach
+        {coachBadge > 0 && (
+          <span className="ml-1 rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink" aria-label={`${coachBadge} new from your coach`}>
+            {coachBadge}
+          </span>
+        )}
+      </a>
       <a href="#/account" className={link} onClick={onClick}>Settings</a>
       <button
         type="button"

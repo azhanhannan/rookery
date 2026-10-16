@@ -384,3 +384,26 @@ export const EXPLORER = {
   /** …when the position has at least this many master games. */
   rareMinGames: 100,
 };
+
+/** Coach–student link (#/coach, server/src/routes/coach.ts). */
+export const COACH = {
+  /** How long a student's invite code works, hours. One use only; a new code replaces the old one. */
+  inviteHours: 48,
+  /** Invite code length (letters and digits that can't be confused: no 0/O, 1/I/L). */
+  codeLength: 8,
+  /** Wrong codes allowed per coach in `redeemWindowMs` before redeeming is paused (guessing protection). */
+  redeemAttempts: 10,
+  redeemWindowMs: 15 * 60_000,
+  /** Longest comment, characters. */
+  maxCommentChars: 2000,
+  /** Longest homework title, characters. */
+  maxTitleChars: 80,
+  /** Positions per homework set. */
+  maxHomeworkItems: 20,
+  /** Longest solution line, plies (solver and replies; it always ends on a solver move). */
+  maxSolutionPlies: 9,
+  /** Student games per page in the coach's view. */
+  gamesPageSize: 30,
+  /** How often the header's unread-comments count refreshes while signed in, ms. */
+  unreadPollMs: 60_000,
+};

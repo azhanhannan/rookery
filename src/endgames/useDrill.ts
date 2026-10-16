@@ -16,6 +16,7 @@ import {
 import { tryLegalMove, type MoveInput } from '../game/rules';
 import type { Drill } from './drills';
 import { recordResult } from './progress';
+import { logTraining, startTraining } from '../training/trainingLog';
 
 export type DrillMove = { uci: string; san: string; by: 'user' | 'engine' };
 
@@ -88,6 +89,7 @@ export function useDrill(drill: Drill, onFinished?: () => void): DrillRun {
     (j: Judgement) => {
       set({ status: j.status, reason: j.reason, thinking: false });
       recordResult(drill.id, j.status === 'passed', userMoveCount(ref.current.moves));
+      logTraining('endgame');
       finishedCb.current?.();
     },
     [drill.id, set],
@@ -127,6 +129,7 @@ export function useDrill(drill: Drill, onFinished?: () => void): DrillRun {
     async (id: number) => {
       // Not inside the caller's render or effect: everything here sets state.
       await Promise.resolve();
+      startTraining('endgame');
       if (run.current.id !== id) return;
       if (drill.fen.split(' ')[1] !== drill.side) void engineTurn(id);
       const v = await tbVerdict(drill.fen);

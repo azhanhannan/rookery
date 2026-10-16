@@ -7,6 +7,7 @@ import type { MoveInput } from '../game/rules';
 import { playSound, soundForMove } from '../game/sound';
 import { todayKey } from '../puzzles/days';
 import { recordTrainedDay } from '../puzzles/streak';
+import { logTraining, startTraining } from '../training/trainingLog';
 import { drillSteps, judgeMove, type DrillStep } from './drill';
 import { chooseLine, shouldRecord, type DrillMode } from './repertoire';
 import { useRepertoireStore } from './repertoireStore';
@@ -130,7 +131,10 @@ export const useDrillStore = create<DrillState>((set, get) => {
       }, OPENING_TRAINER.opponentDelayMs * 2);
       return;
     }
-    if (s.answered > 0) recordTrainedDay();
+    if (s.answered > 0) {
+      recordTrainedDay();
+      logTraining('opening');
+    }
     const text =
       s.answered === 0
         ? 'Line complete'
@@ -144,6 +148,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
     ...idle,
     start(repId, mode) {
       clearTimer();
+      startTraining('opening');
       const rep = useRepertoireStore.getState().data.repertoires.find((r) => r.id === repId);
       const prev = get();
       const skip = prev.repId === repId && prev.path.length ? prev.path[prev.path.length - 1] : undefined;

@@ -355,3 +355,32 @@ export const EXTRAS = {
   /** Training log: days kept. */
   logKeepDays: 70,
 };
+
+/**
+ * Opening explorer (src/explorer): Lichess masters and Lichess-games databases. Needs a Lichess personal token
+ * since 2026 (the API answers 401 without one); the token stays in this browser, see src/explorer/explorer.ts.
+ */
+export const EXPLORER = {
+  url: 'https://explorer.lichess.org',
+  /** Pause on a position before asking (arrow-key stepping doesn't fire a request per move), ms. */
+  debounceMs: 350,
+  /** Give up on a request after this many ms. */
+  timeoutMs: 8000,
+  /** Answers kept in memory (per position + database + filters), least recently used dropped first. */
+  cacheSize: 300,
+  /** After a 429 the explorer waits this long before asking again (Lichess asks for a full minute), ms. */
+  backoffMs: 60_000,
+  /** Moves asked for per position. */
+  moves: 12,
+  /** Top master games listed (the API allows up to 15). */
+  topGames: 8,
+  /** Database shown first: 'masters' or 'lichess'. */
+  defaultSource: 'masters' as 'masters' | 'lichess',
+  /** Lichess database filters by default (rating groups start at these values; 2500 = 2500 and up). */
+  defaultRatings: [1600, 1800, 2000, 2200, 2500],
+  defaultSpeeds: ['blitz', 'rapid', 'classical'],
+  /** Opening trainer: a repertoire move played in under this share of master games is marked rare… */
+  rareShare: 0.05,
+  /** …when the position has at least this many master games. */
+  rareMinGames: 100,
+};

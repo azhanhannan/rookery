@@ -5,6 +5,7 @@ import { useAnalysisEngine } from '../analysis/useAnalysisEngine';
 import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { EvalBar } from '../components/EvalBar';
+import { ExplorerPanel } from '../components/ExplorerPanel';
 import { PositionEditor } from '../components/PositionEditor';
 import { SaveRepertoire } from '../components/SaveRepertoire';
 import { TablebasePanel } from '../components/TablebasePanel';
@@ -186,6 +187,8 @@ export function AnalysisPage() {
         />
 
         {editing === null && <TablebasePanel fen={fen} onPlay={playUci} />}
+
+        {editing === null && <ExplorerPanel fen={fen} onPlay={playUci} />}
 
         <VariationMoveList
           tree={tree}

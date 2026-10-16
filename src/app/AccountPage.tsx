@@ -5,6 +5,7 @@ import { api, googleSignInUrl } from '../api/client';
 import type { AccountResponse } from '../api/types';
 import { BoardThemePicker } from '../components/BoardThemePicker';
 import { GoogleButton } from '../components/GoogleButton';
+import { LichessTokenSection } from '../components/LichessTokenSection';
 import { PlaySettingsSection } from '../components/PlaySettingsSection';
 import { ReviewSettingsSection } from '../components/ReviewStyleParts';
 import { RATINGS } from '../config/tunables';
@@ -61,6 +62,7 @@ export function AccountPage() {
         <BoardSection />
         <PlaySettingsSection />
         <ReviewSettingsSection className={card} />
+        <LichessTokenSection />
         <p className="text-sm">
           {status === 'unknown' ? (
             <span className="text-muted">Loading account…</span>
@@ -173,6 +175,7 @@ export function AccountPage() {
       <BoardSection />
       <PlaySettingsSection />
       <ReviewSettingsSection className={card} />
+      <LichessTokenSection />
 
       <a href={`#/profile/${encodeURIComponent(user.username)}`} className="text-sm text-accent hover:underline">
         View your profile

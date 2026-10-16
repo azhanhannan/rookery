@@ -207,6 +207,12 @@ export const MISTAKES = {
   recentGames: 5,
   /** Daily puzzle: candidates rated within ±this of the player's rating (rounded to 100). */
   dailyWindow: 150,
+  /**
+   * A move other than the stored best is checked with the engine and accepted when it is about as good: at most
+   * `marginCp` centipawns worse than the best move, or (when the best move forces mate) a forced mate at most
+   * `mateSlack` moves longer. Both positions are searched to `depth`, at most `movetimeMs` each.
+   */
+  alternative: { marginCp: 50, mateSlack: 2, depth: 14, movetimeMs: 800 },
 };
 
 /** Panel cosmetics (Settings → Play): clock warnings, animation speeds, the end-of-game celebration. */

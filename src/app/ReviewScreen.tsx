@@ -33,6 +33,7 @@ import { ArrowToggles, ReviewMoveDetails } from '../components/ReviewMoveDetails
 import { AnalystMoveList, LearnerMoveList, SquareLabelBadge, StyleSwitch } from '../components/ReviewStyleParts';
 import { SelfReviewGate } from '../components/SelfReviewGate';
 import { DeepLines } from '../components/DeepLines';
+import { ExplorerPanel } from '../components/ExplorerPanel';
 import { biggestMistake, keyMoments, shouldSelfReview, threatArrowFor } from '../review/reviewStyle';
 import { retryColors } from '../review/reviewView';
 import { saveReviewPrefs } from '../settings/reviewPrefs';
@@ -402,6 +403,10 @@ export function ReviewScreen({
             </div>
             {deepen.lines?.ply === ply && <DeepLines review={review} ply={ply} analysis={deepen.lines.analysis} />}
           </div>
+        )}
+
+        {mode.kind === 'game' && review.positions[ply] && (
+          <ExplorerPanel fen={review.positions[ply].fen} highlightUci={review.moves[ply]?.uci ?? null} />
         )}
 
         {mode.kind === 'line' && (

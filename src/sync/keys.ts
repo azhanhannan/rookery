@@ -6,6 +6,8 @@
 // rookery.analysis (the analysis board's scratch tree), rookery.unsynced (the upload queue),
 // rookery.puzzles (the signed-out puzzle rating; the account has its own), rookery.muted (where you are
 // decides that: a phone in a meeting, a laptop at home), rookery.sync (this feature's own bookkeeping).
+// Never synced: rookery.lichessToken (a Lichess credential; it must not reach Rookery's server), and
+// rookery.explorer (opening explorer panel choices, device-only for now).
 
 /**
  * 'pref': the raw localStorage string (null = unset); the newest change wins.

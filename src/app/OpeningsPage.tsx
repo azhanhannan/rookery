@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
+import { RareInMasters } from '../components/ExplorerPanel';
 import { VariationMoveList } from '../components/VariationMoveList';
 import { OPENING_TRAINER } from '../config/tunables';
 import { parsePgnTree } from '../game/pgnTree';
@@ -377,6 +378,7 @@ function LinesPanel({ rep, selected, onSelect }: { rep: Repertoire; selected: st
   const store = useRepertoireStore.getState();
   const node = rep.tree.nodes[selected];
   const plan = splitComment(node?.comment).text;
+  const parent = node?.parentId ? rep.tree.nodes[node.parentId] : undefined;
   const empty = rep.tree.nodes[rep.tree.rootId].children.length === 0;
   const setTree = (t: VariationTree) => store.setTree(rep.id, t);
   return (
@@ -400,6 +402,9 @@ function LinesPanel({ rep, selected, onSelect }: { rep: Repertoire; selected: st
         />
       )}
       {plan && <p className="rounded-lg bg-surface p-2 text-sm"><span className="font-semibold">Plan: </span>{plan}</p>}
+      {parent && node?.uci && parent.fen.split(' ')[1] === rep.color && (
+        <RareInMasters key={selected} fenBefore={parent.fen} uci={node.uci} san={node.san ?? node.uci} />
+      )}
       <p className="text-xs text-muted">
         Play a move on the board to add it here. Select a move and remove its branch with the button under the list.
       </p>

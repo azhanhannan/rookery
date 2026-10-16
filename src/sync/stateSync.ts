@@ -14,7 +14,7 @@ import { reloadPieceSet } from '../settings/pieceSet';
 import { reloadPlaySettings } from '../settings/playSettings';
 import { reloadReviewPrefs } from '../settings/reviewPrefs';
 import { useRepertoireStore } from '../openings/repertoireStore';
-import { SYNC_KEYS, type SyncKind } from './keys';
+import { RAW_KINDS, SYNC_KEYS, type SyncKind } from './keys';
 import { emptyValue, normalizeValue, reconcile } from './merge';
 
 /** Device bookkeeping (never synced): per key, the value last seen (canonical JSON) and when it changed. */
@@ -27,6 +27,8 @@ function readLocal(key: string, kind: SyncKind): unknown {
   try {
     const raw = localStorage.getItem(key);
     if (kind === 'pref' || kind === 'stamped') return raw;
+    // Raw strings the merge parses itself (canonical form; unreadable = none).
+    if (RAW_KINDS.has(kind)) return raw === null ? null : (normalizeValue(kind, raw) ?? null);
     const v = raw === null ? emptyValue(kind) : normalizeValue(kind, JSON.parse(raw) as unknown);
     return v === undefined ? emptyValue(kind) : v;
   } catch {
@@ -37,7 +39,7 @@ function readLocal(key: string, kind: SyncKind): unknown {
 function writeLocal(key: string, kind: SyncKind, value: unknown): void {
   try {
     if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, kind === 'pref' || kind === 'stamped' ? String(value) : JSON.stringify(value));
+    else localStorage.setItem(key, RAW_KINDS.has(kind) ? String(value) : JSON.stringify(value));
   } catch {
     // Storage blocked or full: the account copy is pulled again next time.
   }

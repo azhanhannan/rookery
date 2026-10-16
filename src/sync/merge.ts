@@ -8,15 +8,18 @@
 // - Trained days: union (the streak can only grow from merging).
 // - Daily puzzle: the later day wins; on the same day a solve is kept.
 // - Stamped records: the newer embedded `updatedAt` wins (else the change time, like a preference).
+// - Bests (timed puzzles): the larger score per mode.
+// - Training log: union of days; a day on both sides keeps, per kind, the tally with more activities.
 // - Opening repertoires: union by id, the newer repertoire wins; cards merge per position like My mistakes.
 //   A deleted repertoire leaves a delete marker (`deleted[id]` = when); the marker beats any copy last changed
 //   before it, and markers are dropped after SYNC.tombstoneDays.
 // Training merges are commutative and idempotent, so the order devices sync in doesn't matter.
 import type { StateItem } from '../api/types';
-import { MISTAKES, OPENING_TRAINER, SYNC } from '../config/tunables';
+import { EXTRAS, MISTAKES, OPENING_TRAINER, SYNC } from '../config/tunables';
 import type { CardState, Schedule } from '../puzzles/spacedRepetition';
 import type { DailyRecord } from '../puzzles/daily';
 import { addDays, isDayKey } from '../puzzles/days';
+import { TRAINING_KINDS, type DayLog, type Tally, type TrainingLog } from '../training/trainingLog';
 import { SYNC_KEYS, type SyncKind } from './keys';
 
 /** Longest preference string accepted (preferences are short ids or small JSON objects). */
@@ -67,7 +70,125 @@ export function normalizeValue(kind: SyncKind, value: unknown): unknown {
       return typeof value === 'string' ? value : undefined;
     case 'repertoires':
       return value === null ? null : normalizeRepertoires(value);
+    case 'best': {
+      if (value === null) return null;
+      const b = typeof value === 'string' ? parseBests(value) : undefined;
+      return b && encodeBests(b);
+    }
+    case 'log': {
+      if (value === null) return null;
+      const l = typeof value === 'string' ? parseLog(value) : undefined;
+      return l && JSON.stringify(l);
+    }
   }
+}
+
+// --- per-mode bests (rookery.timedBest) -----------------------------------------------------------
+
+/** The mode a plain-number best belongs to. */
+export const DEFAULT_BEST_MODE = 'default';
+
+/**
+ * A stored best: a plain number (one mode), or a JSON object of mode -> score (`best` also means the default
+ * mode, `updatedAt` is ignored). Undefined when it is not one.
+ */
+function parseBests(raw: string): Record<string, number> | undefined {
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  const score = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? Math.floor(n) : null);
+  if (typeof v === 'number') return score(v) === null ? undefined : { [DEFAULT_BEST_MODE]: score(v)! };
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(v as Record<string, unknown>)) {
+    if (k === 'updatedAt') continue;
+    const sc = score(n);
+    const mode = k === 'best' ? DEFAULT_BEST_MODE : k;
+    if (sc !== null) out[mode] = Math.max(out[mode] ?? 0, sc);
+  }
+  return out;
+}
+
+/** Back to the stored form: a plain number when only the default mode has one (what the app reads today). */
+function encodeBests(b: Record<string, number>): string {
+  const modes = Object.keys(b).sort();
+  if (modes.length === 1 && modes[0] === DEFAULT_BEST_MODE) return String(b[DEFAULT_BEST_MODE]);
+  return JSON.stringify(Object.fromEntries(modes.map((m) => [m, b[m]])));
+}
+
+/** The larger score per mode. Both strings must be normalized; null = none. */
+export function mergeBests(a: string | null, b: string | null): string | null {
+  const x = a === null ? undefined : parseBests(a);
+  const y = b === null ? undefined : parseBests(b);
+  if (!x || !y) return x ? a : y ? b : null;
+  const out: Record<string, number> = { ...x };
+  for (const [m, n] of Object.entries(y)) out[m] = Math.max(out[m] ?? 0, n);
+  return encodeBests(out);
+}
+
+// --- training log (rookery.trainingLog) -----------------------------------------------------------
+
+const isTally = (t: unknown): t is Tally =>
+  !!t && typeof t === 'object' && [(t as Tally).n, (t as Tally).sec].every((x) => typeof x === 'number' && Number.isFinite(x) && x >= 0);
+
+/** The log in canonical form (days and kinds sorted, malformed entries dropped); undefined when it is not one. */
+function parseLog(raw: string): TrainingLog | undefined {
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const { updatedAt, days: daysIn } = v as { updatedAt?: unknown; days?: unknown };
+  const days: Record<string, DayLog> = {};
+  if (daysIn && typeof daysIn === 'object' && !Array.isArray(daysIn)) {
+    for (const day of Object.keys(daysIn).sort()) {
+      const log = (daysIn as Record<string, unknown>)[day];
+      if (!isDayKey(day) || !log || typeof log !== 'object') continue;
+      const clean: DayLog = {};
+      for (const k of [...TRAINING_KINDS].sort()) {
+        const t = (log as Record<string, unknown>)[k];
+        if (isTally(t)) clean[k] = { n: t.n, sec: t.sec };
+      }
+      days[day] = clean;
+    }
+  }
+  return { days, updatedAt: typeof updatedAt === 'string' ? updatedAt : '' };
+}
+
+/** The tally to keep for one kind on one day: more activities, then more seconds. */
+const pickTally = (a: Tally, b: Tally): Tally => (a.n !== b.n ? (a.n > b.n ? a : b) : a.sec >= b.sec ? a : b);
+
+/**
+ * Union of two training logs (normalized strings; null = none). Each device's log holds running totals per
+ * day, so a day both have is deduplicated (the larger tally per kind), never added up: merging again cannot
+ * double-count. Days older than EXTRAS.logKeepDays before the newest day are dropped.
+ */
+export function mergeLogs(a: string | null, b: string | null, keepDays: number = EXTRAS.logKeepDays): string | null {
+  const x = a === null ? undefined : parseLog(a);
+  const y = b === null ? undefined : parseLog(b);
+  if (!x || !y) return x ? a : y ? b : null;
+  const all = [...new Set([...Object.keys(x.days), ...Object.keys(y.days)])].sort();
+  const oldest = all.length ? addDays(all[all.length - 1], -keepDays) : '';
+  const days: Record<string, DayLog> = {};
+  for (const day of all) {
+    if (day < oldest) continue;
+    const p = x.days[day] ?? {};
+    const q = y.days[day] ?? {};
+    const out: DayLog = {};
+    for (const k of [...TRAINING_KINDS].sort()) {
+      const pk = p[k];
+      const qk = q[k];
+      const t = pk && qk ? pickTally(pk, qk) : (pk ?? qk);
+      if (t) out[k] = { n: t.n, sec: t.sec };
+    }
+    days[day] = out;
+  }
+  return JSON.stringify({ days, updatedAt: x.updatedAt > y.updatedAt ? x.updatedAt : y.updatedAt });
 }
 
 /** The empty value of a kind: what a device that never stored the key has. */
@@ -287,6 +408,10 @@ export function mergeItem(kind: SyncKind, a: StateItem | undefined, b: StateItem
       if (ea !== null && eb !== null && ea !== eb) return ea > eb ? a : b;
       return a.updatedAt > b.updatedAt ? a : b;
     }
+    case 'best':
+      return { value: mergeBests(a.value as string | null, b.value as string | null), updatedAt };
+    case 'log':
+      return { value: mergeLogs(a.value as string | null, b.value as string | null), updatedAt };
     case 'repertoires':
       return { value: mergeRepertoires(a.value as RepertoireValue | null, b.value as RepertoireValue | null), updatedAt };
     case 'mistakes':

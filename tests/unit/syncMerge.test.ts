@@ -6,8 +6,10 @@ import { SYNC } from '../../src/config/tunables';
 import { SYNC_KEYS, syncKind } from '../../src/sync/keys';
 import {
   emptyValue,
+  mergeBests,
   mergeDaily,
   mergeItem,
+  mergeLogs,
   mergeRepertoires,
   mergeSchedules,
   mergeTombstones,
@@ -245,11 +247,13 @@ describe('reconcile', () => {
   });
 });
 
-describe('stamped records (endgames, timed bests, training log)', () => {
+describe('stamped records (endgame drills)', () => {
   const rec = (updatedAt: string, best: number) => JSON.stringify({ updatedAt, best });
 
   it('are allowlisted', () => {
-    for (const k of ['rookery.endgames', 'rookery.timedBest', 'rookery.trainingLog']) expect(syncKind(k)).toBe('stamped');
+    expect(syncKind('rookery.endgames')).toBe('stamped');
+    expect(syncKind('rookery.timedBest')).toBe('best');
+    expect(syncKind('rookery.trainingLog')).toBe('log');
     expect(syncKind('rookery.repertoires')).toBe('repertoires');
   });
 
@@ -268,6 +272,84 @@ describe('stamped records (endgames, timed bests, training log)', () => {
     expect(mergeItem('stamped', item('{"x":1}', 5), item('{"x":2}', 3))!.value).toBe('{"x":1}');
     expect(mergeItem('stamped', item(null, 5), item(rec('2026-10-02T00:00:00Z', 3), 3))!.value).toBeNull();
     expect(normalizeValue('stamped', 4)).toBeUndefined();
+  });
+});
+
+describe('timed-puzzle bests: a true max per mode', () => {
+  it('normalizes plain numbers, per-mode objects and the old {updatedAt, best} shape', () => {
+    expect(normalizeValue('best', '12')).toBe('12');
+    expect(normalizeValue('best', JSON.stringify({ updatedAt: '2026-10-16T00:00:00Z', best: 12 }))).toBe('12');
+    expect(normalizeValue('best', JSON.stringify({ survival: 9, default: 4, junk: 'x' }))).toBe('{"default":4,"survival":9}');
+    expect(normalizeValue('best', null)).toBeNull();
+    expect(normalizeValue('best', 'nope')).toBeUndefined();
+    expect(normalizeValue('best', 12)).toBeUndefined();
+  });
+
+  it('keeps the larger score whatever the change times say', () => {
+    // The device that changed last had the lower best: newest-wins would lose the 15.
+    expect(mergeItem('best', item('15', 100), item('9', 900))!.value).toBe('15');
+    expect(mergeItem('best', item('9', 900), item('15', 100))!.value).toBe('15');
+  });
+
+  it('per mode, commutative and idempotent', () => {
+    const a = '{"default":4,"survival":9}';
+    const b = '{"blitz":20,"default":7}';
+    const m = mergeBests(a, b);
+    expect(m).toBe('{"blitz":20,"default":7,"survival":9}');
+    expect(mergeBests(b, a)).toBe(m);
+    expect(mergeBests(m, a)).toBe(m);
+    expect(mergeBests('3', a)).toBe('{"default":4,"survival":9}');
+    expect(mergeBests(null, '3')).toBe('3');
+  });
+
+  it('reconcile writes the higher best down and pushes the higher best up', () => {
+    const keys = { 'rookery.timedBest': 'best' } as const;
+    const down = reconcile({ 'rookery.timedBest': item('5', 900) }, { 'rookery.timedBest': item('11', 100) }, keys);
+    expect(down.write['rookery.timedBest'].value).toBe('11');
+    expect(down.push).toEqual({});
+    const up = reconcile({ 'rookery.timedBest': item('14', 50) }, { 'rookery.timedBest': item('11', 100) }, keys);
+    expect(up.push['rookery.timedBest'].value).toBe('14');
+  });
+});
+
+describe('training log: a union of days', () => {
+  const log = (updatedAt: string, days: Record<string, unknown>) => normalizeValue('log', JSON.stringify({ updatedAt, days })) as string;
+  const parse = (v: unknown) => JSON.parse(v as string) as { updatedAt: string; days: Record<string, Record<string, { n: number; sec: number }>> };
+
+  it('keeps the days of both devices; a shared day keeps the larger tally per kind (no double counting)', () => {
+    const phone = log('2026-10-16T09:00:00Z', {
+      '2026-10-14': { puzzle: { n: 3, sec: 120 } },
+      '2026-10-16': { puzzle: { n: 5, sec: 200 }, game: { n: 1, sec: 600 } },
+    });
+    const laptop = log('2026-10-15T20:00:00Z', {
+      '2026-10-15': { review: { n: 2, sec: 300 } },
+      '2026-10-16': { puzzle: { n: 2, sec: 400 }, endgame: { n: 1, sec: 60 } },
+    });
+    // Newest-wins would have lost 10-15 and the laptop's endgame.
+    const m = parse(mergeItem('log', item(laptop, 900), item(phone, 100))!.value);
+    expect(Object.keys(m.days)).toEqual(['2026-10-14', '2026-10-15', '2026-10-16']);
+    expect(m.days['2026-10-16']).toEqual({ endgame: { n: 1, sec: 60 }, game: { n: 1, sec: 600 }, puzzle: { n: 5, sec: 200 } });
+    expect(m.updatedAt).toBe('2026-10-16T09:00:00Z');
+    const merged = mergeLogs(phone, laptop);
+    expect(mergeLogs(laptop, phone)).toBe(merged);
+    expect(mergeLogs(merged, phone)).toBe(merged);
+    expect(mergeLogs(merged, merged)).toBe(merged);
+  });
+
+  it('drops days older than EXTRAS.logKeepDays before the newest day, and junk', () => {
+    const a = log('t', { '2026-01-01': { game: { n: 1, sec: 1 } }, 'not-a-day': { game: { n: 1, sec: 1 } } });
+    const b = log('t', { '2026-10-16': { game: { n: 1, sec: 1, extra: 4 }, bogus: { n: 1 } } });
+    expect(Object.keys(parse(a).days)).toEqual(['2026-01-01']);
+    expect(Object.keys(parse(mergeLogs(a, b)).days)).toEqual(['2026-10-16']);
+    expect(parse(b).days['2026-10-16']).toEqual({ game: { n: 1, sec: 1 } });
+    expect(normalizeValue('log', '{oops')).toBeUndefined();
+    expect(normalizeValue('log', null)).toBeNull();
+  });
+
+  it('the merged value still reads as a training log', async () => {
+    const { parseTrainingLog } = await import('../../src/training/trainingLog');
+    const m = mergeLogs(log('a', { '2026-10-16': { game: { n: 1, sec: 5 } } }), log('b', { '2026-10-15': { puzzle: { n: 2, sec: 9 } } }));
+    expect(parseTrainingLog(m)).toEqual({ updatedAt: 'b', days: { '2026-10-15': { puzzle: { n: 2, sec: 9 } }, '2026-10-16': { game: { n: 1, sec: 5 } } } });
   });
 });
 

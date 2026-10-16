@@ -24,6 +24,14 @@ const AnalysisRoute = () => (
   </Suspense>
 );
 
+// The opening trainer (repertoires + drill) loads on first visit too.
+const OpeningsPage = lazy(() => import('./OpeningsPage').then((m) => ({ default: m.OpeningsPage })));
+const OpeningsRoute = () => (
+  <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading openings…</p>}>
+    <OpeningsPage />
+  </Suspense>
+);
+
 const LoginPage = () => <AuthPage mode="login" />;
 const SignupPage = () => <AuthPage mode="signup" />;
 
@@ -37,6 +45,7 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/games': GamesPage,
   '#/account': AccountPage,
   '#/analysis': AnalysisRoute,
+  '#/openings': OpeningsRoute,
 };
 
 function useHash(): string {
@@ -74,7 +83,7 @@ export default function App() {
   const puzzles = hash === '#/puzzles';
   const Page = review || profileName || puzzles ? null : (ROUTES[hash] ?? PlayPage);
   // Full screen exists on the board pages only.
-  const boardPage = Page === PlayPage || review || puzzles || Page === AnalysisRoute;
+  const boardPage = Page === PlayPage || review || puzzles || Page === AnalysisRoute || Page === OpeningsRoute;
   const focus = useFocusMode((s) => s.on) && boardPage;
   useEffect(() => {
     if (!boardPage && useFocusMode.getState().on) useFocusMode.getState().exit();
@@ -107,6 +116,7 @@ export default function App() {
             <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
             <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
             <a href="#/analysis" className={`text-sm ${Page === AnalysisRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Analysis</a>
+            <a href="#/openings" className={`text-sm ${Page === OpeningsRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Openings</a>
             <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
             <span className="ml-auto" />
             <AccountNav />

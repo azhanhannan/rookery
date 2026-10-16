@@ -6,6 +6,7 @@ import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { EvalBar } from '../components/EvalBar';
 import { PositionEditor } from '../components/PositionEditor';
+import { SaveRepertoire } from '../components/SaveRepertoire';
 import { VariationMoveList } from '../components/VariationMoveList';
 import { ANALYSIS, DEFAULT_BOT_ELO } from '../config/tunables';
 import { formatEval, nagText, pvToSan } from '../game/analysisLines';
@@ -193,6 +194,8 @@ export function AnalysisPage() {
         />
 
         <PgnPanel hasMoves={hasMoves} />
+
+        <SaveRepertoire tree={tree} orientation={orientation} />
 
         <PlayFromHere fen={fen} terminal={eng.terminal !== null} />
       </aside>

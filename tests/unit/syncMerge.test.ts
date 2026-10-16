@@ -241,3 +241,99 @@ describe('reconcile', () => {
     expect(server['rookery.boardTheme'].value).toBe('wood');
   });
 });
+
+describe('stamped records (endgames, timed bests, training log)', () => {
+  const rec = (updatedAt: string, best: number) => JSON.stringify({ updatedAt, best });
+
+  it('are allowlisted', () => {
+    for (const k of ['rookery.endgames', 'rookery.timedBest', 'rookery.trainingLog']) expect(syncKind(k)).toBe('stamped');
+    expect(syncKind('rookery.repertoires')).toBe('repertoires');
+  });
+
+  it('the newer embedded updatedAt wins, whatever the change times say', () => {
+    const older = item(rec('2026-10-01T00:00:00Z', 5), 900);
+    const newer = item(rec('2026-10-02T00:00:00Z', 3), 0);
+    expect(mergeItem('stamped', older, newer)).toBe(newer);
+    expect(mergeItem('stamped', newer, older)).toBe(newer);
+    // Numeric stamps too.
+    expect(mergeItem('stamped', item(JSON.stringify({ updatedAt: 5 }), 0), item(JSON.stringify({ updatedAt: 4 }), 9))!.value).toBe(
+      JSON.stringify({ updatedAt: 5 }),
+    );
+  });
+
+  it('without usable stamps it falls back to the change time', () => {
+    expect(mergeItem('stamped', item('{"x":1}', 5), item('{"x":2}', 3))!.value).toBe('{"x":1}');
+    expect(mergeItem('stamped', item(null, 5), item(rec('2026-10-02T00:00:00Z', 3), 3))!.value).toBeNull();
+    expect(normalizeValue('stamped', 4)).toBeUndefined();
+  });
+});
+
+describe('opening repertoires', () => {
+  const tree = (moves: string) => ({ rootId: 'r', headers: [], nodes: { r: { moves } } });
+  const rep = (id: string, updatedAt: string, moves = 'e4', createdAt = '2026-10-01T00:00:00Z') => ({
+    id,
+    name: id,
+    color: 'w',
+    tree: tree(moves),
+    createdAt,
+    updatedAt,
+  });
+  const rc = (stage: number, due: string, reps: number, fails = 0) => ({ stage, due, retired: false, reps, fails });
+  const data = (updatedAt: string, repertoires: unknown[], cards: Record<string, unknown>) =>
+    normalizeValue('repertoires', { version: 1, updatedAt, repertoires, cards }) as never;
+
+  it('normalizes: drops bad cards and cards of unknown repertoires, sorts keys deeply', () => {
+    const v = normalizeValue('repertoires', {
+      version: 1,
+      updatedAt: 'x',
+      repertoires: [{ updatedAt: '2', id: 'b', createdAt: '2' }, { id: 'a', createdAt: '1', updatedAt: '1' }, { nope: 1 }],
+      cards: { a: { k2: rc(1, '2026-10-17', 1), bad: { stage: 1 } }, ghost: { k: rc(1, '2026-10-17', 1) } },
+    }) as { repertoires: { id: string }[]; cards: Record<string, Record<string, unknown>> };
+    expect(v.repertoires.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(Object.keys(v.repertoires[1])).toEqual(['createdAt', 'id', 'updatedAt']);
+    expect(v.cards).toEqual({ a: { k2: rc(1, '2026-10-17', 1) } });
+    expect(normalizeValue('repertoires', { repertoires: 'x' })).toBeUndefined();
+    expect(normalizeValue('repertoires', null)).toBeNull();
+  });
+
+  it('unions repertoires by id, the newer one wins; cards merge per position', () => {
+    const phone = data('2026-10-16T10:00:00Z', [rep('a', '2026-10-16T10:00:00Z', 'e4 e5'), rep('b', '2026-10-10T00:00:00Z')], {
+      a: { p1: rc(2, '2026-10-20', 2), p2: rc(0, '2026-10-17', 3, 1) },
+    });
+    const laptop = data('2026-10-15T00:00:00Z', [rep('a', '2026-10-15T00:00:00Z', 'e4'), rep('c', '2026-10-12T00:00:00Z', 'd4', '2026-10-12T00:00:00Z')], {
+      a: { p1: rc(0, '2026-10-19', 3, 1), p3: rc(1, '2026-10-18', 1) },
+      c: { q: rc(1, '2026-10-13', 1) },
+    });
+    const m = mergeItem('repertoires', item(phone, 2), item(laptop, 1))!.value as {
+      updatedAt: string;
+      repertoires: { id: string; tree: unknown }[];
+      cards: Record<string, Record<string, unknown>>;
+    };
+    expect(m.updatedAt).toBe('2026-10-16T10:00:00Z');
+    expect(m.repertoires.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(m.repertoires[0].tree).toEqual(tree('e4 e5'));
+    // p1: laptop reviewed it later (failed 10-18) than the phone (passed 10-17).
+    expect(m.cards.a).toEqual({ p1: rc(0, '2026-10-19', 3, 1), p2: rc(0, '2026-10-17', 3, 1), p3: rc(1, '2026-10-18', 1) });
+    expect(m.cards.c).toEqual({ q: rc(1, '2026-10-13', 1) });
+    // Commutative and idempotent.
+    expect(mergeItem('repertoires', item(laptop, 1), item(phone, 2))!.value).toEqual(m);
+    expect(JSON.stringify(mergeItem('repertoires', item(m, 2), item(phone, 2))!.value)).toBe(JSON.stringify(m));
+  });
+
+  it('a card answered more wins a schedule tie', () => {
+    const a = data('t', [rep('a', 't')], { a: { p: rc(1, '2026-10-17', 4) } });
+    const b = data('t', [rep('a', 't')], { a: { p: rc(1, '2026-10-17', 2) } });
+    const m = (x: unknown, y: unknown) => (mergeItem('repertoires', item(x, 0), item(y, 0))!.value as { cards: Record<string, Record<string, { reps: number }>> }).cards.a.p.reps;
+    expect(m(a, b)).toBe(4);
+    expect(m(b, a)).toBe(4);
+  });
+
+  it('survives a jsonb key reorder without wanting to push again', () => {
+    const local = data('t', [rep('a', 't')], { a: { p: rc(1, '2026-10-17', 1) } });
+    const reordered = JSON.parse(JSON.stringify(local, (_k, v: unknown) =>
+      v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v,
+    )) as unknown;
+    const { push } = reconcile({ 'rookery.repertoires': item(local, 5) }, { 'rookery.repertoires': item(reordered, 5) }, { 'rookery.repertoires': 'repertoires' });
+    expect(push).toEqual({});
+  });
+});

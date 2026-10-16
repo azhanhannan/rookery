@@ -12,8 +12,12 @@
  * 'mistakes': the My-mistakes spaced-repetition schedule; merged per puzzle.
  * 'trainedDays': the streak's trained days; union.
  * 'daily': the pinned daily puzzle; the later day wins, a solve is never lost.
+ * 'stamped': a raw JSON string carrying its own `updatedAt`; the newer one wins (training records whose
+ *   owners keep that field current: endgame drills, timed-puzzle bests, the training log).
+ * 'repertoires': the opening trainer (`{version, updatedAt, repertoires, cards}`); repertoires merge by id
+ *   (newer `updatedAt` wins), their cards per position like My-mistakes cards.
  */
-export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily';
+export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires';
 
 export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.boardTheme': 'pref',
@@ -30,6 +34,10 @@ export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.mistakes': 'mistakes',
   'rookery.trainedDays': 'trainedDays',
   'rookery.daily': 'daily',
+  'rookery.repertoires': 'repertoires',
+  'rookery.endgames': 'stamped',
+  'rookery.timedBest': 'stamped',
+  'rookery.trainingLog': 'stamped',
 };
 
 export function syncKind(key: string): SyncKind | null {

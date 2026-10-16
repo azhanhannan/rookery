@@ -7,9 +7,12 @@
 //   same review day the further-along card (retired, then higher stage, then later due date).
 // - Trained days: union (the streak can only grow from merging).
 // - Daily puzzle: the later day wins; on the same day a solve is kept.
+// - Stamped records: the newer embedded `updatedAt` wins (else the change time, like a preference).
+// - Opening repertoires: union by id, the newer repertoire wins; cards merge per position like My mistakes.
+//   (No delete markers: a repertoire deleted on one device comes back if another still has it.)
 // Training merges are commutative and idempotent, so the order devices sync in doesn't matter.
 import type { StateItem } from '../api/types';
-import { MISTAKES, SYNC } from '../config/tunables';
+import { MISTAKES, OPENING_TRAINER, SYNC } from '../config/tunables';
 import type { CardState, Schedule } from '../puzzles/spacedRepetition';
 import type { DailyRecord } from '../puzzles/daily';
 import { addDays, isDayKey } from '../puzzles/days';
@@ -58,12 +61,110 @@ export function normalizeValue(kind: SyncKind, value: unknown): unknown {
       if (!d || typeof d !== 'object' || !isDayKey(d.day) || typeof d.id !== 'string') return undefined;
       return { day: d.day, id: d.id, solved: d.solved === true } satisfies DailyRecord;
     }
+    case 'stamped':
+      if (value === null) return null;
+      return typeof value === 'string' ? value : undefined;
+    case 'repertoires':
+      return value === null ? null : normalizeRepertoires(value);
   }
 }
 
 /** The empty value of a kind: what a device that never stored the key has. */
 export function emptyValue(kind: SyncKind): unknown {
   return kind === 'mistakes' ? {} : kind === 'trainedDays' ? [] : null;
+}
+
+// --- opening repertoires (shape of src/openings/repertoire.ts RepertoireData, kept loose here) -------
+
+type RepCard = CardState & { reps: number; fails: number };
+type RepEntry = { id: string; createdAt: string; updatedAt: string } & Record<string, unknown>;
+export type RepertoireValue = { version: 1; updatedAt: string; repertoires: RepEntry[]; cards: Record<string, Record<string, RepCard>> };
+
+/** Same data with object keys sorted at every level (Postgres jsonb reorders keys; comparisons must not care). */
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (!v || typeof v !== 'object') return v;
+  return Object.fromEntries(
+    Object.keys(v)
+      .sort()
+      .map((k) => [k, canonical((v as Record<string, unknown>)[k])]),
+  );
+}
+
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+const repOrder = (a: RepEntry, b: RepEntry) =>
+  a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+function normalizeRepertoires(value: unknown): RepertoireValue | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const v = value as { updatedAt?: unknown; repertoires?: unknown; cards?: unknown };
+  if (!Array.isArray(v.repertoires)) return undefined;
+  const reps: RepEntry[] = [];
+  const seen = new Set<string>();
+  for (const r of v.repertoires as unknown[]) {
+    const x = r as Partial<RepEntry> | null;
+    if (!x || typeof x !== 'object' || typeof x.id !== 'string' || seen.has(x.id)) continue;
+    seen.add(x.id);
+    reps.push(canonical({ ...x, id: x.id, createdAt: str(x.createdAt), updatedAt: str(x.updatedAt) }) as RepEntry);
+  }
+  reps.sort(repOrder);
+  const cardsIn = v.cards && typeof v.cards === 'object' ? (v.cards as Record<string, unknown>) : {};
+  const cards: RepertoireValue['cards'] = {};
+  for (const r of reps) {
+    const book = cardsIn[r.id];
+    if (!book || typeof book !== 'object') continue;
+    const out: Record<string, RepCard> = {};
+    for (const k of Object.keys(book).sort()) {
+      const c = (book as Record<string, unknown>)[k] as RepCard;
+      if (validCard(c) && typeof c.reps === 'number' && typeof c.fails === 'number')
+        out[k] = { stage: c.stage, due: c.due, retired: c.retired, reps: c.reps, fails: c.fails };
+    }
+    cards[r.id] = out;
+  }
+  return { version: 1, updatedAt: str(v.updatedAt), repertoires: reps, cards };
+}
+
+function pickRepCard(a: RepCard, b: RepCard): RepCard {
+  const p = pickCard(a, b, OPENING_TRAINER.intervals);
+  if (JSON.stringify(a) === JSON.stringify(b) || reviewedOn(a, OPENING_TRAINER.intervals) !== reviewedOn(b, OPENING_TRAINER.intervals)) return p;
+  if (a.stage !== b.stage || a.retired !== b.retired || a.due !== b.due) return p;
+  // Same schedule: the one that has been answered more.
+  if (a.reps !== b.reps) return a.reps > b.reps ? a : b;
+  return a.fails >= b.fails ? a : b;
+}
+
+export function mergeRepertoires(a: RepertoireValue | null, b: RepertoireValue | null): RepertoireValue | null {
+  if (!a || !b) return a ?? b;
+  const byId = new Map<string, RepEntry>();
+  for (const r of [...a.repertoires, ...b.repertoires]) {
+    const cur = byId.get(r.id);
+    if (!cur) byId.set(r.id, r);
+    else if (r.updatedAt !== cur.updatedAt) byId.set(r.id, r.updatedAt > cur.updatedAt ? r : cur);
+    else if (JSON.stringify(r) > JSON.stringify(cur)) byId.set(r.id, r); // same time, different content: any fixed rule
+  }
+  const repertoires = [...byId.values()].sort(repOrder);
+  const cards: RepertoireValue['cards'] = {};
+  for (const { id } of repertoires) {
+    const x = a.cards[id] ?? {};
+    const y = b.cards[id] ?? {};
+    const book: Record<string, RepCard> = {};
+    for (const k of [...new Set([...Object.keys(x), ...Object.keys(y)])].sort())
+      book[k] = x[k] && y[k] ? pickRepCard(x[k], y[k]) : (x[k] ?? y[k]);
+    if (Object.keys(book).length || a.cards[id] || b.cards[id]) cards[id] = book;
+  }
+  return { version: 1, updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt, repertoires, cards };
+}
+
+/** The `updatedAt` a stamped record carries (ISO text or ms), as ms; null when it has none. */
+export function embeddedStamp(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const at = (JSON.parse(raw) as { updatedAt?: unknown } | null)?.updatedAt;
+    const ms = typeof at === 'number' ? at : typeof at === 'string' ? Date.parse(at) : NaN;
+    return Number.isFinite(ms) ? ms : null;
+  } catch {
+    return null;
+  }
 }
 
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -78,7 +179,7 @@ export function reviewedOn(card: CardState, intervals: number[] = MISTAKES.inter
 }
 
 /** The card to keep when two devices disagree about one puzzle. */
-export function pickCard(a: CardState, b: CardState, intervals: number[] = MISTAKES.intervals): CardState {
+export function pickCard<C extends CardState>(a: C, b: C, intervals: number[] = MISTAKES.intervals): C {
   const ra = reviewedOn(a, intervals);
   const rb = reviewedOn(b, intervals);
   if (ra !== rb) return ra > rb ? a : b;
@@ -122,6 +223,14 @@ export function mergeItem(kind: SyncKind, a: StateItem | undefined, b: StateItem
   switch (kind) {
     case 'pref':
       return a.updatedAt > b.updatedAt ? a : b;
+    case 'stamped': {
+      const ea = embeddedStamp(a.value);
+      const eb = embeddedStamp(b.value);
+      if (ea !== null && eb !== null && ea !== eb) return ea > eb ? a : b;
+      return a.updatedAt > b.updatedAt ? a : b;
+    }
+    case 'repertoires':
+      return { value: mergeRepertoires(a.value as RepertoireValue | null, b.value as RepertoireValue | null), updatedAt };
     case 'mistakes':
       return { value: mergeSchedules(a.value as Schedule, b.value as Schedule), updatedAt };
     case 'trainedDays':

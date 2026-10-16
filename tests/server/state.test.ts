@@ -152,11 +152,29 @@ describe('/api/state', () => {
   it('rejects a value over the size limit with 413', async () => {
     const app = server.app();
     const c = await signup(app, 'Ana');
-    const big: Record<string, unknown> = {};
-    for (let i = 0; JSON.stringify(big).length <= SYNC.maxValueBytes; i++)
-      big[`puzzle-${i}`] = { stage: 1, due: '2026-10-17', retired: false };
-    const res = await put(app, c, { 'rookery.mistakes': { value: big, updatedAt: T } });
+    const big = JSON.stringify({ updatedAt: 1, log: 'x'.repeat(SYNC.maxValueBytes) });
+    const res = await put(app, c, { 'rookery.trainingLog': { value: big, updatedAt: T } });
     expect(res.statusCode).toBe(413);
     expect(await get(app, c)).toEqual({});
+  });
+
+  it('opening repertoires and stamped records round-trip and merge', async () => {
+    const app = server.app();
+    const c = await signup(app, 'Ana');
+    const rep = (id: string, updatedAt: string) => ({ id, name: id, color: 'w', tree: { rootId: 'r', headers: [], nodes: { r: { san: null } } }, createdAt: 't0', updatedAt });
+    const card = { stage: 1, due: '2026-10-17', retired: false, reps: 1, fails: 0 };
+    await put(app, c, {
+      'rookery.repertoires': { value: { version: 1, updatedAt: '2026-10-16T00:00:00Z', repertoires: [rep('a', '2026-10-16T00:00:00Z')], cards: { a: { p: card } } }, updatedAt: T },
+      'rookery.timedBest': { value: JSON.stringify({ updatedAt: '2026-10-16T00:00:00Z', best: 12 }), updatedAt: T },
+    });
+    const res = await put(app, c, {
+      'rookery.repertoires': { value: { version: 1, updatedAt: '2026-10-15T00:00:00Z', repertoires: [rep('b', '2026-10-15T00:00:00Z')], cards: {} }, updatedAt: T + 5 },
+      'rookery.timedBest': { value: JSON.stringify({ updatedAt: '2026-10-15T00:00:00Z', best: 9 }), updatedAt: T + 5 },
+    });
+    const items = res.json<StateResponse>().items;
+    const reps = items['rookery.repertoires'].value as { repertoires: { id: string }[]; cards: Record<string, unknown> };
+    expect(reps.repertoires.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(reps.cards).toEqual({ a: { p: card } });
+    expect(JSON.parse(items['rookery.timedBest'].value as string).best).toBe(12);
   });
 });

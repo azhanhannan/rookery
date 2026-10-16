@@ -258,7 +258,19 @@ export const SYNC = {
   /** Retry after a failed push or pull, ms. */
   retryMs: 30_000,
   /** Largest stored value per key (JSON characters); the server rejects bigger ones with 413. */
-  maxValueBytes: 256 * 1024,
+  maxValueBytes: 1024 * 1024,
   /** Trained days kept (the streak storage keeps the same number). */
   trainedDaysLimit: 400,
+};
+
+/** The opening trainer (#/openings): repertoires drilled with spaced repetition. */
+export const OPENING_TRAINER = {
+  /** Days until a repertoire position is asked again after each clean answer; after the last it repeats at the last. */
+  intervals: [1, 3, 7, 21],
+  /** "From my games": plies of each game used (20 = the first 10 moves). */
+  seedPlies: 20,
+  /** Pause before the board plays the opponent's repertoire move, ms. */
+  opponentDelayMs: 450,
+  /** Weakest positions listed in the progress view. */
+  weakest: 5,
 };

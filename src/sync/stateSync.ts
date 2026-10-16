@@ -13,6 +13,7 @@ import { applyBoardTheme, loadBoardTheme } from '../settings/boardTheme';
 import { reloadPieceSet } from '../settings/pieceSet';
 import { reloadPlaySettings } from '../settings/playSettings';
 import { reloadReviewPrefs } from '../settings/reviewPrefs';
+import { useRepertoireStore } from '../openings/repertoireStore';
 import { SYNC_KEYS, type SyncKind } from './keys';
 import { emptyValue, normalizeValue, reconcile } from './merge';
 
@@ -25,7 +26,7 @@ type Meta = Record<string, { v: string; at: number }>;
 function readLocal(key: string, kind: SyncKind): unknown {
   try {
     const raw = localStorage.getItem(key);
-    if (kind === 'pref') return raw;
+    if (kind === 'pref' || kind === 'stamped') return raw;
     const v = raw === null ? emptyValue(kind) : normalizeValue(kind, JSON.parse(raw) as unknown);
     return v === undefined ? emptyValue(kind) : v;
   } catch {
@@ -36,7 +37,7 @@ function readLocal(key: string, kind: SyncKind): unknown {
 function writeLocal(key: string, kind: SyncKind, value: unknown): void {
   try {
     if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, kind === 'pref' ? String(value) : JSON.stringify(value));
+    else localStorage.setItem(key, kind === 'pref' || kind === 'stamped' ? String(value) : JSON.stringify(value));
   } catch {
     // Storage blocked or full: the account copy is pulled again next time.
   }
@@ -101,6 +102,7 @@ const APPLY: Record<string, () => void> = {
   'rookery.pieceSet': reloadPieceSet,
   'rookery.playSettings': reloadPlaySettings,
   'rookery.reviewPrefs': reloadReviewPrefs,
+  'rookery.repertoires': () => useRepertoireStore.getState().reload(),
 };
 
 /** Writes merged items into localStorage, skipping any key the player changed since it was last looked at. */

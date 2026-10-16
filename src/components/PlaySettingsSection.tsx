@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { previewSoundPack, SOUND_PACKS } from '../game/sound';
+import { PIECE_SYMBOLS } from '../game/notation';
 import {
   ANIMATION_SPEEDS,
   effectiveAnimation,
@@ -47,7 +48,7 @@ function Toggle({ label, hint, field, s }: { label: string; hint?: string; field
   );
 }
 
-/** Settings → Play: sounds, animation, what the board shows, hidden ratings. Saved on this device. */
+/** Settings → Play: sounds, animation, what the board shows, hidden ratings, move-list symbols. Saved on this device. */
 export function PlaySettingsSection() {
   const s = usePlaySettings();
   const reduced = useSyncExternalStore(subscribeMotion, reducedMotionNow, () => false);
@@ -129,6 +130,21 @@ export function PlaySettingsSection() {
         label="Premoves"
         hint="Against a bot, queue one move while it thinks; it plays the moment it's legal. Right-click or Esc cancels."
       />
+      <h3 className="mt-3 mb-1.5 text-sm font-medium">Piece symbols in move lists</h3>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Piece symbols in move lists" data-testid="piece-symbols">
+        {PIECE_SYMBOLS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={s.pieceSymbols === p.id}
+            className={chip(s.pieceSymbols === p.id)}
+            onClick={() => savePlaySettings({ pieceSymbols: p.id })}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

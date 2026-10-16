@@ -4,6 +4,7 @@ import type { ProfileResponse } from '../api/types';
 import { CATEGORY_NAMES, CATEGORY_ORDER } from '../components/ratingCategory';
 import { RatingHistoryChart } from '../components/RatingHistoryChart';
 import { TrainingStreak } from '../components/TrainingStreak';
+import { TrainingLogCard } from '../components/TrainingLogCard';
 import { useAuthStore } from '../account/authStore';
 import { usePlaySettings } from '../settings/playSettings';
 
@@ -54,6 +55,7 @@ export function ProfilePage({ username }: { username: string }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-6">
       {own && <TrainingStreak showReviewed />}
+      {own && <TrainingLogCard />}
       <div className="min-w-0">
         <h1 className="truncate text-xl font-bold">{user.username}</h1>
         <p className="text-sm text-muted">

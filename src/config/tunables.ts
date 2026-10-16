@@ -341,3 +341,17 @@ export const ACCURACY_BANDS = {
   /** Within ± this many points of the band's typical accuracy counts as "about your level". */
   margin: 5,
 };
+
+/** Training extras: calculation mode, the name-the-square drill and the weekly training log. */
+export const EXTRAS = {
+  /** Calculation mode: the puzzle's pieces are shown this long, ms, then hidden. */
+  calcHideMs: 5000,
+  /** One name-the-square run, ms. */
+  squareDrillMs: 30_000,
+  /** How long a wrong click shows the right square before the next one, ms. */
+  squareDrillWrongMs: 700,
+  /** Training log: one activity never counts for more than this many minutes (a tab left open). */
+  logMaxMinutes: { game: 90, puzzle: 10, review: 30, squares: 1, endgame: 20, opening: 20 },
+  /** Training log: days kept. */
+  logKeepDays: 70,
+};

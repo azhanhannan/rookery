@@ -9,6 +9,7 @@ import { findArchivedGame, loadHistory, updateArchivedGame } from '../game/stora
 import type { GameRecord } from '../game/types';
 import { nextDepth, reviewableGames, reviewFits } from '../review/reviewView';
 import { recordTrainedDay } from '../puzzles/streak';
+import { logTraining, startTraining } from '../training/trainingLog';
 import { ReviewScreen } from './ReviewScreen';
 import { useReviewRun } from './useReviewRun';
 
@@ -57,10 +58,12 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
   const review = reviewFits(record, record.review) ? record.review : null;
   const [depth, setDepth] = useState<number>(review ? nextDepth(review.depth, REVIEW.depth) : REVIEW.depth.normal);
   const [rerunOpen, setRerunOpen] = useState(false);
+  useEffect(() => startTraining('review'), [record.id]);
   const run = useReviewRun(record, (r) => {
     const saved = setReview(record.id, r);
     if (saved) onSaved(saved);
     if (saved) recordTrainedDay();
+    if (saved) logTraining('review');
     setRerunOpen(false);
   });
 

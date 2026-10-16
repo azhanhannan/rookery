@@ -6,12 +6,22 @@ import { useGameStore } from '../game/gameStore';
 import type { GameRecord } from '../game/types';
 import { prefersReducedMotion, usePlaySettings } from '../settings/playSettings';
 import { countUpValue } from './countUp';
+import { logTraining } from '../training/trainingLog';
+import { findArchivedGame } from '../game/storage';
+import { goodFightLine } from '../review/mascotLines';
+import { reviewFits, retryColors } from '../review/reviewView';
+import { useReviewPrefs } from '../settings/reviewPrefs';
+import { MascotSays } from './RookMascot';
+import { useSan } from './useSan';
 
 // Games that finished while the app was open: only these celebrate (a reload of a finished game stays quiet).
 const justEnded = new Set<string>();
 const celebrated = new Set<string>();
 useGameStore.subscribe((s, prev) => {
-  if (s.record.id === prev.record.id && prev.record.result === '*' && s.record.result !== '*') justEnded.add(s.record.id);
+  if (s.record.id === prev.record.id && prev.record.result === '*' && s.record.result !== '*') {
+    justEnded.add(s.record.id);
+    logTraining('game', (Date.now() - Date.parse(s.record.createdAt)) / 1000);
+  }
 });
 
 const PARTICLES = Array.from({ length: 14 }, (_, i) => {
@@ -78,6 +88,12 @@ export function EndScreen({
   }, [celebrate, record.id]);
 
   const kind = outcome === 'loss' || outcome === 'draw';
+  // Coach mascot (opt-in): one proven positive fact, once the game has a review.
+  const { coachMascot } = useReviewPrefs();
+  const fmt = useSan();
+  const reviewed = record.review ?? findArchivedGame(record.id)?.review;
+  const praise =
+    kind && coachMascot && reviewed && reviewFits(record, reviewed) ? goodFightLine(reviewed, retryColors(record), fmt) : null;
 
   return (
     <>
@@ -115,6 +131,8 @@ export function EndScreen({
           )}
         </div>
       )}
+
+      {praise && <MascotSays testId="mascot-praise">{praise}</MascotSays>}
 
       <a
         href={`#/review/${record.id}`}

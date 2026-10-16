@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { POLISH } from '../config/tunables';
 import { setSoundPack, SOUND_PACKS, type SoundPackId } from '../game/sound';
+import { PIECE_SYMBOLS, type PieceSymbols } from '../game/notation';
 
 export type AnimationSpeed = keyof typeof POLISH.animationMs;
 export const ANIMATION_SPEEDS: { id: AnimationSpeed; name: string }[] = [
@@ -21,6 +22,8 @@ export type PlaySettings = {
   hideRating: boolean;
   /** Queue one move on the opponent's turn in bot games (app/usePremove.ts). */
   premoves: boolean;
+  /** Move lists (Play, Review, Analysis): piece letters or figurines. */
+  pieceSymbols: PieceSymbols;
 };
 
 export const DEFAULT_PLAY_SETTINGS: PlaySettings = {
@@ -31,6 +34,7 @@ export const DEFAULT_PLAY_SETTINGS: PlaySettings = {
   lastMove: true,
   hideRating: false,
   premoves: false,
+  pieceSymbols: 'letters',
 };
 
 const KEY = 'rookery.playSettings';
@@ -54,6 +58,7 @@ export function parsePlaySettings(raw: string | null): PlaySettings {
     lastMove: bool('lastMove', d.lastMove),
     hideRating: bool('hideRating', d.hideRating),
     premoves: bool('premoves', d.premoves),
+    pieceSymbols: PIECE_SYMBOLS.some((p) => p.id === v.pieceSymbols) ? (v.pieceSymbols as PieceSymbols) : d.pieceSymbols,
   };
 }
 

@@ -6,6 +6,7 @@ import type { GameReview, MoveReview } from '../review/types';
 import { saveReviewPrefs, type ReviewPrefs } from '../settings/reviewPrefs';
 import { MoveBadge } from './MoveBadge';
 import { TierBadge } from './ReviewStyleParts';
+import { MascotSays } from './RookMascot';
 
 function moveTitle(m: MoveReview) {
   const no = Math.ceil(m.ply / 2);
@@ -41,7 +42,7 @@ export function ReviewMoveDetails({
           <span className="font-mono font-semibold">{moveTitle(move)}</span>
           {QUIET_LABELS.has(move.label) && <span className="text-xs text-muted">{move.label}</span>}
         </div>
-        <p className="text-sm" data-testid="caption">{cap ?? plainLine(move)}</p>
+        {cap && prefs.coachMascot ? <MascotSays testId="caption">{cap}</MascotSays> : <p className="text-sm" data-testid="caption">{cap ?? plainLine(move)}</p>}
         {cap && weak && move.bestSan && !playedBest && <p className="text-sm">{move.bestSan} was better.</p>}
         <button
           className="self-start text-xs text-muted underline hover:text-ink"
@@ -87,7 +88,7 @@ export function ReviewMoveDetails({
         </div>
         {prefs.analystCaptions && (
           <>
-            {cap && <p className="text-sm" data-testid="caption">{cap}</p>}
+            {cap && (prefs.coachMascot ? <MascotSays testId="caption">{cap}</MascotSays> : <p className="text-sm" data-testid="caption">{cap}</p>)}
             <p className="text-sm text-muted" data-testid="explanation">{move.explanation}</p>
           </>
         )}
@@ -103,7 +104,7 @@ export function ReviewMoveDetails({
         <span className="text-sm text-muted" data-testid="move-label">{move.label}</span>
         {change && <span className="ml-auto font-mono text-xs text-muted" data-testid="eval-change">{change}</span>}
       </div>
-      {cap && <p className="text-sm font-medium" data-testid="caption">{cap}</p>}
+      {cap && (prefs.coachMascot ? <MascotSays testId="caption">{cap}</MascotSays> : <p className="text-sm font-medium" data-testid="caption">{cap}</p>)}
       <p className="text-sm" data-testid="explanation">{move.explanation}</p>
     </>
   );

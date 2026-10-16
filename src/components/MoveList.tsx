@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { scrollWithin } from './scrollWithin';
 import { useGameStore } from '../game/gameStore';
+import { useSan } from './useSan';
 
 export function MoveList() {
   const record = useGameStore((s) => s.record);
   const viewPly = useGameStore((s) => s.viewPly);
   const goTo = useGameStore((s) => s.goTo);
   const activeRef = useRef<HTMLButtonElement>(null);
+  const fmt = useSan();
 
   useEffect(() => {
     scrollWithin(activeRef.current);
@@ -31,7 +33,7 @@ export function MoveList() {
           c.ply === viewPly ? 'bg-accent text-accent-ink' : 'hover:bg-surface-2'
         }`}
       >
-        {c.san}
+        {fmt(c.san)}
       </button>
     ) : (
       <span className="px-2 font-mono text-sm text-muted">…</span>

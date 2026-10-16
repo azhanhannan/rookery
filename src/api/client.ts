@@ -13,6 +13,8 @@ import type {
   PuzzleMeResponse,
   SaveGameRequest,
   SaveGameResponse,
+  StatePutRequest,
+  StateResponse,
 } from './types';
 
 /** A failed API call. `status` 0 means the server couldn't be reached. `message` is player-readable. */
@@ -65,6 +67,8 @@ export const api = {
   puzzleAttempt: (id: string, req: PuzzleAttemptRequest) =>
     call<PuzzleAttemptResponse>('POST', `/puzzles/${encodeURIComponent(id)}/attempt`, req),
   puzzleMe: () => call<PuzzleMeResponse>('GET', '/puzzles/me'),
+  getState: () => call<StateResponse>('GET', '/state'),
+  putState: (req: StatePutRequest) => call<StateResponse>('PUT', '/state', req),
 };
 
 /** Full-page URL that starts Google sign-in (login) or links Google to the signed-in account (link). */

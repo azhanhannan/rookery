@@ -8,6 +8,7 @@ import { GoogleButton } from '../components/GoogleButton';
 import { PlaySettingsSection } from '../components/PlaySettingsSection';
 import { ReviewSettingsSection } from '../components/ReviewStyleParts';
 import { RATINGS } from '../config/tunables';
+import { SyncNote } from '../sync/SyncNote';
 
 const card = 'mb-4 rounded-2xl bg-surface p-5';
 
@@ -16,7 +17,7 @@ function BoardSection() {
   return (
     <section className={card} aria-labelledby="board-heading" data-testid="board-settings">
       <h2 id="board-heading" className="mb-1 font-semibold">Board</h2>
-      <p className="mb-3 text-xs text-muted">Colours and pieces change every board at once. Saved on this device.</p>
+      <p className="mb-3 text-xs text-muted">Colours and pieces change every board at once.</p>
       <BoardThemePicker />
     </section>
   );
@@ -51,6 +52,7 @@ export function AccountPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="mb-4 text-xl font-semibold">Settings</h1>
+        <SyncNote className="-mt-2 mb-4" />
         {linkError && (
           <p role="alert" className="mb-4 rounded-lg bg-surface-2 p-3 text-sm text-danger">
             {linkError}
@@ -95,6 +97,7 @@ export function AccountPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="mb-4 text-xl font-semibold">Settings</h1>
+      <SyncNote className="-mt-2 mb-4" />
 
       {welcome && (
         <p className="mb-4 rounded-2xl bg-accent/15 p-4 text-sm">

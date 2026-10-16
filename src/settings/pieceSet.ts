@@ -69,6 +69,13 @@ export function savePieceSet(id: string): void {
   listeners.forEach((l) => l());
 }
 
+/** Re-reads storage (a choice pulled from the account, or tests). */
+export function reloadPieceSet(): void {
+  current = read();
+  preloadPieceSet(current);
+  listeners.forEach((l) => l());
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

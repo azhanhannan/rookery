@@ -270,6 +270,20 @@ export const ENDGAMES = {
   evalWinCp: 300,
 };
 
+/** Account sync of preferences and training state (src/sync, server/src/routes/state.ts). */
+export const SYNC = {
+  /** How often the app looks for changed settings in localStorage, ms. */
+  pollMs: 2_000,
+  /** Wait after a change before pushing it (several quick changes go up together), ms. */
+  debounceMs: 1_500,
+  /** Retry after a failed push or pull, ms. */
+  retryMs: 30_000,
+  /** Largest stored value per key (JSON characters); the server rejects bigger ones with 413. */
+  maxValueBytes: 1024 * 1024,
+  /** Trained days kept (the streak storage keeps the same number). */
+  trainedDaysLimit: 400,
+};
+
 /** The opening trainer (#/openings): repertoires drilled with spaced repetition. */
 export const OPENING_TRAINER = {
   /** Days until a repertoire position is asked again after each clean answer; after the last it repeats at the last. */

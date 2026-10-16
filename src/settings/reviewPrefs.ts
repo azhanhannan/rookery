@@ -79,6 +79,12 @@ export function saveReviewPrefs(patch: Partial<ReviewPrefs>): void {
   listeners.forEach((l) => l());
 }
 
+/** Re-reads storage (preferences pulled from the account, or tests). */
+export function reloadReviewPrefs(): void {
+  current = read();
+  listeners.forEach((l) => l());
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

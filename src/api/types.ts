@@ -136,3 +136,15 @@ export type ProfileResponse = {
   /** Puzzle rating, when the player has tried any puzzle. */
   puzzle: PuzzleRatingRow | null;
 };
+
+// Account state: preferences and training state kept on the account so every device matches
+// (src/sync). Keys are the localStorage keys listed in src/sync/keys.ts (an allowlist); a value is
+// the raw localStorage string (null = not set) for a preference, or parsed JSON for the training keys.
+// `updatedAt` is ms since the epoch when the value last changed (the server caps it at its own clock).
+export type StateItem = { value: unknown; updatedAt: number };
+// GET /api/state -> everything stored for the signed-in player.
+export type StateResponse = { items: Record<string, StateItem> };
+// PUT /api/state -> merges each item with what is stored (preferences: newest wins; training state:
+// per-item merge) and answers with everything stored afterwards. 400 for an unknown key or a bad value,
+// 413 when a value is over SYNC.maxValueBytes.
+export type StatePutRequest = { items: Record<string, StateItem> };

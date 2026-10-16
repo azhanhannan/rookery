@@ -56,7 +56,7 @@ export function PlaySettingsSection() {
   return (
     <section className={card} aria-labelledby="play-heading" data-testid="play-settings">
       <h2 id="play-heading" className="mb-1 font-semibold">Play</h2>
-      <p className="mb-3 text-xs text-muted">Sounds, animation and what the board shows. Saved on this device.</p>
+      <p className="mb-3 text-xs text-muted">Sounds, animation and what the board shows.</p>
 
       <h3 className="mb-1.5 text-sm font-medium">Sounds</h3>
       <div className="mb-4 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Sound pack">

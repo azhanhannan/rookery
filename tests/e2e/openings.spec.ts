@@ -27,6 +27,9 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
 
   // From memory: a wrong move shows the right one and counts as a miss.
   await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+  // The board jumps back to the start for the quiz: wait for it before clicking (slow under a full parallel run).
+  await expect(square(page, 'e2').locator('[data-piece]')).toHaveCount(1);
+  await expect(square(page, 'f3').locator('[data-piece]')).toHaveCount(0);
   await clickMove(page, 'e2e4');
   await expect(page.getByTestId('drill-feedback')).toContainText('e4 is right');
   await expect(square(page, 'e5').locator('[data-piece]')).toHaveCount(1);

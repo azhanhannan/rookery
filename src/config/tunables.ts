@@ -255,6 +255,8 @@ export const REVIEW_STYLE = {
   deepDepth: 24,
   /** Engine lines "Analyse deeper here" shows for the position before the move. */
   deepLines: 3,
+  /** Longest wait for the player's rating before deciding on the self-review question, ms (then the default style). */
+  settleMs: 3000,
 };
 
 /** Endgame tablebase lookups (src/engine/tablebase.ts): Lichess's Syzygy API. */

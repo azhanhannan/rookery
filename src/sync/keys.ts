@@ -15,7 +15,7 @@
  * 'trainedDays': the streak's trained days; union.
  * 'daily': the pinned daily puzzle; the later day wins, a solve is never lost.
  * 'stamped': a raw JSON string carrying its own `updatedAt`; the newer one wins (training records whose
- *   owners keep that field current: endgame drills, timed-puzzle bests, the training log).
+ *   owners keep that field current: endgame drills, timed-puzzle bests, the training log, finished lessons).
  * 'repertoires': the opening trainer (`{version, updatedAt, repertoires, cards}`); repertoires merge by id
  *   (newer `updatedAt` wins), their cards per position like My-mistakes cards.
  */
@@ -40,6 +40,7 @@ export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.endgames': 'stamped',
   'rookery.timedBest': 'stamped',
   'rookery.trainingLog': 'stamped',
+  'rookery.lessons': 'stamped',
 };
 
 export function syncKind(key: string): SyncKind | null {

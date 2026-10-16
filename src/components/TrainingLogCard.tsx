@@ -17,6 +17,7 @@ const ROWS: { kind: TrainingKind; name: string; always?: boolean }[] = [
   { kind: 'squares', name: 'Square drills' },
   { kind: 'endgame', name: 'Endgame drills' },
   { kind: 'opening', name: 'Opening drills' },
+  { kind: 'lesson', name: 'Lessons finished' },
 ];
 
 const STORE_FOR: Partial<Record<TrainingKind, 'rookery.endgames' | 'rookery.repertoires'>> = {

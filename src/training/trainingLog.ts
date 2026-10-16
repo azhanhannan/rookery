@@ -1,11 +1,11 @@
-// Weekly training log: how many games, puzzles, reviews and drills, and roughly how many minutes, per day.
+// Weekly training log: how many games, puzzles, reviews, drills and lessons, and roughly how many minutes, per day.
 // Stored per device in `rookery.trainingLog` as one JSON value ({ updatedAt, days }); the aggregation by
 // Monday-to-Sunday (ISO) week is pure and unit-tested.
 import { EXTRAS } from '../config/tunables';
 import { addDays, dayKey, isDayKey, weekStart } from '../puzzles/days';
 
-export type TrainingKind = 'game' | 'puzzle' | 'review' | 'squares' | 'endgame' | 'opening';
-export const TRAINING_KINDS: TrainingKind[] = ['game', 'puzzle', 'review', 'squares', 'endgame', 'opening'];
+export type TrainingKind = 'game' | 'puzzle' | 'review' | 'squares' | 'endgame' | 'opening' | 'lesson';
+export const TRAINING_KINDS: TrainingKind[] = ['game', 'puzzle', 'review', 'squares', 'endgame', 'opening', 'lesson'];
 
 /** One kind on one day: how many, and seconds spent. */
 export type Tally = { n: number; sec: number };

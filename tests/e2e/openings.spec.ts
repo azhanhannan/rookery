@@ -44,6 +44,18 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
   await expect(page.getByTestId('weak-spot')).toHaveCount(1);
   await expect(page.getByTestId('weak-spot')).toContainText('1. e4 e5');
 
+  // Extra practice off the schedule: any time, and the counts don't move for right answers.
+  await page.getByRole('button', { name: 'Drill weakest' }).click();
+  await expect(page.getByTestId('drill-off-schedule')).toBeVisible();
+  await page.getByRole('button', { name: 'Stop' }).click();
+  await page.getByRole('button', { name: 'Practise anyway' }).click();
+  await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+  await expect(square(page, 'e2').locator('[data-piece]')).toHaveCount(1);
+  await clickMove(page, 'e2e4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('e4 is right');
+  await page.getByRole('button', { name: 'Stop' }).click();
+  await expect(page.getByTestId('repertoire-counts')).toContainText('1 learned');
+
   // Survives a reload (one localStorage key).
   await page.reload();
   await expect(page.getByTestId('repertoire-header')).toContainText('Italian');

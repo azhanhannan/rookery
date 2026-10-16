@@ -39,6 +39,8 @@ type DrillData = {
   /** This line: answers recorded and how many were clean. */
   answered: number;
   clean: number;
+  /** Leaf ids of the lines played since this mode was started ("Next line" avoids them until all are done). */
+  played: string[];
 };
 
 export type DrillState = DrillData & {
@@ -65,6 +67,7 @@ const idle: DrillData = {
   plan: '',
   answered: 0,
   clean: 0,
+  played: [],
 };
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -109,7 +112,8 @@ export const useDrillStore = create<DrillState>((set, get) => {
     }
     const card = cardOf(s.repId, step.key);
     const isNew = !card || card.reps === 0;
-    const show = isNew && (s.pass === 'show' || s.mode === 'due');
+    // New moves met outside "Learn" are shown first (and so not recorded); only learning has a from-memory pass.
+    const show = isNew && (s.pass === 'show' || s.mode !== 'learn');
     set({
       phase: 'user',
       arrow: show ? step.uci : null,
@@ -151,14 +155,26 @@ export const useDrillStore = create<DrillState>((set, get) => {
       startTraining('opening');
       const rep = useRepertoireStore.getState().data.repertoires.find((r) => r.id === repId);
       const prev = get();
-      const skip = prev.repId === repId && prev.path.length ? prev.path[prev.path.length - 1] : undefined;
-      const path = rep ? chooseLine(rep, useRepertoireStore.getState().data.cards[repId] ?? {}, mode, todayKey(), skip) : null;
+      const same = prev.repId === repId && prev.mode === mode;
+      const played = same ? prev.played : prev.repId === repId && prev.path.length ? [prev.path[prev.path.length - 1]] : [];
+      const path = rep ? chooseLine(rep, useRepertoireStore.getState().data.cards[repId] ?? {}, mode, todayKey(), played) : null;
       if (!rep || !path) {
         set({ ...idle, repId, mode, phase: 'empty', fen: rep?.tree.nodes[rep.tree.rootId].fen ?? idle.fen });
         return false;
       }
       const steps = drillSteps(rep.tree, rep.color, path);
-      set({ ...idle, repId, mode, path, steps, pass: mode === 'learn' ? 'show' : 'quiz', fen: rep.tree.nodes[rep.tree.rootId].fen });
+      const leaf = path[path.length - 1];
+      set({
+        ...idle,
+        repId,
+        mode,
+        path,
+        steps,
+        pass: mode === 'learn' ? 'show' : 'quiz',
+        fen: rep.tree.nodes[rep.tree.rootId].fen,
+        // A line chosen again means every line has had its turn: start a new round.
+        played: same && !played.includes(leaf) ? [...played, leaf] : [leaf],
+      });
       run();
       return true;
     },

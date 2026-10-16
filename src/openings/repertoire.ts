@@ -187,22 +187,25 @@ export function isCardDue(c: CardRecord | undefined, today: string): boolean {
   return seen(c) && isDue(c, today);
 }
 
-export type DrillMode = 'due' | 'learn';
+export type DrillMode = 'due' | 'learn' | 'practice' | 'weak';
 
 /**
  * The next line to drill, or null when there is nothing for the mode.
  * 'due': lines with due cards; the most due cards first, then the oldest due date, then the least practised.
- * 'learn': lines with never-answered cards, in tree order (main line first). `skip` (a path's leaf id) is avoided
- * when another line qualifies, so "Next line" doesn't repeat the one just played.
+ * 'learn': lines with never-answered cards, in tree order (main line first).
+ * 'practice': extra practice off the schedule; lines with a learned position, in tree order.
+ * 'weak': lines through a position missed before, the worst miss rate first.
+ * `skip` (leaf ids of lines already played this session, last one last) is avoided while another line qualifies;
+ * when every line has been played, only the last one is avoided, so "Next line" goes round again.
  */
 export function chooseLine(
   rep: Pick<Repertoire, 'tree' | 'color'>,
   cards: Record<string, CardRecord>,
   mode: DrillMode,
   today: string,
-  skip?: string,
+  skip?: string | string[],
 ): string[] | null {
-  type Cand = { path: string[]; due: number; oldest: string; reps: number; fresh: number; i: number };
+  type Cand = { path: string[]; due: number; oldest: string; reps: number; fresh: number; seen: number; weak: number; i: number };
   const cands: Cand[] = linesOf(rep.tree).map((path, i) => {
     const keys = lineCards(rep.tree, rep.color, path);
     const dueKeys = keys.filter((k) => isCardDue(cards[k], today));
@@ -213,12 +216,22 @@ export function chooseLine(
       oldest: dueKeys.map((k) => cards[k].due).sort()[0] ?? '9999-99-99',
       reps: keys.reduce((s, k) => s + (cards[k]?.reps ?? 0), 0),
       fresh: keys.filter((k) => !seen(cards[k])).length,
+      seen: keys.filter((k) => seen(cards[k])).length,
+      weak: Math.max(0, ...keys.map((k) => (cards[k]?.fails ? cards[k].fails / cards[k].reps : 0))),
     };
   });
-  let pool = cands.filter((c) => (mode === 'due' ? c.due > 0 : c.fresh > 0));
-  if (pool.length > 1 && skip) pool = pool.filter((c) => c.path[c.path.length - 1] !== skip);
+  let pool = cands.filter((c) =>
+    mode === 'due' ? c.due > 0 : mode === 'learn' ? c.fresh > 0 : mode === 'practice' ? c.seen > 0 : c.weak > 0,
+  );
+  const skipped = skip === undefined ? [] : Array.isArray(skip) ? skip : [skip];
+  const leaf = (c: Cand) => c.path[c.path.length - 1];
+  if (pool.length > 1 && skipped.length) {
+    const unplayed = pool.filter((c) => !skipped.includes(leaf(c)));
+    pool = unplayed.length ? unplayed : pool.filter((c) => leaf(c) !== skipped[skipped.length - 1]);
+  }
   if (!pool.length) return null;
   if (mode === 'due') pool.sort((a, b) => b.due - a.due || a.oldest.localeCompare(b.oldest) || a.reps - b.reps || a.i - b.i);
+  if (mode === 'weak') pool.sort((a, b) => b.weak - a.weak || a.i - b.i);
   return pool[0].path;
 }
 

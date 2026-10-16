@@ -101,6 +101,40 @@ describe('opening drill', () => {
     expect(Object.keys(reps.getState().data.cards[id])).toHaveLength(1);
   });
 
+  it('practice runs a learned line off the schedule: right answers change nothing, a miss counts', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
+    expect(drill.getState().start(id, 'practice')).toBe(false);
+    reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-16');
+    const before = reps.getState().data.cards[id][toEpd(START_FEN)];
+    expect(before.due).toBe('2026-10-17');
+    expect(drill.getState().start(id, 'practice')).toBe(true);
+    expect(drill.getState()).toMatchObject({ mode: 'practice', pass: 'quiz', phase: 'user', arrow: null });
+    drill.getState().move(mv('d2d4'));
+    vi.runOnlyPendingTimers();
+    // 2.Bf4 was never learned: shown, not recorded.
+    expect(drill.getState()).toMatchObject({ arrow: 'c1f4', shown: true });
+    drill.getState().move(mv('c1f4'));
+    expect(drill.getState().phase).toBe('done');
+    expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toEqual(before);
+    expect(Object.keys(reps.getState().data.cards[id])).toHaveLength(1);
+    // Again, with a miss: that is recorded.
+    expect(drill.getState().start(id, 'practice')).toBe(true);
+    expect(drill.getState().move(mv('e2e4'))).toBe(false);
+    drill.getState().move(mv('d2d4'));
+    expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toMatchObject({ stage: 0, fails: 1, reps: 2 });
+  });
+
+  it('weak drills only lines with a missed position', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
+    reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-15');
+    expect(drill.getState().start(id, 'weak')).toBe(false);
+    reps.getState().answer(id, toEpd(START_FEN), false, '2026-10-16');
+    expect(drill.getState().start(id, 'weak')).toBe(true);
+    expect(drill.getState()).toMatchObject({ mode: 'weak', phase: 'user', arrow: null });
+  });
+
   it('a move from another line of the repertoire is not a mistake', async () => {
     const { reps, drill } = await fresh();
     const id = reps.getState().create('Both', 'w', parsePgnTree('1. e4 (1. d4) *'));

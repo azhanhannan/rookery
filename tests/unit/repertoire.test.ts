@@ -185,6 +185,37 @@ describe('cards and scheduling', () => {
     expect(second).not.toEqual(first);
   });
 
+  it('practice picks learned lines and goes round them all before repeating', () => {
+    const r = rep();
+    expect(chooseLine(r, {}, 'practice', TODAY)).toBeNull();
+    // Only the start position is learned, so every line qualifies (each starts there).
+    const cards: Record<string, CardRecord> = { [toEpd(START_FEN)]: card({ due: '2026-12-01' }) };
+    const all = linesOf(r.tree);
+    const played: string[] = [];
+    for (let i = 0; i < all.length; i++) {
+      const line = chooseLine(r, cards, 'practice', TODAY, played)!;
+      const leaf = line[line.length - 1];
+      expect(played).not.toContain(leaf);
+      played.push(leaf);
+    }
+    // Every line has had its turn: the next one is anything but the last.
+    const again = chooseLine(r, cards, 'practice', TODAY, played)!;
+    expect(again[again.length - 1]).not.toBe(played[played.length - 1]);
+  });
+
+  it('weak picks the line through the worst-missed position first', () => {
+    const r = rep();
+    const tree = r.tree;
+    const k = (...sans: string[]) => toEpd(tree.nodes[nodeBySans(tree, ...sans)].fen);
+    expect(chooseLine(r, { [toEpd(START_FEN)]: card({}) }, 'weak', TODAY)).toBeNull();
+    const cards: Record<string, CardRecord> = {
+      [toEpd(START_FEN)]: card({ reps: 4, fails: 1 }),
+      [k('e4', 'e5', 'Nf3', 'd6')]: card({ reps: 2, fails: 2 }),
+    };
+    const line = chooseLine(r, cards, 'weak', TODAY)!;
+    expect(tree.nodes[line[line.length - 1]].san).toBe('d4');
+  });
+
   it('reports progress and the weakest positions', () => {
     const r = rep();
     const tree = r.tree;

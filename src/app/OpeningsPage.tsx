@@ -317,6 +317,14 @@ function RepertoireHeader({
           Learn new lines ({progress.fresh})
         </button>
       </div>
+      <div className="flex flex-wrap gap-2">
+        <button className={btn} disabled={progress.total === progress.fresh} onClick={() => onDrill('practice')}>
+          Practise anyway
+        </button>
+        <button className={btn} disabled={progress.weakest.length === 0} onClick={() => onDrill('weak')}>
+          Drill weakest
+        </button>
+      </div>
       {progress.due === 0 && progress.nextDue && <p className="text-xs text-muted">Next review {dateText(progress.nextDue)}</p>}
       <div className="flex flex-wrap gap-3 text-xs">
         <button className="text-accent hover:underline" onClick={() => {
@@ -329,6 +337,13 @@ function RepertoireHeader({
   );
 }
 
+function drillTitle(mode: DrillMode, pass: 'show' | 'quiz'): string {
+  if (mode === 'due') return 'Due now';
+  if (mode === 'practice') return 'Practice';
+  if (mode === 'weak') return 'Weakest lines';
+  return pass === 'show' ? 'Learn: watch and play' : 'Learn: from memory';
+}
+
 function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | null; onStop: () => void; onNext: () => void; nextDue: string | null }) {
   const d = useDrillStore();
   const userSteps = d.steps.filter((s) => s.user).length;
@@ -337,15 +352,24 @@ function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | nu
   return (
     <div className={panel} data-testid="drill-panel">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-semibold">{d.mode === 'due' ? 'Due now' : d.pass === 'show' ? 'Learn: watch and play' : 'Learn: from memory'}</span>
+        <span className="font-semibold">{drillTitle(d.mode, d.pass)}</span>
         {d.phase !== 'empty' && <span className="text-xs text-muted">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
       </div>
       {opening && <p className="text-sm text-muted" data-testid="opening-name">{opening}</p>}
+      {(d.mode === 'practice' || d.mode === 'weak') && (
+        <p className="text-xs text-muted" data-testid="drill-off-schedule">
+          Extra practice: right answers don't change your review dates; a miss brings that position back sooner.
+        </p>
+      )}
       {d.phase === 'empty' ? (
         <p className="text-sm" data-testid="drill-empty">
           {d.mode === 'due'
             ? `Nothing due right now.${nextDue ? ` Next review ${dateText(nextDue)}.` : ''}`
-            : 'Every position here has been learned. Add lines to learn more.'}
+            : d.mode === 'learn'
+              ? 'Every position here has been learned. Add lines to learn more.'
+              : d.mode === 'practice'
+                ? 'Learn a line first, then practise it here any time.'
+                : 'No misses yet, so nothing is weak.'}
         </p>
       ) : (
         <>

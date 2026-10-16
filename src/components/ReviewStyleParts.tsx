@@ -18,6 +18,7 @@ import type { GameReview, MoveLabel, MoveReview } from '../review/types';
 import { saveReviewPrefs, useReviewPrefs } from '../settings/reviewPrefs';
 import { MoveBadge } from './MoveBadge';
 import { scrollWithin } from './scrollWithin';
+import { useSan } from './useSan';
 
 const TIER_GLYPH = { good: '✓', inaccuracy: '?!', bad: '?' } as const;
 
@@ -98,14 +99,15 @@ function rowsOf<T>(items: T[], startFen: string) {
   return rows;
 }
 
-function moveTitle(m: MoveReview) {
+function moveTitle(m: MoveReview, fmt: (san: string) => string = (s) => s) {
   const no = Math.ceil(m.ply / 2);
-  return m.color === 'w' ? `${no}. ${m.san}` : `${no}... ${m.san}`;
+  return m.color === 'w' ? `${no}. ${fmt(m.san)}` : `${no}... ${fmt(m.san)}`;
 }
 
 /** Learner's move list: three-colour badges; with `only`, just those moves (the key moments). */
 export function LearnerMoveList({ moves, startFen, ply, onSelect, only }: ListProps & { only?: number[] }) {
   const activeRef = useRef<HTMLButtonElement>(null);
+  const fmt = useSan();
   useEffect(() => {
     scrollWithin(activeRef.current);
   }, [ply]);
@@ -133,7 +135,7 @@ export function LearnerMoveList({ moves, startFen, ply, onSelect, only }: ListPr
         ) : (
           <ol className="flex flex-col gap-0.5">
             {keyMoves.map((m) => (
-              <li key={m.ply}>{button(m, moveTitle(m))}</li>
+              <li key={m.ply}>{button(m, moveTitle(m, fmt))}</li>
             ))}
           </ol>
         )}
@@ -147,8 +149,8 @@ export function LearnerMoveList({ moves, startFen, ply, onSelect, only }: ListPr
         {rowsOf(moves, startFen).map((r) => (
           <li key={r.no} className="contents">
             <span className="py-0.5 pr-1 text-right font-mono text-sm text-muted">{r.no}.</span>
-            {r.white ? button(r.white, r.white.san) : <span className="px-2 font-mono text-sm text-muted">…</span>}
-            {r.black ? button(r.black, r.black.san) : <span />}
+            {r.white ? button(r.white, fmt(r.white.san)) : <span className="px-2 font-mono text-sm text-muted">…</span>}
+            {r.black ? button(r.black, fmt(r.black.san)) : <span />}
           </li>
         ))}
       </ol>
@@ -159,6 +161,7 @@ export function LearnerMoveList({ moves, startFen, ply, onSelect, only }: ListPr
 /** Analyst's compact two-column list: SAN with its NAG and the eval after the move. */
 export function AnalystMoveList({ review, startFen, ply, onSelect }: Omit<ListProps, 'moves'> & { review: GameReview }) {
   const activeRef = useRef<HTMLButtonElement>(null);
+  const fmt = useSan();
   useEffect(() => {
     scrollWithin(activeRef.current);
   }, [ply]);
@@ -175,7 +178,7 @@ export function AnalystMoveList({ review, startFen, ply, onSelect }: Omit<ListPr
         }`}
       >
         <span className="truncate">
-          {m.san}
+          {fmt(m.san)}
           <span style={{ color: m.ply === ply ? undefined : nagFor(m.label) ? TIER_STYLE[tierOf(m.label)].color : undefined }}>
             {nagFor(m.label)}
           </span>
@@ -246,6 +249,12 @@ export function ReviewSettingsSection({ className }: { className: string }) {
           <span>Green: the better move</span>
         </label>
       </div>
+
+      <div className="mt-4 mb-1 text-sm text-muted">Coach mascot</div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={prefs.coachMascot} onChange={(e) => saveReviewPrefs({ coachMascot: e.target.checked })} data-testid="coach-mascot" />
+        <span>Rookie the rook says the coach lines in Review (only lines the board proves; never during a game)</span>
+      </label>
     </section>
   );
 }

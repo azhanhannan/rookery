@@ -17,6 +17,7 @@ import { todayKey } from '../puzzles/days';
 import { harvestMistakes, sourceText, type MistakePuzzle } from '../puzzles/harvest';
 import type { PuzzleMode } from '../puzzles/puzzleStore';
 import { dueItems, loadSchedule, mistakeCounts } from '../puzzles/spacedRepetition';
+import { useCalcMode } from '../components/CalcMode';
 
 type DataState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; set: PuzzleSet };
 
@@ -106,6 +107,8 @@ export function PuzzlesPage() {
   const puzzleId = puzzle?.id ?? null;
   const onFlip = useCallback(() => setFlippedFor((f) => (f === puzzleId ? null : puzzleId)), [puzzleId]);
   useFlipKey(onFlip);
+  // Calculation mode: pieces hide after a look, the line is entered from memory.
+  const calc = useCalcMode();
 
   const themes = useMemo(() => (puzzles ? popularThemes(puzzles) : []), [puzzles]);
 
@@ -137,8 +140,10 @@ export function PuzzlesPage() {
       <BoardColumn
         bars={false}
         board={
-          fen ? (
-            <Board position={fen} orientation={orientation} lastMove={shownMove} movable={phase === 'solver'} onMove={move} id="puzzle-board" />
+          fen && calc.hidden ? (
+            calc.renderBoard(orientation)
+          ) : fen ? (
+            <Board position={fen} orientation={orientation} lastMove={shownMove} movable={phase === 'solver' && !calc.blocksMoves} onMove={move} id="puzzle-board" />
           ) : (
             <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-surface text-sm text-muted">
               {empty ? 'No puzzle to show' : 'Loading…'}
@@ -152,6 +157,8 @@ export function PuzzlesPage() {
       <div className="flex min-w-0 flex-col gap-3">
       <PuzzleModeBar mode={mode} due={counts.due} onMode={switchMode} />
       <TrainingStreak key={`${record.kind}:${puzzle?.id ?? ''}`} />
+      {calc.toggle}
+      {calc.panel}
       {mode !== 'rated' && (
         <p data-testid="puzzle-source" className="rounded-lg bg-surface p-3 text-sm">
           {mode === 'daily'

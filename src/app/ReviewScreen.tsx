@@ -308,6 +308,7 @@ export function ReviewScreen({
         <EvalGraph
           data={graph}
           ply={mode.kind === 'game' ? ply : evalPly}
+          learner={style === 'learner'}
           onSelect={(p) => {
             setMode({ kind: 'game' });
             goTo(p);

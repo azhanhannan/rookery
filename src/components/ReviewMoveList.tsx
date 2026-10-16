@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { scrollWithin } from './scrollWithin';
 import type { MoveReview } from '../review/types';
 import { MoveBadge } from './MoveBadge';
+import { useSan } from './useSan';
 
 /** The reviewed moves in two columns, each with its label badge; clicking one selects that ply. */
 export function ReviewMoveList({
@@ -16,6 +17,7 @@ export function ReviewMoveList({
   onSelect: (ply: number) => void;
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
+  const fmt = useSan();
 
   useEffect(() => {
     scrollWithin(activeRef.current);
@@ -42,7 +44,7 @@ export function ReviewMoveList({
         }`}
       >
         <MoveBadge label={m.label} />
-        <span className="truncate">{m.san}</span>
+        <span className="truncate">{fmt(m.san)}</span>
       </button>
     ) : (
       <span className="px-2 font-mono text-sm text-muted">…</span>

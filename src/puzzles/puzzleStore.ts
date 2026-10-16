@@ -12,6 +12,7 @@ import { recordDailyResult } from './daily';
 import { dayKey } from './days';
 import { recordMistakeAttempt, scheduleNote } from './spacedRepetition';
 import { recordTrainedDay } from './streak';
+import { logTraining, startTraining } from '../training/trainingLog';
 import { pickPuzzle } from './select';
 import { hint, playOpponentReply, showSolution, startSession, trySolverMove, type PuzzleSession } from './session';
 import type { Puzzle, PuzzleSet } from './types';
@@ -175,6 +176,7 @@ type PuzzleState = {
 export const usePuzzleStore = create<PuzzleState>((set, get) => {
   function begin(puzzle: Puzzle, rated: boolean) {
     cancelTimers();
+    startTraining('puzzle');
     set({
       puzzle,
       session: null,
@@ -198,6 +200,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
   function finish(session: PuzzleSession, solved: boolean) {
     const { rated, record, ratingSource, rating, mode } = get();
     if (solved) recordTrainedDay();
+    if (solved) logTraining('puzzle');
     if (!rated || record.kind !== 'none') return;
     const puzzle = session.puzzle;
     const clean = solved && !session.usedHelp;

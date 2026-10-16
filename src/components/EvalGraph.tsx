@@ -1,6 +1,7 @@
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { GraphPoint } from '../review/reviewView';
 import { LABEL_STYLE } from './labelStyle';
+import { tierOf, TIER_STYLE } from '../review/reviewStyle';
 
 // Drawn like the eval bar: White's share is the light area rising from the dark floor, in both themes.
 const FLOOR = '#262421';
@@ -33,7 +34,18 @@ function GraphTooltip({ active, payload }: { active?: boolean; payload?: { paylo
  * White's win chance over the game. Brilliant, Great, Miss, Mistake and Blunder moves get a dot in their
  * label colour; clicking anywhere on the graph (or a dot) jumps to that ply.
  */
-export function EvalGraph({ data, ply, onSelect }: { data: GraphPoint[]; ply: number; onSelect: (ply: number) => void }) {
+export function EvalGraph({
+  data,
+  ply,
+  onSelect,
+  learner = false,
+}: {
+  data: GraphPoint[];
+  ply: number;
+  onSelect: (ply: number) => void;
+  /** Learner style: dots in the three tier colours. */
+  learner?: boolean;
+}) {
   function renderDot({ cx, cy, payload }: DotProps) {
     if (!payload?.marked || cx === undefined || cy === undefined) return <g key={`d${payload?.ply}`} />;
     return (
@@ -45,7 +57,8 @@ export function EvalGraph({ data, ply, onSelect }: { data: GraphPoint[]; ply: nu
         cx={cx}
         cy={cy}
         r={5}
-        fill={LABEL_STYLE[payload.marked].color}
+        fill={learner ? TIER_STYLE[tierOf(payload.marked)].color : LABEL_STYLE[payload.marked].color}
+        data-tier={learner ? tierOf(payload.marked) : undefined}
         stroke={FLOOR}
         strokeWidth={2}
         style={{ cursor: 'pointer' }}

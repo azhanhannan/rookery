@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { scrollWithin } from './scrollWithin';
+import { useSan } from './useSan';
 import { nagText } from '../game/analysisLines';
 import { isMainline, splitComment, type VariationTree } from '../game/variationTree';
 
@@ -26,6 +27,7 @@ export function VariationMoveList({
 }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
+  const fmt = useSan();
 
   useEffect(() => {
     scrollWithin(activeRef.current);
@@ -74,7 +76,7 @@ export function VariationMoveList({
         className={`rounded px-1 py-0.5 font-mono text-sm ${active ? 'bg-accent text-accent-ink' : 'hover:bg-surface-2'}`}
       >
         {number && <span className={`mr-0.5 ${active ? '' : 'text-muted'}`}>{number}</span>}
-        {n.san}
+        {n.san && fmt(n.san)}
         {n.nags.map((g) => nagText(g)).join('')}
       </button>,
       comment(n.comment, `${id}-c`),

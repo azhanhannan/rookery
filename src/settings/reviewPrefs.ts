@@ -16,6 +16,8 @@ export type ReviewPrefs = {
   learnerDetails: boolean;
   /** Analyst: show captions (off by default). */
   analystCaptions: boolean;
+  /** Rookie the rook says the proven captions in a speech bubble (off by default). */
+  coachMascot: boolean;
 };
 
 export const DEFAULT_REVIEW_PREFS: ReviewPrefs = {
@@ -26,6 +28,7 @@ export const DEFAULT_REVIEW_PREFS: ReviewPrefs = {
   keyMomentsOnly: false,
   learnerDetails: false,
   analystCaptions: false,
+  coachMascot: false,
 };
 
 const KEY = 'rookery.reviewPrefs';
@@ -51,6 +54,7 @@ export function parseReviewPrefs(raw: string | null): ReviewPrefs {
     keyMomentsOnly: bool('keyMomentsOnly'),
     learnerDetails: bool('learnerDetails'),
     analystCaptions: bool('analystCaptions'),
+    coachMascot: bool('coachMascot'),
   };
 }
 

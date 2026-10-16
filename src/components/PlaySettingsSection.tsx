@@ -121,6 +121,14 @@ export function PlaySettingsSection() {
         label="Hide ratings"
         hint="No rating numbers or rating changes on Play, My games or profiles, so you can just play."
       />
+
+      <h3 className="mt-3 mb-0.5 text-sm font-medium">Moves</h3>
+      <Toggle
+        s={s}
+        field="premoves"
+        label="Premoves"
+        hint="Against a bot, queue one move while it thinks; it plays the moment it's legal. Right-click or Esc cancels."
+      />
     </section>
   );
 }

@@ -53,11 +53,13 @@ function PlayerCard({
   player,
   summary,
   match,
+  accuracyNote,
 }: {
   side: 'White' | 'Black';
   player: PlayerInfo;
   summary: PlayerSummary;
   match?: MaiaMatchPlayer;
+  accuracyNote?: string | null;
 }) {
   return (
     <section className="min-w-0 rounded-lg bg-surface p-3" data-testid={`summary-${side.toLowerCase()}`} aria-label={`${side} summary`}>
@@ -74,6 +76,11 @@ function PlayerCard({
             {summary.accuracy === null ? '–' : summary.accuracy.toFixed(1)}
           </div>
           <div className="text-[10px] uppercase tracking-wide text-muted">Accuracy</div>
+          {accuracyNote && (
+            <div className="text-xs text-muted" data-testid="accuracy-note">
+              {accuracyNote}
+            </div>
+          )}
         </div>
       </div>
       <EstimatedRating summary={summary} />
@@ -98,18 +105,21 @@ export function ReviewSummary({
   whiteSummary,
   blackSummary,
   maiaMatch,
+  accuracyNotes,
 }: {
   white: PlayerInfo;
   black: PlayerInfo;
   whiteSummary: PlayerSummary;
   blackSummary: PlayerSummary;
   maiaMatch?: MaiaMatch;
+  /** A plain line under each accuracy ("Typical for ~600"); Learner and Club styles pass it. */
+  accuracyNotes?: { w: string | null; b: string | null };
 }) {
   return (
     // Side by side where the cards get a full-width row (sm to lg); stacked on phones and in the desktop sidebar.
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1" data-testid="review-summary">
-      <PlayerCard side="White" player={white} summary={whiteSummary} match={maiaMatch?.white} />
-      <PlayerCard side="Black" player={black} summary={blackSummary} match={maiaMatch?.black} />
+      <PlayerCard side="White" player={white} summary={whiteSummary} match={maiaMatch?.white} accuracyNote={accuracyNotes?.w} />
+      <PlayerCard side="Black" player={black} summary={blackSummary} match={maiaMatch?.black} accuracyNote={accuracyNotes?.b} />
     </div>
   );
 }

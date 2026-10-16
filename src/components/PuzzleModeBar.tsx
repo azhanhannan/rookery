@@ -4,12 +4,13 @@ const MODES: { mode: PuzzleMode; label: string }[] = [
   { mode: 'rated', label: 'Rated' },
   { mode: 'mistakes', label: 'My mistakes' },
   { mode: 'daily', label: 'Daily' },
+  { mode: 'timed', label: 'Timed' },
 ];
 
-/** Rated / My mistakes (with the due count) / Daily. */
+/** Rated / My mistakes (with the due count) / Daily / Timed. */
 export function PuzzleModeBar({ mode, due, onMode }: { mode: PuzzleMode; due: number; onMode: (m: PuzzleMode) => void }) {
   return (
-    <div role="tablist" aria-label="Puzzle mode" className="grid grid-cols-3 gap-1 rounded-lg bg-surface p-1">
+    <div role="tablist" aria-label="Puzzle mode" className="grid grid-cols-4 gap-1 rounded-lg bg-surface p-1">
       {MODES.map((m) => (
         <button
           key={m.mode}

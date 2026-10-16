@@ -48,7 +48,10 @@ export function NewGameDialog({ onClose }: { onClose: () => void }) {
   const [maiaElo, setMaiaElo] = useState<number>(() => loadMaiaElo() ?? (setupMaia ? setup.botElo : undefined) ?? MAIA.defaultElo);
   const [maiaLoad, setMaiaLoad] = useState<MaiaLoad>(() => (getMaia().isLoaded() ? { state: 'ready' } : { state: 'idle' }));
   const [side, setSide] = useState<SideChoice>(setup.side);
-  const [tc, setTc] = useState<string>(setup.timeControlId);
+  // A time control the dialog doesn't list (the Spar button's 10+5) opens as Unlimited, which is what it shows.
+  const [tc, setTc] = useState<string>(() =>
+    TIME_CONTROLS.some((t) => t.id === setup.timeControlId) ? setup.timeControlId : UNLIMITED,
+  );
   const signedIn = useAuthStore((s) => s.status === 'signed-in');
   // Bot games are Rated (no help, rated when it qualifies) or Practice (unrated, takebacks and helpers).
   const [mode, setMode] = useState<GameMode>(() => loadGameMode() ?? 'rated');

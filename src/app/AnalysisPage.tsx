@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useAnalysisStore } from '../analysis/analysisStore';
 import { useAnalysisEngine } from '../analysis/useAnalysisEngine';
 import { Board, type BoardArrow } from '../components/Board';
@@ -99,6 +99,15 @@ export function AnalysisPage() {
     return out;
   }, [eng.lines, node.comment]);
 
+  // `[%csl Gd4]` square highlights from the selected move's comment, drawn as a ring in the arrows' colours.
+  const squareStyles = useMemo(() => {
+    const out: Record<string, CSSProperties> = {};
+    for (const { square, color } of commentShapes(node.comment).squares) {
+      out[square] = { backgroundImage: `radial-gradient(circle, transparent 60%, ${color} 62%, ${color} 70%, transparent 72%)` };
+    }
+    return out;
+  }, [node.comment]);
+
   const turn = fen.split(' ')[1];
   let evalBar: { white: number; label: string; stale: boolean } | null = null;
   if (eng.terminal === 'mate') evalBar = { white: turn === 'w' ? 0 : 100, label: '#', stale: false };
@@ -138,6 +147,7 @@ export function AnalysisPage() {
               orientation={orientation}
               lastMove={lastMove}
               arrows={arrows}
+              squareStyles={squareStyles}
               movable
               onMove={(m) => store.play(m)}
               positionKey={selected}

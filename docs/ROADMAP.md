@@ -39,13 +39,10 @@ Wave 2 added a migration (`20261016100000_user_state`); the server applies migra
 - Bite-sized lessons (forks, pins, back rank, Scholar's mate defence).
 
 **Loose ends in what's built**
-- A repertoire deleted on one device comes back from another (no delete markers in sync).
-- `rookery.timedBest` and `rookery.trainingLog` sync as newest-wins, so they aren't a true max / union across devices.
-- My-mistakes puzzles accept only the engine's best move (reviews store one line).
-- Board-theme picker only shows a pulled theme after the page is reopened (the boards change at once).
-- First review in a session may ask the self-review question using the pre-rating default style.
 - Untested in a real browser: a real Lichess username import, the low-time clock tick.
-- Phone width: the header wraps onto two lines now that there are more pages.
+- Training-log sync dedupes a day both devices trained on by keeping the larger tally per kind, so activity
+  split across two devices on one day under-counts (per-device tallies would fix it).
+- A device offline longer than `SYNC.tombstoneDays` can bring a deleted repertoire back.
 
 **From SPEC still open**
 - Phase 4 calibration against Lichess data (would also calibrate the Maia style rating).

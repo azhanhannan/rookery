@@ -3,6 +3,7 @@ import { LoginThrottle } from '../../server/src/auth/throttle';
 import { hashPassword, verifyPassword } from '../../server/src/auth/password';
 import { sessionCookie, signup, useServer } from './helpers';
 
+// oxlint-disable-next-line react-hooks/rules-of-hooks -- a test helper named like a hook, not a hook
 const server = useServer();
 
 describe('passwords', () => {

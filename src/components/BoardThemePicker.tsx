@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { defaultPieces } from 'react-chessboard';
-import { BOARD_THEMES, loadBoardTheme, saveBoardTheme, type BoardTheme } from '../settings/boardTheme';
+import { BOARD_THEMES, saveBoardTheme, useBoardTheme, type BoardTheme } from '../settings/boardTheme';
 import { PIECE_SETS, pieceUrl, preloadPieceSet, savePieceSet, usePieceSet, type PieceSet } from '../settings/pieceSet';
 import { Board } from './Board';
 
@@ -52,7 +51,8 @@ function PieceSample({ set }: { set: PieceSet }) {
  * on this device.
  */
 export function BoardThemePicker() {
-  const [theme, setTheme] = useState(loadBoardTheme);
+  // Follows the stored choice, so a theme pulled by account sync shows as picked at once.
+  const theme = useBoardTheme();
   const pieceSet = usePieceSet();
   return (
     // Side by side on wide screens, with the preview kept in view while scrolling the options.
@@ -75,10 +75,7 @@ export function BoardThemePicker() {
                     type="button"
                     role="radio"
                     aria-checked={theme === t.id}
-                    onClick={() => {
-                      saveBoardTheme(t.id);
-                      setTheme(t.id);
-                    }}
+                    onClick={() => saveBoardTheme(t.id)}
                     className={option(theme === t.id)}
                   >
                     <Swatch theme={t} />

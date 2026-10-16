@@ -1,5 +1,6 @@
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { applyBoardTheme, BOARD_THEMES, findBoardTheme, loadBoardTheme, saveBoardTheme } from '../../src/settings/boardTheme';
+import { applyBoardTheme, BOARD_THEMES, findBoardTheme, loadBoardTheme, saveBoardTheme, useBoardTheme } from '../../src/settings/boardTheme';
 
 const root = document.documentElement;
 const vars = () => [root.style.getPropertyValue('--board-light'), root.style.getPropertyValue('--board-dark')];
@@ -41,5 +42,20 @@ describe('board themes', () => {
     expect(root.style.getPropertyValue('--board-image')).toBe('');
     expect(root.style.getPropertyValue('--board-square-dark')).toBe('');
     expect(vars()).toEqual(['#d7e8f3', '#4f86b0']);
+  });
+});
+
+describe('useBoardTheme (the picker)', () => {
+  it('follows a pick and a theme that account sync wrote and applied', async () => {
+    const { result } = renderHook(() => useBoardTheme());
+    expect(result.current).toBe('rookery');
+    await act(async () => saveBoardTheme('green'));
+    expect(result.current).toBe('green');
+    // What src/sync/stateSync does for a pulled theme: write storage, then re-apply.
+    await act(async () => {
+      localStorage.setItem('rookery.boardTheme', 'ocean');
+      applyBoardTheme(loadBoardTheme());
+    });
+    expect(result.current).toBe('ocean');
   });
 });

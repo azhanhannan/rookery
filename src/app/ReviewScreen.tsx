@@ -103,9 +103,20 @@ export function ReviewScreen({
   useFlipKey(flipOrientation(setOrientation));
   const [ply, setPly] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: 'game' });
-  const { style, prefs, rating } = useReviewStyle(record);
-  // Asked once per opening of the review: undefined = not answered yet, null = skipped.
-  const [askFirst] = useState(() => shouldSelfReview(prefs.selfReview, style));
+  const { style, prefs, rating, settled } = useReviewStyle(record);
+  // Whether to ask is decided once per opening of the review, but only after the style is known: on Auto with
+  // "Learner style only", the first review of a session would otherwise ask (or not) using the pre-rating
+  // default style. A server that never answers gives up after REVIEW_STYLE.settleMs.
+  const [askFirst, setAskFirst] = useState<boolean | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
+  const styleMatters = prefs.selfReview === 'learner' && prefs.style === null;
+  if (askFirst === null && (settled || gaveUp || !styleMatters)) setAskFirst(shouldSelfReview(prefs.selfReview, style));
+  useEffect(() => {
+    if (askFirst !== null) return;
+    const t = window.setTimeout(() => setGaveUp(true), REVIEW_STYLE.settleMs);
+    return () => window.clearTimeout(t);
+  }, [askFirst]);
+  // undefined = not answered yet, null = skipped.
   const [guess, setGuess] = useState<number | null | undefined>(undefined);
   const biggest = useMemo(() => biggestMistake(review, retryColors(record)), [review, record]);
   const moments = useMemo(() => keyMoments(review), [review]);
@@ -244,6 +255,7 @@ export function ReviewScreen({
 
   const top: Color = orientation === 'white' ? 'b' : 'w';
 
+  if (askFirst === null) return <p className="p-6 text-center text-sm text-muted">Loading review…</p>;
   if (askFirst && guess === undefined) {
     return (
       <SelfReviewGate

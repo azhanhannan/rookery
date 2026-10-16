@@ -175,6 +175,7 @@ describe('/api/state', () => {
     const reps = items['rookery.repertoires'].value as { repertoires: { id: string }[]; cards: Record<string, unknown> };
     expect(reps.repertoires.map((r) => r.id)).toEqual(['a', 'b']);
     expect(reps.cards).toEqual({ a: { p: card } });
-    expect(JSON.parse(items['rookery.timedBest'].value as string).best).toBe(12);
+    // Bests merge as a max (stored as the plain number the app reads).
+    expect(items['rookery.timedBest'].value).toBe('12');
   });
 });

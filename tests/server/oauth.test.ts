@@ -18,6 +18,7 @@ const fake: OAuthProvider = {
   },
 };
 
+// oxlint-disable-next-line react-hooks/rules-of-hooks -- a test helper named like a hook, not a hook
 const server = useServer({ google: fake });
 
 type Cookies = { name: string; value: string }[];

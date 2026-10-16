@@ -6,6 +6,7 @@ import type { GameRecord, PlayerInfo } from '../../src/game/types';
 import { FOOLS_MATE, play } from '../unit/helpers';
 import { signup, useServer } from './helpers';
 
+// oxlint-disable-next-line react-hooks/rules-of-hooks -- a test helper named like a hook, not a hook
 const server = useServer();
 
 const you: PlayerInfo = { name: 'Ana', isBot: false };

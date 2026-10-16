@@ -5,6 +5,7 @@ import type { GameRecord } from '../../src/game/types';
 import { play } from '../unit/helpers';
 import { signup, useServer } from './helpers';
 
+// oxlint-disable-next-line react-hooks/rules-of-hooks -- a test helper named like a hook, not a hook
 const server = useServer();
 
 function botGame(over: Partial<GameRecord> = {}): GameRecord {

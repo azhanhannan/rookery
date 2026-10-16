@@ -13,6 +13,7 @@ import { mapCatalog, parseCatalog } from '../../server/src/puzzles/catalog';
 import { play } from '../unit/helpers';
 import { signup, useServer } from './helpers';
 
+// oxlint-disable-next-line react-hooks/rules-of-hooks -- a test helper named like a hook, not a hook
 const server = useServer();
 
 // A small injected catalog: the route must use these ratings, whatever the client says.

@@ -14,6 +14,9 @@ import { recordMistakeAttempt, scheduleNote } from './spacedRepetition';
 import { recordTrainedDay } from './streak';
 import { logTraining, startTraining } from '../training/trainingLog';
 import { pickPuzzle } from './select';
+import { getEngine } from '../engine/EngineService';
+import { checkAlternative } from './alternative';
+import type { MistakePuzzle } from './harvest';
 import { hint, playOpponentReply, showSolution, startSession, trySolverMove, type PuzzleSession } from './session';
 import type { Puzzle, PuzzleSet } from './types';
 
@@ -82,6 +85,17 @@ function playUci(fen: string, uci: string): { fen: string; sound: SoundKind } | 
     return { fen: chess.fen(), sound };
   } catch {
     return null;
+  }
+}
+
+/** The solver's first move repeats what they played in the game (the mistake itself): never an alternative. */
+function repeatsGameMove(s: PuzzleSession, uci: string): boolean {
+  const source = (s.puzzle as Partial<MistakePuzzle>).source;
+  if (!source || s.next !== 1) return false;
+  try {
+    return new Chess(s.fen).move(uciToInput(uci)).san === source.playedSan;
+  } catch {
+    return false;
   }
 }
 
@@ -341,11 +355,10 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
       const res = trySolverMove(session, uci);
       if (!res) return false;
 
-      if (res.result === 'wrong') {
+      const wrong = () => {
         // The session stays on the wrong move (showSolution rewinds from there); the board shows it
         // briefly, then goes back to the position before it.
         const failed = res.session;
-        playSound(moveSound(session.fen, uci));
         set({
           session: failed,
           fen: failed.fen,
@@ -356,6 +369,44 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         });
         finish(failed, false);
         later(() => set({ fen: session.fen, lastMove: session.lastMove, phase: 'ended' }), WRONG_MOVE_MS);
+      };
+
+      if (res.result === 'wrong') {
+        playSound(moveSound(session.fen, uci));
+        const best = session.puzzle.moves[session.next];
+        // My-mistakes puzzles store one line: another move may be just as good. The engine decides.
+        if (get().mode !== 'mistakes' || !best || repeatsGameMove(session, uci)) {
+          wrong();
+          return true;
+        }
+        const gen = generation;
+        set({
+          fen: res.session.fen,
+          lastMove: { from: input.from, to: input.to },
+          phase: 'opponent',
+          feedback: { kind: 'info', text: 'Checking that move…' },
+          hintSquare: null,
+        });
+        void getEngine()
+          .then((engine) => checkAlternative(engine, session.fen, uci, best))
+          .catch(() => ({ accepted: false }) as const)
+          .then((verdict) => {
+            if (gen !== generation || get().session !== session) return; // moved on meanwhile
+            if (!verdict.accepted) {
+              wrong();
+              return;
+            }
+            const solved: PuzzleSession = { ...res.session, status: 'solved' };
+            playSound('end');
+            set({
+              session: solved,
+              fen: solved.fen,
+              lastMove: { from: input.from, to: input.to, color: GOOD },
+              phase: 'ended',
+              feedback: { kind: 'good', text: `Also good — the engine preferred ${verdict.bestSan}` },
+            });
+            finish(solved, true);
+          });
         return true;
       }
 

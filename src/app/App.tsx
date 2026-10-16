@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
-import { AccountNav } from '../components/AccountNav';
+import { SiteHeader } from '../components/SiteHeader';
 import { APP_NAME } from '../config/tunables';
 import { useFocusMode } from './focusMode';
 import { AboutPage } from './AboutPage';
@@ -138,28 +138,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {!focus && (
-        <header className="border-b border-surface-2 bg-surface">
-          <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-5">
-            <a href="#/play" className="text-lg font-bold tracking-tight">
-              {APP_NAME}
-            </a>
-            <a href="#/play" className={`text-sm ${Page === PlayPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Play</a>
-            <a href="#/review" className={`text-sm ${review ? 'text-ink' : 'text-muted'} hover:text-ink`}>Review</a>
-            <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
-            <a href="#/analysis" className={`text-sm ${Page === AnalysisRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Analysis</a>
-            <a href="#/openings" className={`text-sm ${Page === OpeningsRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Openings</a>
-            <a href="#/endgames" className={`text-sm ${Page === EndgamesRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Endgames</a>
-            <a href="#/drills" className={`text-sm ${Page === DrillsRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Drills</a>
-            <a href="#/lessons" className={`text-sm ${Page === LessonsRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Lessons</a>
-            <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
-            <span className="ml-auto" />
-            <AccountNav />
-            {/* Phones: Import and About move to the footer so the header stays on one line. */}
-            <a href="#/about" className={`hidden text-sm sm:inline ${Page === AboutPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>About</a>
-          </nav>
-        </header>
-      )}
+      {!focus && <SiteHeader hash={hash} />}
       <main>
         {Page ? (
           <Page />

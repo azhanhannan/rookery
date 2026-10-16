@@ -15,11 +15,19 @@
  * 'trainedDays': the streak's trained days; union.
  * 'daily': the pinned daily puzzle; the later day wins, a solve is never lost.
  * 'stamped': a raw JSON string carrying its own `updatedAt`; the newer one wins (training records whose
- *   owners keep that field current: endgame drills, timed-puzzle bests, the training log, finished lessons).
+ *   owners keep that field current: endgame drills, finished lessons).
+ * 'best': a raw string holding a best score (a plain number, or JSON `{ mode: score }` for per-mode bests);
+ *   merged as the larger score per mode.
+ * 'log': the raw training-log JSON (`{ updatedAt, days }`); days union, a day on both sides keeps the
+ *   larger tally per activity kind.
  * 'repertoires': the opening trainer (`{version, updatedAt, repertoires, cards}`); repertoires merge by id
- *   (newer `updatedAt` wins), their cards per position like My-mistakes cards.
+ *   (newer `updatedAt` wins), their cards per position like My-mistakes cards; delete markers (`deleted`)
+ *   remove a repertoire everywhere and expire after SYNC.tombstoneDays.
  */
-export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires';
+export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires' | 'best' | 'log';
+
+/** Kinds whose localStorage value is the raw string itself (not JSON the sync parses). */
+export const RAW_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['pref', 'stamped', 'best', 'log']);
 
 export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.boardTheme': 'pref',
@@ -38,8 +46,8 @@ export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.daily': 'daily',
   'rookery.repertoires': 'repertoires',
   'rookery.endgames': 'stamped',
-  'rookery.timedBest': 'stamped',
-  'rookery.trainingLog': 'stamped',
+  'rookery.timedBest': 'best',
+  'rookery.trainingLog': 'log',
   'rookery.lessons': 'stamped',
 };
 

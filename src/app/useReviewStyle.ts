@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { pickAccountRating, useAccountRatings } from '../account/accountRating';
+import { useAuthStore } from '../account/authStore';
 import { useSyncStore } from '../account/syncStore';
 import { categoryFor } from '../rating/glicko';
 import type { GameRecord } from '../game/types';
@@ -23,14 +24,18 @@ function useSessionRating(): number | null {
 /**
  * The review style in force for this game: the saved choice, or Auto from the player's rating (this session's
  * latest rated result, else the signed-in account's rating for the game's category, else the game's own hint).
- * `rating` is that rating, for other level-aware text (the accuracy line).
+ * `rating` is that rating, for other level-aware text (the accuracy line). `settled` is false while the style
+ * may still change because the session or the account's ratings haven't answered yet.
  */
-export function useReviewStyle(record: GameRecord): { style: ReviewStyle; prefs: ReviewPrefs; rating: number | null } {
+export function useReviewStyle(record: GameRecord): { style: ReviewStyle; prefs: ReviewPrefs; rating: number | null; settled: boolean } {
   const prefs = useReviewPrefs();
   const sessionRating = useSessionRating();
-  const accountRating = pickAccountRating(useAccountRatings(), categoryFor(record.timeControl));
+  const auth = useAuthStore((s) => s.status);
+  const rows = useAccountRatings();
+  const accountRating = pickAccountRating(rows, categoryFor(record.timeControl));
   const rating = ratingHint(record, sessionRating ?? accountRating);
-  return { style: effectiveStyle(prefs.style, rating), prefs, rating };
+  const settled = prefs.style !== null || sessionRating !== null || auth === 'signed-out' || auth === 'offline' || rows !== null;
+  return { style: effectiveStyle(prefs.style, rating), prefs, rating, settled };
 }
 
 export type DeepenRun = {

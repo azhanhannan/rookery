@@ -35,7 +35,10 @@ export function useSessionCategoryRating(category: RatingCategory | null): numbe
   });
 }
 
-/** The signed-in player's rating rows; null while signed out, offline, loading, or when the server failed. */
+/**
+ * The signed-in player's rating rows; null while signed out, offline or loading. When the server failed it is
+ * `[]` (no rating, but the answer is in: callers waiting for it can stop waiting).
+ */
 export function useAccountRatings(): RatingRow[] | null {
   const username = useAuthStore((s) => (s.status === 'signed-in' ? (s.user?.username ?? null) : null));
   const rated = useSyncStore((s) => Object.values(s.byId).filter((r) => r.rating).length);
@@ -44,7 +47,9 @@ export function useAccountRatings(): RatingRow[] | null {
 
   useEffect(() => {
     if (!key || !username || useAccountRatingStore.getState().key === key) return;
-    useAccountRatingStore.setState({ key });
+    // Another account's rows must not show while this one's load (the same account keeps its rows meanwhile).
+    const sameUser = useAccountRatingStore.getState().key?.startsWith(`${username}:`);
+    useAccountRatingStore.setState(sameUser ? { key } : { key, rows: null });
     api
       .profile(username)
       .then((p) => {
@@ -52,6 +57,7 @@ export function useAccountRatings(): RatingRow[] | null {
       })
       .catch(() => {
         // Server down: callers fall back to their usual default.
+        if (useAccountRatingStore.getState().key === key) useAccountRatingStore.setState({ rows: [] });
       });
   }, [key, username]);
 

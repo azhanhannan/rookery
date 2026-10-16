@@ -207,6 +207,12 @@ export const MISTAKES = {
   recentGames: 5,
   /** Daily puzzle: candidates rated within ±this of the player's rating (rounded to 100). */
   dailyWindow: 150,
+  /**
+   * A move other than the stored best is checked with the engine and accepted when it is about as good: at most
+   * `marginCp` centipawns worse than the best move, or (when the best move forces mate) a forced mate at most
+   * `mateSlack` moves longer. Both positions are searched to `depth`, at most `movetimeMs` each.
+   */
+  alternative: { marginCp: 50, mateSlack: 2, depth: 14, movetimeMs: 800 },
 };
 
 /** Panel cosmetics (Settings → Play): clock warnings, animation speeds, the end-of-game celebration. */
@@ -249,6 +255,8 @@ export const REVIEW_STYLE = {
   deepDepth: 24,
   /** Engine lines "Analyse deeper here" shows for the position before the move. */
   deepLines: 3,
+  /** Longest wait for the player's rating before deciding on the self-review question, ms (then the default style). */
+  settleMs: 3000,
 };
 
 /** Endgame tablebase lookups (src/engine/tablebase.ts): Lichess's Syzygy API. */
@@ -282,6 +290,11 @@ export const SYNC = {
   maxValueBytes: 1024 * 1024,
   /** Trained days kept (the streak storage keeps the same number). */
   trainedDaysLimit: 400,
+  /**
+   * Delete markers (a deleted repertoire) are kept this many days, then dropped. A device that stays offline
+   * longer than this can bring a deleted item back.
+   */
+  tombstoneDays: 90,
 };
 
 /** The opening trainer (#/openings): repertoires drilled with spaced repetition. */

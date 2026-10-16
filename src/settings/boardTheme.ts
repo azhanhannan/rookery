@@ -1,6 +1,7 @@
 // Board themes. Every board (play, review, puzzles, thumbnails) paints its squares from CSS variables on <html>:
 // --board-light / --board-dark (flat colours; also used for coordinates, swatches and thumbnails), and for textured
 // themes --board-image plus transparent --board-square-light/-dark so the picture shows through. Saved per device.
+import { useSyncExternalStore } from 'react';
 
 export type BoardTheme = {
   id: string;
@@ -72,9 +73,25 @@ export function loadBoardTheme(): string {
   }
 }
 
+// Whoever shows the current choice (the picker) hears about changes, including a theme pulled by account sync.
+const listeners = new Set<() => void>();
+
+/** The saved theme id, kept current when it changes (a pick, or a sync that applied a pulled one). */
+export function useBoardTheme(): string {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    loadBoardTheme,
+    () => DEFAULT_BOARD_THEME,
+  );
+}
+
 /** Paints every board with `id` (the default theme removes every override). */
 export function applyBoardTheme(id: string, root: HTMLElement = document.documentElement): void {
   const { colors, image } = findBoardTheme(id);
+  queueMicrotask(() => listeners.forEach((l) => l()));
   for (const v of VARS) root.style.removeProperty(v);
   if (colors) {
     root.style.setProperty('--board-light', colors.light);

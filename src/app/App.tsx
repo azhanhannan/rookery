@@ -32,6 +32,14 @@ const OpeningsRoute = () => (
   </Suspense>
 );
 
+// Endgame drills load on first visit too.
+const EndgamesPage = lazy(() => import('./EndgamesPage').then((m) => ({ default: m.EndgamesPage })));
+const EndgamesRoute = () => (
+  <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading endgames…</p>}>
+    <EndgamesPage />
+  </Suspense>
+);
+
 const LoginPage = () => <AuthPage mode="login" />;
 const SignupPage = () => <AuthPage mode="signup" />;
 
@@ -46,6 +54,7 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/account': AccountPage,
   '#/analysis': AnalysisRoute,
   '#/openings': OpeningsRoute,
+  '#/endgames': EndgamesRoute,
 };
 
 function useHash(): string {
@@ -117,6 +126,7 @@ export default function App() {
             <a href="#/puzzles" className={`text-sm ${puzzles ? 'text-ink' : 'text-muted'} hover:text-ink`}>Puzzles</a>
             <a href="#/analysis" className={`text-sm ${Page === AnalysisRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Analysis</a>
             <a href="#/openings" className={`text-sm ${Page === OpeningsRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Openings</a>
+            <a href="#/endgames" className={`text-sm ${Page === EndgamesRoute ? 'text-ink' : 'text-muted'} hover:text-ink`}>Endgames</a>
             <a href="#/import" className={`hidden text-sm sm:inline ${Page === ImportPage ? 'text-ink' : 'text-muted'} hover:text-ink`}>Import</a>
             <span className="ml-auto" />
             <AccountNav />

@@ -32,6 +32,7 @@ import { REVIEW_STYLE } from '../config/tunables';
 import { ArrowToggles, ReviewMoveDetails } from '../components/ReviewMoveDetails';
 import { AnalystMoveList, LearnerMoveList, SquareLabelBadge, StyleSwitch } from '../components/ReviewStyleParts';
 import { SelfReviewGate } from '../components/SelfReviewGate';
+import { DeepLines } from '../components/DeepLines';
 import { biggestMistake, keyMoments, shouldSelfReview, threatArrowFor } from '../review/reviewStyle';
 import { retryColors } from '../review/reviewView';
 import { saveReviewPrefs } from '../settings/reviewPrefs';
@@ -398,6 +399,7 @@ export function ReviewScreen({
               )}
               {deepen.error && <span className="text-danger">{deepen.error}</span>}
             </div>
+            {deepen.lines?.ply === ply && <DeepLines review={review} ply={ply} analysis={deepen.lines.analysis} />}
           </div>
         )}
 

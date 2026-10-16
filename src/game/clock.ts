@@ -23,8 +23,18 @@ export type ClockState = {
   turnStartedAt: number | null;
 };
 
+/**
+ * A time control by id: one of TIME_CONTROLS, else any well-formed "base+inc" in seconds (e.g. the Spar
+ * button's "600+5"); undefined for 'unlimited' or anything else.
+ */
 export function findTimeControl(id: string | undefined): TimeControl | undefined {
-  return TIME_CONTROLS.find((t) => t.id === id);
+  const listed = TIME_CONTROLS.find((t) => t.id === id);
+  if (listed) return listed;
+  const m = id ? /^(\d{1,5})\+(\d{1,3})$/.exec(id) : null;
+  if (!m || Number(m[1]) === 0) return undefined;
+  const base = Number(m[1]);
+  const minutes = base / 60;
+  return { id: `${base}+${Number(m[2])}`, label: `${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}+${Number(m[2])}`, baseMs: base * 1000, incMs: Number(m[2]) * 1000 };
 }
 
 export function newClock(tc: TimeControl): ClockState {

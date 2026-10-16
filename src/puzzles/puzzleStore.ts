@@ -59,8 +59,11 @@ export type RecordState =
   | { kind: 'practice'; note: string }
   | { kind: 'error'; message: string };
 
-/** 'rated': the rated trainer; 'mistakes': puzzles from the player's games (spaced repetition); 'daily': the day's puzzle. */
-export type PuzzleMode = 'rated' | 'mistakes' | 'daily';
+/**
+ * 'rated': the rated trainer; 'mistakes': puzzles from the player's games (spaced repetition); 'daily': the day's
+ * puzzle; 'timed': the timed run (components/TimedPuzzles, which keeps its own state and never uses this store).
+ */
+export type PuzzleMode = 'rated' | 'mistakes' | 'daily' | 'timed';
 
 /** 'setup': waiting for the opponent's first move. 'opponent': waiting for a reply. 'wrong': a wrong move is on show. */
 export type Phase = 'idle' | 'setup' | 'solver' | 'opponent' | 'wrong' | 'solution' | 'ended';
@@ -167,7 +170,7 @@ type PuzzleState = {
   /** Stops pending moves (leaving the page). */
   stop: () => void;
   /** Starts this puzzle in a non-rated mode (My mistakes, Daily): the result never touches the rating. */
-  play: (puzzle: Puzzle, mode: Exclude<PuzzleMode, 'rated'>) => void;
+  play: (puzzle: Puzzle, mode: Exclude<PuzzleMode, 'rated' | 'timed'>) => void;
   /** Clears the board (keeping the rating), e.g. when no mistake is due. */
   clear: () => void;
 };

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
 import { useSyncStore } from '../account/syncStore';
 import { levelLabel, suggestNextLevel } from '../bots/botLevels';
@@ -21,6 +21,9 @@ import { usePracticeAids } from './usePracticeAids';
 import { EndScreen } from '../components/EndScreen';
 import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { useFlipKey } from '../components/boardKeys';
+import { SparButton } from '../components/SparButton';
+import { LossCushion } from '../components/LossCushion';
+import { usePremove } from './usePremove';
 
 const MUTE_KEY = 'rookery.muted';
 
@@ -121,6 +124,11 @@ export function PlayPage() {
   const evalOn = evalPref ?? bot !== null;
   const liveEval = useLiveEval(record, viewPly, evalOn);
   const practiceAids = usePracticeAids(record, viewPly);
+  const premove = usePremove(record, viewPly);
+  const boardStyles = useMemo(
+    () => ({ ...practiceAids.squareStyles, ...premove.squareStyles }),
+    [practiceAids.squareStyles, premove.squareStyles],
+  );
   const outcome = humanOutcome(record);
   const botInfo = bot ? record[bot === 'w' ? 'white' : 'black'] : null;
   const botElo = botInfo?.elo;
@@ -152,7 +160,7 @@ export function PlayPage() {
         top={<PlayerBar color={top} />}
         bottom={<PlayerBar color={bottom} />}
         evalBar={evalOn ? <EvalBar white={liveEval.white} label={liveEval.label} stale={liveEval.stale} orientation={orientation} /> : undefined}
-        board={<Board arrows={practiceAids.arrows} squareStyles={practiceAids.squareStyles} />}
+        board={<Board arrows={practiceAids.arrows} squareStyles={boardStyles} premove={premove.input} />}
       />
 
       <aside className="flex min-w-0 flex-col gap-3">
@@ -206,6 +214,8 @@ export function PlayPage() {
           </div>
         )}
 
+        <LossCushion />
+
         <PracticePanel aids={practiceAids} />
 
         <MoveList />
@@ -257,6 +267,7 @@ export function PlayPage() {
             {evalOn ? 'Eval bar on' : 'Eval bar off'}
           </button>
           <KeyboardShortcuts page="play" className={`${btn} col-span-2`} withText />
+          <SparButton className={`${btn} col-span-2`} />
         </div>
         {evalOn && liveEval.engine === 'loading' && <p className="text-xs text-muted">Engine loading…</p>}
         {evalOn && liveEval.error && (

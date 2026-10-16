@@ -1,4 +1,4 @@
-// Play settings (Settings → Play): sound pack, animation speed, board display toggles, hidden ratings.
+// Play settings (Settings → Play): sound pack, animation speed, board display toggles, hidden ratings, premoves.
 // Saved per device as one JSON value, like the board theme and piece set.
 import { useSyncExternalStore } from 'react';
 import { POLISH } from '../config/tunables';
@@ -19,6 +19,8 @@ export type PlaySettings = {
   legalDots: boolean;
   lastMove: boolean;
   hideRating: boolean;
+  /** Queue one move on the opponent's turn in bot games (app/usePremove.ts). */
+  premoves: boolean;
 };
 
 export const DEFAULT_PLAY_SETTINGS: PlaySettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_PLAY_SETTINGS: PlaySettings = {
   legalDots: true,
   lastMove: true,
   hideRating: false,
+  premoves: false,
 };
 
 const KEY = 'rookery.playSettings';
@@ -50,6 +53,7 @@ export function parsePlaySettings(raw: string | null): PlaySettings {
     legalDots: bool('legalDots', d.legalDots),
     lastMove: bool('lastMove', d.lastMove),
     hideRating: bool('hideRating', d.hideRating),
+    premoves: bool('premoves', d.premoves),
   };
 }
 

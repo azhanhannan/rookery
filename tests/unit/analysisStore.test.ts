@@ -38,6 +38,17 @@ describe('analysis store', () => {
     expect(location.hash).toBe('#/analysis');
   });
 
+  it("openInAnalysis shows the board from the player's side", async () => {
+    const { analysis } = await fresh();
+    const record = play(FOOLS_MATE);
+    analysis.openInAnalysis({ ...record, userColor: 'b' }, 0);
+    expect(analysis.useAnalysisStore.getState().orientation).toBe('black');
+    analysis.openInAnalysis({ ...record, white: { name: 'Bot 800', isBot: true, elo: 800 } }, 0);
+    expect(analysis.useAnalysisStore.getState().orientation).toBe('black');
+    analysis.openInAnalysis(record, 0);
+    expect(analysis.useAnalysisStore.getState().orientation).toBe('white');
+  });
+
   it('Play can start a game from a set-up position', async () => {
     const { game } = await fresh();
     const fen = '4k3/8/8/8/8/8/8/4K2R b K - 0 1';

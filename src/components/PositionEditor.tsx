@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Orientation } from '../game/gameStore';
 import {
+  clampFullmove,
   EMPTY_FEN,
   fenFromSetup,
   PIECE_CODES,
@@ -36,6 +37,8 @@ export function PositionEditor({
   const pieces = piecesFor(usePieceSet());
   const [setup, setSetup] = useState<Setup>(() => setupFromFen(initialFen));
   const [tool, setTool] = useState<PieceCode | null>('wP');
+  // What is typed in the move-number box (null = show the setup's number), so it can be cleared while typing.
+  const [moveDraft, setMoveDraft] = useState<string | null>(null);
   const fen = fenFromSetup(setup);
   const problem = useMemo(() => validatePosition(fen), [fen]);
   const allowed = possibleCastling(setup.placement);
@@ -115,6 +118,22 @@ export function PositionEditor({
             <option value="w">White</option>
             <option value="b">Black</option>
           </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          Move
+          <input
+            type="number"
+            min={1}
+            className="w-16 rounded bg-surface-2 px-2 py-1"
+            aria-label="Move number"
+            data-testid="editor-move-number"
+            value={moveDraft ?? String(setup.fullmove ?? 1)}
+            onChange={(e) => {
+              setMoveDraft(e.target.value);
+              if (e.target.value.trim() !== '') setSetup({ ...setup, fullmove: clampFullmove(Number(e.target.value)) });
+            }}
+            onBlur={() => setMoveDraft(null)}
+          />
         </label>
         {castleBox('K', 'White O-O')}
         {castleBox('Q', 'White O-O-O')}

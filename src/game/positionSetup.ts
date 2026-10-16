@@ -6,7 +6,13 @@ import type { Color } from './types';
 export type PieceCode = `${Color}${'K' | 'Q' | 'R' | 'B' | 'N' | 'P'}`;
 export type Placement = Partial<Record<string, PieceCode>>;
 export type Castling = { K: boolean; Q: boolean; k: boolean; q: boolean };
-export type Setup = { placement: Placement; turn: Color; castling: Castling };
+export type Setup = {
+  placement: Placement;
+  turn: Color;
+  castling: Castling;
+  /** Full-move number (the FEN's last field); absent = 1. */
+  fullmove?: number;
+};
 
 export const PIECE_CODES: PieceCode[] = ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP'];
 const FILES = 'abcdefgh';
@@ -15,7 +21,7 @@ export const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 /** Reads the placement, side to move and castling rights of a FEN (assumed well-formed enough to split). */
 export function setupFromFen(fen: string): Setup {
-  const [board = '', turn = 'w', castle = '-'] = fen.trim().split(/\s+/);
+  const [board = '', turn = 'w', castle = '-', , , move = '1'] = fen.trim().split(/\s+/);
   const placement: Placement = {};
   board.split('/').forEach((row, r) => {
     let f = 0;
@@ -32,7 +38,13 @@ export function setupFromFen(fen: string): Setup {
     placement,
     turn: turn === 'b' ? 'b' : 'w',
     castling: { K: castle.includes('K'), Q: castle.includes('Q'), k: castle.includes('k'), q: castle.includes('q') },
+    fullmove: clampFullmove(Number(move)),
   };
+}
+
+/** A usable full-move number: a whole number from 1 up, else 1. */
+export function clampFullmove(n: number): number {
+  return Number.isFinite(n) && n >= 1 ? Math.min(9999, Math.floor(n)) : 1;
 }
 
 /** Castling rights that the placement still allows (king and rook on their home squares). */
@@ -46,7 +58,7 @@ export function possibleCastling(placement: Placement): Castling {
 }
 
 /** The FEN for a setup; castling rights the placement no longer allows are dropped. */
-export function fenFromSetup({ placement, turn, castling }: Setup): string {
+export function fenFromSetup({ placement, turn, castling, fullmove }: Setup): string {
   const rows: string[] = [];
   for (let rank = 8; rank >= 1; rank--) {
     let row = '';
@@ -66,7 +78,7 @@ export function fenFromSetup({ placement, turn, castling }: Setup): string {
   }
   const ok = possibleCastling(placement);
   const castle = (['K', 'Q', 'k', 'q'] as const).filter((c) => castling[c] && ok[c]).join('') || '-';
-  return `${rows.join('/')} ${turn} ${castle} - 0 1`;
+  return `${rows.join('/')} ${turn} ${castle} - 0 ${clampFullmove(fullmove ?? 1)}`;
 }
 
 /** Places `piece` on `square`, or removes what is there when `piece` is null or the same piece is already there. */

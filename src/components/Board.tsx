@@ -35,6 +35,11 @@ type BoardViewProps = {
   squareStyles?: Record<string, CSSProperties>;
   /** A small marker drawn in the top-right corner of one square (Review's label badge). */
   squareBadge?: { square: string; node: ReactNode } | null;
+  /**
+   * Premove input (Settings → Play → Premoves): while the board is not movable, `color`'s pieces can still be
+   * clicked or dragged, and the move goes to `onQueue` instead of `onMove` (app/usePremove.ts plays it later).
+   */
+  premove?: { color: 'w' | 'b'; onQueue: (from: string, to: string) => void };
 };
 
 /**
@@ -42,11 +47,11 @@ type BoardViewProps = {
  * (the review screen), read-only unless `movable` is set.
  */
 export function Board(props: Partial<BoardViewProps> & { position?: string }) {
-  if (props.position === undefined) return <StoreBoard arrows={props.arrows} squareStyles={props.squareStyles} />;
+  if (props.position === undefined) return <StoreBoard arrows={props.arrows} squareStyles={props.squareStyles} premove={props.premove} />;
   return <BoardView orientation="white" {...props} position={props.position} />;
 }
 
-function StoreBoard({ arrows, squareStyles: extraStyles }: Pick<BoardViewProps, 'arrows' | 'squareStyles'> = {}) {
+function StoreBoard({ arrows, squareStyles: extraStyles, premove }: Pick<BoardViewProps, 'arrows' | 'squareStyles' | 'premove'> = {}) {
   const record = useGameStore((s) => s.record);
   const viewPly = useGameStore((s) => s.viewPly);
   const orientation = useGameStore((s) => s.orientation);
@@ -70,6 +75,7 @@ function StoreBoard({ arrows, squareStyles: extraStyles }: Pick<BoardViewProps, 
       positionKey={`${record.id}:${viewPly}:${record.moves.length}`}
       arrows={arrows}
       squareStyles={extraStyles}
+      premove={premove}
     />
   );
 }
@@ -85,12 +91,15 @@ function BoardView({
   id = 'board',
   squareStyles: extraStyles,
   squareBadge,
+  premove,
 }: BoardViewProps) {
   const pieceSet = usePieceSet();
   const pieces = useMemo(() => piecesFor(pieceSet), [pieceSet]);
   const chess = useMemo(() => new Chess(position), [position]);
   const turn = chess.turn();
   const live = movable && !!onMove;
+  // Premove input only while the board can't move (the opponent's turn).
+  const pre = !live && premove ? premove : null;
   const marks = useBoardMarks(positionKey);
   const shown = marks.settings;
 
@@ -112,11 +121,24 @@ function BoardView({
   }
 
   function onPieceDrop({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean {
+    if (pre) {
+      setSel(null);
+      if (targetSquare && sourceSquare !== targetSquare) pre.onQueue(sourceSquare, targetSquare);
+      return false;
+    }
     if (!live || !targetSquare || sourceSquare === targetSquare) return false;
     return attempt(sourceSquare, targetSquare);
   }
 
   function onSquareClick({ piece, square }: SquareHandlerArgs) {
+    if (pre) {
+      if (piece && piece.pieceType[0] === pre.color && square !== selected) setSel({ key: positionKey, square });
+      else {
+        if (selected && square !== selected) pre.onQueue(selected, square);
+        setSel(null);
+      }
+      return;
+    }
     if (!live) return;
     if (selected && targets.includes(square)) {
       attempt(selected, square);
@@ -165,8 +187,8 @@ function BoardView({
           id,
           position,
           boardOrientation: orientation,
-          allowDragging: live,
-          canDragPiece: ({ piece }) => live && piece.pieceType[0] === turn,
+          allowDragging: live || !!pre,
+          canDragPiece: ({ piece }) => (pre ? piece.pieceType[0] === pre.color : live && piece.pieceType[0] === turn),
           onPieceDrop,
           onSquareClick,
           onPieceDrag: ({ square }) => square && setSel({ key: positionKey, square }),

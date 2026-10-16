@@ -260,3 +260,49 @@ export const OPENING_TRAINER = {
   /** Weakest positions listed in the progress view. */
   weakest: 5,
 };
+
+/** Small play helpers: the Spar button, the losing-streak cushion and premoves. */
+export const QUICK = {
+  /** Spar button: the rating assumed when the player's is unknown (signed out, no rated games yet). */
+  sparDefaultRating: 1200,
+  /** Spar button's time control, "base+increment" in seconds (10+5: a rapid game). */
+  sparTimeControl: '600+5',
+  /** Losses in a row against bots before Play suggests an easier bot or a few puzzles. */
+  lossStreak: 3,
+  /** The queued premove's two squares. */
+  premoveColor: 'rgba(20, 85, 180, 0.5)',
+};
+
+/** Timed puzzles (#/puzzles → Timed): a race that never changes the puzzle rating. */
+export const TIMED_PUZZLES = {
+  durationMs: 3 * 60_000,
+  /** Each miss takes this much off the clock. */
+  missPenaltyMs: 10_000,
+  /** This many misses ends the run. */
+  maxMisses: 3,
+  /** First puzzle's rating; each puzzle tried after that is `step` harder. */
+  startRating: 600,
+  step: 50,
+};
+
+/**
+ * Review's friendly accuracy line (Learner and Club styles). ESTIMATE: typical game accuracy by rating band,
+ * eyeballed from Lichess-formula accuracies of club players; not measured on Rookery games. Tune freely.
+ */
+export const ACCURACY_BANDS = {
+  bands: [
+    { rating: 400, accuracy: 55 },
+    { rating: 600, accuracy: 62 },
+    { rating: 800, accuracy: 67 },
+    { rating: 1000, accuracy: 71 },
+    { rating: 1200, accuracy: 75 },
+    { rating: 1400, accuracy: 78 },
+    { rating: 1600, accuracy: 81 },
+    { rating: 1800, accuracy: 84 },
+    { rating: 2000, accuracy: 87 },
+    { rating: 2200, accuracy: 89 },
+    { rating: 2500, accuracy: 92 },
+  ],
+  /** Within ± this many points of the band's typical accuracy counts as "about your level". */
+  margin: 5,
+};

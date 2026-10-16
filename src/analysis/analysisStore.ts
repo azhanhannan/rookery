@@ -150,7 +150,9 @@ export function openInAnalysis(record: GameRecord, ply: number): void {
   );
   const line = mainline(tree);
   const selected = line[Math.max(0, Math.min(line.length - 1, ply))];
+  // From the player's side: the side they said they played (imports), else the non-bot side.
   const bot = record.white.isBot ? 'w' : record.black.isBot ? 'b' : null;
-  useAnalysisStore.setState({ tree, selected, orientation: bot === 'w' ? 'black' : 'white' });
+  const player = record.userColor ?? (bot === 'w' ? 'b' : 'w');
+  useAnalysisStore.setState({ tree, selected, orientation: player === 'b' ? 'black' : 'white' });
   location.hash = '#/analysis';
 }

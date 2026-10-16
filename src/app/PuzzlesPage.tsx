@@ -9,6 +9,7 @@ import { popularThemes } from '../puzzles/select';
 import { errorMessage, HINT_COLOR, loadPuzzleSet, usePuzzleStore } from '../puzzles/puzzleStore';
 import type { PuzzleSet } from '../puzzles/types';
 import { PuzzleModeBar } from '../components/PuzzleModeBar';
+import { TimedPuzzles } from '../components/TimedPuzzles';
 import { TrainingStreak } from '../components/TrainingStreak';
 import { loadHistory } from '../game/storage';
 import { RATINGS } from '../config/tunables';
@@ -96,6 +97,9 @@ export function PuzzlesPage() {
       const list = harvestMistakes(loadHistory(), { userNames: authUser ? [authUser.username] : [] });
       setMistakes(list);
       startMistake(list);
+    } else if (m === 'timed') {
+      // The timed run keeps its own board; the trainer's puzzle is put away.
+      usePuzzleStore.getState().clear();
     } else startDaily();
   }
 
@@ -125,6 +129,10 @@ export function PuzzlesPage() {
         </button>
       </div>
     );
+  }
+
+  if (mode === 'timed' && puzzles) {
+    return <TimedPuzzles puzzles={puzzles} modeBar={<PuzzleModeBar mode={mode} due={counts.due} onMode={switchMode} />} />;
   }
 
   // The solver is the side NOT to move in the stored position (the opponent plays first).

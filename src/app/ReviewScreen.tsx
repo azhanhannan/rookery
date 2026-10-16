@@ -27,6 +27,7 @@ import { useMaiaMatchRun } from './useMaiaMatchRun';
 import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { flipOrientation, useFlipKey } from '../components/boardKeys';
 import { openInAnalysis } from '../analysis/analysisStore';
+import { accuracyNotesFor } from '../review/accuracyBand';
 import { REVIEW_STYLE } from '../config/tunables';
 import { ArrowToggles, ReviewMoveDetails } from '../components/ReviewMoveDetails';
 import { AnalystMoveList, LearnerMoveList, SquareLabelBadge, StyleSwitch } from '../components/ReviewStyleParts';
@@ -100,7 +101,7 @@ export function ReviewScreen({
   useFlipKey(flipOrientation(setOrientation));
   const [ply, setPly] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: 'game' });
-  const { style, prefs } = useReviewStyle(record);
+  const { style, prefs, rating } = useReviewStyle(record);
   // Asked once per opening of the review: undefined = not answered yet, null = skipped.
   const [askFirst] = useState(() => shouldSelfReview(prefs.selfReview, style));
   const [guess, setGuess] = useState<number | null | undefined>(undefined);
@@ -520,6 +521,9 @@ export function ReviewScreen({
           whiteSummary={review.white}
           blackSummary={review.black}
           maiaMatch={record.maiaMatch}
+          accuracyNotes={
+            style === 'analyst' ? undefined : accuracyNotesFor(record, { w: review.white.accuracy, b: review.black.accuracy }, rating)
+          }
         />
         {onMaiaMatch && <MaiaMatchPanel record={record} run={maiaRun} />}
       </aside>

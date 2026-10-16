@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { pickAccountRating, useAccountRatings } from '../account/accountRating';
 import { useSyncStore } from '../account/syncStore';
+import { categoryFor } from '../rating/glicko';
 import type { GameRecord } from '../game/types';
 import { deepenReview } from '../review/deepen';
 import { effectiveStyle, ratingHint, type ReviewStyle } from '../review/reviewStyle';
@@ -16,11 +18,17 @@ function useSessionRating(): number | null {
   });
 }
 
-/** The review style in force for this game: the saved choice, or Auto from the player's rating. */
-export function useReviewStyle(record: GameRecord): { style: ReviewStyle; prefs: ReviewPrefs } {
+/**
+ * The review style in force for this game: the saved choice, or Auto from the player's rating (this session's
+ * latest rated result, else the signed-in account's rating for the game's category, else the game's own hint).
+ * `rating` is that rating, for other level-aware text (the accuracy line).
+ */
+export function useReviewStyle(record: GameRecord): { style: ReviewStyle; prefs: ReviewPrefs; rating: number | null } {
   const prefs = useReviewPrefs();
   const sessionRating = useSessionRating();
-  return { style: effectiveStyle(prefs.style, ratingHint(record, sessionRating)), prefs };
+  const accountRating = pickAccountRating(useAccountRatings(), categoryFor(record.timeControl));
+  const rating = ratingHint(record, sessionRating ?? accountRating);
+  return { style: effectiveStyle(prefs.style, rating), prefs, rating };
 }
 
 export type DeepenRun = {

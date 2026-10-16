@@ -15,6 +15,7 @@ Browser chess app: play on one board, then (from Phase 2) against bots and get a
 | 4 | Estimated rating | Partly done: estimate works on the placeholder curve; calibration not run |
 | 5 | Accounts and ratings | Done (accounts, saved games, Glicko-2, profile graph); online play and server-side review not built |
 | Later | Google sign-in, human-like Maia bots, puzzles, Maia matching (style rating) | Done |
+| Panel waves 1–2 | Practice mode, Analysis board, imports, review styles, My mistakes, openings and endgame trainers, account sync, and more | Done; what's left is in [docs/ROADMAP.md](docs/ROADMAP.md) |
 
 ## Run
 

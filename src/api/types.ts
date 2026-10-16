@@ -148,3 +148,101 @@ export type StateResponse = { items: Record<string, StateItem> };
 // per-item merge) and answers with everything stored afterwards. 400 for an unknown key or a bad value,
 // 413 when a value is over SYNC.maxValueBytes.
 export type StatePutRequest = { items: Record<string, StateItem> };
+
+// Coach–student link (server/src/routes/coach.ts). A student makes a one-use invite code; a coach
+// redeems it. While linked, the coach can read the student's saved games (with reviews), ratings and
+// homework progress, comment on games and set puzzle homework. Either side can unlink; every coach
+// route checks the link first and answers 404 (not 403) for anyone else, so it never says who exists.
+export type CoachUser = { id: string; username: string };
+
+// POST /api/coach/invite -> a new code for the signed-in student (replaces their unused ones).
+export type CoachInviteResponse = { code: string; expiresAt: string };
+// POST /api/coach/redeem { code } -> links the signed-in player as the code owner's coach.
+// 404 unknown, 410 expired or already used, 400 own code, 429 too many wrong codes.
+export type CoachRedeemRequest = { code: string };
+export type CoachRedeemResponse = { student: CoachUser };
+
+// GET /api/coach/links -> both sides of the signed-in player's links.
+export type CoachLinksResponse = {
+  coaches: (CoachUser & { since: string })[];
+  students: (CoachUser & { since: string })[];
+};
+// DELETE /api/coach/coaches/:coachId (student unlinks) and DELETE /api/coach/students/:studentId
+// (coach unlinks) -> 204; 404 when there was no link.
+
+export type CoachStudentRow = CoachUser & {
+  since: string;
+  /** Game ratings, rounded (bullet..classical), plus the puzzle rating when there is one. */
+  ratings: { category: RatingCategory | 'puzzle'; rating: number; provisional: boolean }[];
+  /** Latest of: a saved game, a puzzle or homework attempt, a sign-in. Null when none. */
+  lastActive: string | null;
+  games: number;
+  /** Homework sets not finished yet. */
+  openHomework: number;
+};
+// GET /api/coach/students -> the signed-in coach's students.
+export type CoachStudentsResponse = { students: CoachStudentRow[] };
+
+export type CoachGameSummary = GameSummary & {
+  /** The student's accuracy in the stored review; null without a review or a side. */
+  accuracy: number | null;
+  comments: number;
+};
+// GET /api/coach/students/:studentId/games?before=<iso> -> newest first, COACH.gamesPageSize per page.
+export type CoachGamesResponse = { student: CoachUser; games: CoachGameSummary[]; nextBefore: string | null };
+
+export type CoachComment = {
+  id: string;
+  coach: CoachUser;
+  /** 1-based ply; null = the whole game. */
+  ply: number | null;
+  body: string;
+  createdAt: string;
+  /** Null while the student hasn't seen it. */
+  readAt: string | null;
+};
+// GET /api/coach/students/:studentId/games/:clientId -> the record and this coach's comments on it
+// (a student's coaches don't see each other's comments; the student sees them all).
+export type CoachGameResponse = { student: CoachUser; game: GameSummary; record: GameRecord; comments: CoachComment[] };
+// POST /api/coach/students/:studentId/games/:clientId/comments -> 201 { comment }.
+export type CoachCommentRequest = { body: string; ply?: number | null };
+export type CoachCommentResponse = { comment: CoachComment };
+
+// Student side. GET /api/coach/comments/unread -> the unread count, and every own game that has coach
+// comments (newest comment first) with its total and unread counts.
+export type CoachCommentedGame = { clientId: string; total: number; unread: number; latestAt: string };
+export type CoachUnreadResponse = { count: number; games: CoachCommentedGame[] };
+// GET /api/coach/comments/:clientId -> comments on one of the student's own games (marks nothing read).
+export type CoachGameCommentsResponse = { comments: CoachComment[] };
+// POST /api/coach/comments/:clientId/read -> 204; marks that game's comments read.
+
+/** One homework position: the solver is to move in `fen`; `solution` is UCI, solver first, ending on a solver move. */
+export type HomeworkItem = {
+  fen: string;
+  solution: string[];
+  /** Where it came from in the student's games, when it did. */
+  source?: { gameClientId: string; ply: number };
+  note?: string;
+};
+export type HomeworkItemProgress = { attempts: number; solved: boolean };
+export type Homework = {
+  id: string;
+  coach: CoachUser;
+  student: CoachUser;
+  title: string;
+  items: HomeworkItem[];
+  dueAt: string | null;
+  createdAt: string;
+  /** Index-aligned with items. */
+  progress: HomeworkItemProgress[];
+  /** Every item solved at least once. */
+  done: boolean;
+};
+// POST /api/coach/students/:studentId/homework -> 201 { homework }. 400 with the reason for a bad position.
+export type HomeworkCreateRequest = { title: string; items: HomeworkItem[]; dueAt?: string | null };
+export type HomeworkResponse = { homework: Homework };
+// GET /api/coach/students/:studentId/homework (coach) and GET /api/coach/homework (student: from current coaches).
+export type HomeworkListResponse = { homework: Homework[] };
+// DELETE /api/coach/homework/:id -> 204 (the coach who set it, while still linked).
+// POST /api/coach/homework/:id/attempt { item, solved } -> the updated homework (the student only).
+export type HomeworkAttemptRequest = { item: number; solved: boolean };

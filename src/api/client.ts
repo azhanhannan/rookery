@@ -3,6 +3,20 @@ import type {
   AccountResponse,
   AuthProvidersResponse,
   AuthResponse,
+  CoachCommentRequest,
+  CoachCommentResponse,
+  CoachGameCommentsResponse,
+  CoachGameResponse,
+  CoachGamesResponse,
+  CoachInviteResponse,
+  CoachLinksResponse,
+  CoachRedeemResponse,
+  CoachStudentsResponse,
+  CoachUnreadResponse,
+  HomeworkAttemptRequest,
+  HomeworkCreateRequest,
+  HomeworkListResponse,
+  HomeworkResponse,
   GameFilter,
   GameIdsResponse,
   GameListResponse,
@@ -69,7 +83,37 @@ export const api = {
   puzzleMe: () => call<PuzzleMeResponse>('GET', '/puzzles/me'),
   getState: () => call<StateResponse>('GET', '/state'),
   putState: (req: StatePutRequest) => call<StateResponse>('PUT', '/state', req),
+  coach: coachApi(),
 };
+
+/** Coach–student link (src/api/types.ts, server/src/routes/coach.ts). */
+function coachApi() {
+  const id = encodeURIComponent;
+  const student = (s: string) => `/coach/students/${id(s)}`;
+  return {
+    invite: () => call<CoachInviteResponse>('POST', '/coach/invite', {}),
+    redeem: (code: string) => call<CoachRedeemResponse>('POST', '/coach/redeem', { code }),
+    links: () => call<CoachLinksResponse>('GET', '/coach/links'),
+    unlinkCoach: (coachId: string) => call<void>('DELETE', `/coach/coaches/${id(coachId)}`),
+    unlinkStudent: (studentId: string) => call<void>('DELETE', student(studentId)),
+    students: () => call<CoachStudentsResponse>('GET', '/coach/students'),
+    games: (studentId: string, before?: string) =>
+      call<CoachGamesResponse>('GET', `${student(studentId)}/games${before ? `?before=${id(before)}` : ''}`),
+    game: (studentId: string, clientId: string) => call<CoachGameResponse>('GET', `${student(studentId)}/games/${id(clientId)}`),
+    comment: (studentId: string, clientId: string, req: CoachCommentRequest) =>
+      call<CoachCommentResponse>('POST', `${student(studentId)}/games/${id(clientId)}/comments`, req),
+    studentHomework: (studentId: string) => call<HomeworkListResponse>('GET', `${student(studentId)}/homework`),
+    setHomework: (studentId: string, req: HomeworkCreateRequest) =>
+      call<HomeworkResponse>('POST', `${student(studentId)}/homework`, req),
+    deleteHomework: (homeworkId: string) => call<void>('DELETE', `/coach/homework/${id(homeworkId)}`),
+    unread: () => call<CoachUnreadResponse>('GET', '/coach/comments/unread'),
+    myComments: (clientId: string) => call<CoachGameCommentsResponse>('GET', `/coach/comments/${id(clientId)}`),
+    markRead: (clientId: string) => call<void>('POST', `/coach/comments/${id(clientId)}/read`, {}),
+    myHomework: () => call<HomeworkListResponse>('GET', '/coach/homework'),
+    attempt: (homeworkId: string, req: HomeworkAttemptRequest) =>
+      call<HomeworkResponse>('POST', `/coach/homework/${id(homeworkId)}/attempt`, req),
+  };
+}
 
 /** Full-page URL that starts Google sign-in (login) or links Google to the signed-in account (link). */
 export function googleSignInUrl(mode: 'login' | 'link'): string {

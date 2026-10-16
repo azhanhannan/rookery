@@ -48,6 +48,9 @@ const DrillsRoute = () => (
   </Suspense>
 );
 
+// Coach–student link (#/coach…) loads on first visit too.
+const CoachPage = lazy(() => import('./CoachPage').then((m) => ({ default: m.CoachPage })));
+
 const LoginPage = () => <AuthPage mode="login" />;
 const SignupPage = () => <AuthPage mode="signup" />;
 
@@ -99,7 +102,9 @@ export default function App() {
   // `#/profile/<username>` likewise.
   const profileName = hash.startsWith('#/profile/') ? decodeURIComponent(hash.slice('#/profile/'.length)) : null;
   const puzzles = hash === '#/puzzles';
-  const Page = review || profileName || puzzles ? null : (ROUTES[hash] ?? PlayPage);
+  // `#/coach` and `#/coach/<...>`.
+  const coachPath = hash === '#/coach' || hash.startsWith('#/coach/') ? hash.slice('#/coach'.length) : null;
+  const Page = review || profileName || puzzles || coachPath !== null ? null : (ROUTES[hash] ?? PlayPage);
   // Full screen exists on the board pages only.
   const boardPage = Page === PlayPage || review || puzzles || Page === AnalysisRoute || Page === OpeningsRoute;
   const focus = useFocusMode((s) => s.on) && boardPage;
@@ -151,6 +156,10 @@ export default function App() {
         ) : puzzles ? (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading puzzles…</p>}>
             <PuzzlesPage />
+          </Suspense>
+        ) : coachPath !== null ? (
+          <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading coach…</p>}>
+            <CoachPage path={coachPath} />
           </Suspense>
         ) : profileName ? (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading profile…</p>}>

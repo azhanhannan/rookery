@@ -5,6 +5,7 @@ import { userFromCookie } from './auth/session';
 import type { Db } from './db';
 import { fileCatalog, type PuzzleCatalog } from './puzzles/catalog';
 import { authRoutes } from './routes/auth';
+import { coachRoutes } from './routes/coach';
 import { gameRoutes } from './routes/games';
 import { oauthRoutes } from './routes/oauth';
 import { profileRoutes } from './routes/profile';
@@ -48,6 +49,7 @@ export async function buildApp({
       await api.register(profileRoutes, { db });
       await api.register(puzzleRoutes, { db, puzzles });
       await api.register(stateRoutes, { db });
+      await api.register(coachRoutes, { db });
       api.get('/health', async () => ({ ok: true }));
     },
     { prefix: '/api' },

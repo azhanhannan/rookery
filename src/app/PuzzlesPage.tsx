@@ -19,6 +19,7 @@ import { harvestMistakes, sourceText, type MistakePuzzle } from '../puzzles/harv
 import type { PuzzleMode } from '../puzzles/puzzleStore';
 import { dueItems, loadSchedule, mistakeCounts } from '../puzzles/spacedRepetition';
 import { useCalcMode } from '../components/CalcMode';
+import { HomeworkCard } from './coach/HomeworkCard';
 
 type DataState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; set: PuzzleSet };
 
@@ -165,6 +166,7 @@ export function PuzzlesPage() {
       <div className="flex min-w-0 flex-col gap-3">
       <PuzzleModeBar mode={mode} due={counts.due} onMode={switchMode} />
       <TrainingStreak key={`${record.kind}:${puzzle?.id ?? ''}`} />
+      <HomeworkCard />
       {calc.toggle}
       {calc.panel}
       {mode !== 'rated' && (

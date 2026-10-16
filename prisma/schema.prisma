@@ -24,6 +24,7 @@ model User {
   ratings        Rating[]
   ratingEvents   RatingEvent[]
   puzzleAttempts PuzzleAttempt[]
+  state          UserState[]
 }
 
 /// A sign-in provider identity (Google) linked to a user. Linked only by signing in with it,
@@ -124,4 +125,18 @@ model PuzzleAttempt {
 
   @@unique([userId, puzzleId])
   @@index([userId, createdAt])
+}
+
+/// Preferences and training state that follow the account (src/sync/keys.ts lists the keys).
+/// One row per localStorage key; `value` is what the browser sends, merged by src/sync/merge.ts.
+model UserState {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// A localStorage key from the allowlist, e.g. 'rookery.boardTheme'.
+  key       String
+  value     Json
+  /// When the value last changed on the device that set it (capped at the server's clock).
+  updatedAt DateTime
+
+  @@id([userId, key])
 }

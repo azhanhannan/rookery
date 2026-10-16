@@ -9,6 +9,7 @@ import { gameRoutes } from './routes/games';
 import { oauthRoutes } from './routes/oauth';
 import { profileRoutes } from './routes/profile';
 import { puzzleRoutes } from './routes/puzzles';
+import { stateRoutes } from './routes/state';
 
 /** The HTTP API. Everything is under /api; the browser app is served separately (Vite, or any static host). */
 export async function buildApp({
@@ -46,6 +47,7 @@ export async function buildApp({
       await api.register(gameRoutes, { db });
       await api.register(profileRoutes, { db });
       await api.register(puzzleRoutes, { db, puzzles });
+      await api.register(stateRoutes, { db });
       api.get('/health', async () => ({ ok: true }));
     },
     { prefix: '/api' },

@@ -248,3 +248,17 @@ export const REVIEW_STYLE = {
   /** Search depth for "Analyse deeper here". */
   deepDepth: 24,
 };
+
+/** Account sync of preferences and training state (src/sync, server/src/routes/state.ts). */
+export const SYNC = {
+  /** How often the app looks for changed settings in localStorage, ms. */
+  pollMs: 2_000,
+  /** Wait after a change before pushing it (several quick changes go up together), ms. */
+  debounceMs: 1_500,
+  /** Retry after a failed push or pull, ms. */
+  retryMs: 30_000,
+  /** Largest stored value per key (JSON characters); the server rejects bigger ones with 413. */
+  maxValueBytes: 256 * 1024,
+  /** Trained days kept (the streak storage keeps the same number). */
+  trainedDaysLimit: 400,
+};

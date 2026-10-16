@@ -212,7 +212,7 @@ export function ReviewSettingsSection({ className }: { className: string }) {
   return (
     <section className={className} aria-labelledby="review-settings-heading" data-testid="review-settings">
       <h2 id="review-settings-heading" className="mb-1 font-semibold">Game Review</h2>
-      <p className="mb-3 text-xs text-muted">How reviews look and what they ask first. Saved on this device.</p>
+      <p className="mb-3 text-xs text-muted">How reviews look and what they ask first.</p>
 
       <div className="mb-1 text-sm text-muted">Review style</div>
       <div className="mb-1 flex flex-wrap gap-2" role="group" aria-label="Review style">

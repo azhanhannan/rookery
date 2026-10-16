@@ -32,7 +32,7 @@ test('human-like bot (Maia) replies to 1.e4 with a legal move, and the style is 
   // Picking Human-like starts the download: Start reads "Loading…" until the model is ready.
   await dialog.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 90_000 });
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('Maia 1400')).toBeVisible();
+  await expect(page.getByText('Maia 1400', { exact: true })).toBeVisible();
 
   await square(page, 'e2').click();
   await square(page, 'e4').click();

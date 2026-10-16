@@ -23,7 +23,7 @@ test('Play offers a one-click spar one level above an unknown (1200) rating', as
 });
 
 test('Settings → Play has the Premoves toggle, off by default', async ({ page }) => {
-  await page.goto('/#/settings');
+  await page.goto('/#/account');
   const toggle = page.getByTestId('play-settings').getByRole('checkbox', { name: /Premoves/ });
   await expect(toggle).not.toBeChecked();
   await toggle.check();

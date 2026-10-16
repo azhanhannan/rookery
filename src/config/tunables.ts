@@ -351,7 +351,21 @@ export const EXTRAS = {
   /** How long a wrong click shows the right square before the next one, ms. */
   squareDrillWrongMs: 700,
   /** Training log: one activity never counts for more than this many minutes (a tab left open). */
-  logMaxMinutes: { game: 90, puzzle: 10, review: 30, squares: 1, endgame: 20, opening: 20 },
+  logMaxMinutes: { game: 90, puzzle: 10, review: 30, squares: 1, endgame: 20, opening: 20, lesson: 20 },
   /** Training log: days kept. */
   logKeepDays: 70,
+};
+
+/** Bite-sized lessons (#/lessons): explanation screens, then practice positions. */
+export const LESSONS = {
+  /** Wrong tries on a practice position before "Show me" appears. */
+  showAnswerAfter: 2,
+  /** The idea's arrows on the explanation boards (and "Show me"). */
+  arrowColor: 'rgba(21, 120, 27, 0.85)',
+  /** Arrows for the opponent's threat. */
+  threatColor: 'rgba(214, 48, 32, 0.85)',
+  /** Squares the explanation points at. */
+  highlight: 'rgba(255, 196, 0, 0.55)',
+  /** The move you just played in a practice position. */
+  solvedColor: 'rgba(76, 175, 80, 0.6)',
 };

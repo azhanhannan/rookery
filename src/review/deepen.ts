@@ -78,6 +78,10 @@ export type DeepenOptions = {
   /** Defaults to the app engine (getEngine()). */
   engine?: Engine;
   signal?: AbortSignal;
+  /** Engine lines per position (default REVIEW.multiPV); the extra lines are only for showing. */
+  multiPV?: number;
+  /** Gets each fresh analysis (all its lines) as it arrives. */
+  onAnalysis?: (index: number, analysis: AnalysisResult) => void;
 };
 
 /** Analyses the positions around the move at `ply` at `depth` (default REVIEW_STYLE.deepDepth) and re-labels. */
@@ -92,7 +96,9 @@ export async function deepenReview(review: GameReview, ply: number, opts: Deepen
     const onAbort = () => engine.stop();
     opts.signal?.addEventListener('abort', onAbort, { once: true });
     try {
-      updates.set(i, await engine.analyze(fen, { depth, multiPV: REVIEW.multiPV }));
+      const analysis = await engine.analyze(fen, { depth, multiPV: opts.multiPV ?? REVIEW.multiPV });
+      updates.set(i, analysis);
+      opts.onAnalysis?.(i, analysis);
     } finally {
       opts.signal?.removeEventListener('abort', onAbort);
     }

@@ -90,6 +90,16 @@ describe('Analyse deeper here', () => {
     expect(next.positions[2].depth).toBe(24);
   });
 
+  it('can ask for more lines (shown only) and hands each fresh analysis over as it arrives', async () => {
+    const review = buildReview(smallGame());
+    const engine = new FakeEngine();
+    engine.lines = [line(1, 'g1f3', { cp: 40 }), line(2, 'd2d4', { cp: 30 }), line(3, 'c2c4', { cp: 20 })];
+    const seen: [number, number][] = [];
+    await deepenReview(review, 2, { depth: 24, engine, multiPV: 3, onAnalysis: (i, a) => seen.push([i, a.lines.length]) });
+    expect(engine.analyzeCalls.map(([, o]) => o)).toEqual([{ depth: 24, multiPV: 3 }, { depth: 24, multiPV: 3 }]);
+    expect(seen).toEqual([[1, 3], [2, 3]]);
+  });
+
   it('a cancelled run rejects without touching the review', async () => {
     const review = buildReview(smallGame());
     const ctrl = new AbortController();

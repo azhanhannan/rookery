@@ -6,6 +6,7 @@ import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { EvalBar } from '../components/EvalBar';
 import { PositionEditor } from '../components/PositionEditor';
+import { TablebasePanel } from '../components/TablebasePanel';
 import { VariationMoveList } from '../components/VariationMoveList';
 import { ANALYSIS, DEFAULT_BOT_ELO } from '../config/tunables';
 import { formatEval, nagText, pvToSan } from '../game/analysisLines';
@@ -172,6 +173,8 @@ export function AnalysisPage() {
           eng={eng}
           onPlay={playUci}
         />
+
+        {editing === null && <TablebasePanel fen={fen} onPlay={playUci} />}
 
         <VariationMoveList
           tree={tree}

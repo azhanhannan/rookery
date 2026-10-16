@@ -247,4 +247,25 @@ export const REVIEW_STYLE = {
   keyMoments: { min: 3, max: 5, minSwing: 10 },
   /** Search depth for "Analyse deeper here". */
   deepDepth: 24,
+  /** Engine lines "Analyse deeper here" shows for the position before the move. */
+  deepLines: 3,
+};
+
+/** Endgame tablebase lookups (src/engine/tablebase.ts): Lichess's Syzygy API. */
+export const TABLEBASE = {
+  url: 'https://tablebase.lichess.ovh/standard',
+  /** Syzygy covers up to 7 pieces, kings included. */
+  maxPieces: 7,
+  /** Give up on a lookup after this many ms (the caller carries on without it). */
+  timeoutMs: 5000,
+  /** Positions kept in the in-memory cache. */
+  cacheSize: 500,
+};
+
+/** Endgame drills (#/endgames). */
+export const ENDGAMES = {
+  /** Stockfish's think time per defending move, ms (full strength). */
+  engineMovetimeMs: 700,
+  /** Without the tablebase, an engine eval at least this good for the user (centipawns) counts as a win, this bad as a loss. */
+  evalWinCp: 300,
 };

@@ -74,3 +74,19 @@ test('save the Analysis board as a repertoire', async ({ page }) => {
   await expect(page.getByTestId('repertoire-header')).toContainText('QG');
   await expect(page.getByTestId('repertoire-counts')).toContainText('2 positions');
 });
+
+test('add a repertoire from the library and start learning it', async ({ page }) => {
+  await page.goto('/#/openings');
+  await page.getByRole('button', { name: 'Browse the library' }).click();
+  await expect(page.getByTestId('library-entry')).toHaveCount(11);
+  await page.getByTestId('library-entry').filter({ hasText: 'Ruy Lopez' }).click();
+  await expect(page.getByTestId('library-line').first()).toContainText('Ruy Lopez');
+  // Picking a line shows its last position on the board.
+  await page.getByTestId('library-line').filter({ hasText: 'Marshall' }).click();
+  await expect(page.locator('[data-square="h3"] [data-piece]')).toHaveCount(1);
+  await page.getByTestId('library-add').click();
+  await expect(page.getByTestId('repertoire-header')).toContainText('Ruy Lopez');
+  await expect(page.getByTestId('repertoire-counts')).toContainText('0 learned');
+  await page.getByRole('button', { name: /Learn new lines/ }).click();
+  await expect(page.getByTestId('drill-feedback')).toContainText('New move: play e4');
+});

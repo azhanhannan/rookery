@@ -25,6 +25,9 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 ## Decisions taken (change in `src/config/tunables.ts` or ask)
 
 - Learned opening positions repeat every 21 days for ever; My-mistakes puzzles retire after the 21-day review.
+- Opening library (`src/openings/library.ts`, 11 starter repertoires): every line is checked by `tests/unit/openingLibrary.test.ts`
+  against the Lichess opening book (legal, theory for its first moves, one answer per own position). A one-off
+  Stockfish pass (depth 16) found one bad line (QGA 6.b3, now 6.Qf3); rerun one when adding openings.
 - Opening trainer extra practice ("Practise anyway", "Drill weakest"): right answers off the schedule change nothing; a miss always counts.
 - Endgame win drills pass on "convert" (pawn queens, or defender left with a bare king vs R/Q) while the
   tablebase still says win; draw drills pass after N moves still drawn. Offline fallback: Stockfish ±300cp.

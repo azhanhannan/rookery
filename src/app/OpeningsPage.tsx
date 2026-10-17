@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { RareInMasters } from '../components/ExplorerPanel';
+import { OpeningLibraryPanel, type LibraryPreview } from './OpeningLibraryPanel';
 import { VariationMoveList } from '../components/VariationMoveList';
 import { OPENING_TRAINER } from '../config/tunables';
 import { parsePgnTree } from '../game/pgnTree';
@@ -66,6 +67,8 @@ export function OpeningsPage() {
   const [view, setView] = useState<View>('lines');
   const [browse, setBrowse] = useState<string>('root');
   const [openingsReady, setOpeningsReady] = useState(false);
+  const [library, setLibrary] = useState(false);
+  const [preview, setPreview] = useState<LibraryPreview | null>(null);
 
   const rep = data.repertoires.find((r) => r.id === selectedId) ?? data.repertoires[0] ?? null;
   const today = todayKey();
@@ -104,7 +107,10 @@ export function OpeningsPage() {
   let fens: string[] = [];
   let movable = false;
   let onMove: ((m: MoveInput) => boolean) | undefined;
-  if (drilling) {
+  if (library && preview) {
+    fen = preview.fen;
+    lastMove = preview.lastMove;
+  } else if (drilling) {
     fen = drill.fen;
     lastMove = drill.lastMove;
     if (drill.arrow) arrows = [{ startSquare: drill.arrow.slice(0, 2), endSquare: drill.arrow.slice(2, 4), color: ARROW }];
@@ -129,6 +135,17 @@ export function OpeningsPage() {
   }
   const opening = openingName(fens, openingsReady);
 
+  const openLibrary = () => {
+    useDrillStore.getState().stop();
+    setCreating(false);
+    setPreview(null);
+    setLibrary(true);
+  };
+  const closeLibrary = () => {
+    setLibrary(false);
+    setPreview(null);
+  };
+
   const startDrill = (mode: DrillMode) => {
     if (rep) useDrillStore.getState().start(rep.id, mode);
   };
@@ -141,12 +158,12 @@ export function OpeningsPage() {
           <Board
             id="openings-board"
             position={fen}
-            orientation={rep?.color === 'b' ? 'black' : 'white'}
+            orientation={(library && preview ? preview.color : rep?.color) === 'b' ? 'black' : 'white'}
             lastMove={lastMove}
             arrows={arrows}
             movable={movable}
             onMove={onMove}
-            positionKey={drilling ? `drill:${drill.index}:${drill.pass}` : `browse:${browseId}`}
+            positionKey={library && preview ? `library:${preview.fen}` : drilling ? `drill:${drill.index}:${drill.pass}` : `browse:${browseId}`}
           />
         }
       >
@@ -156,7 +173,7 @@ export function OpeningsPage() {
       <aside className="flex min-w-0 flex-col gap-3">
         <h1 className="text-xl font-bold">Opening trainer</h1>
 
-        <RepertoirePicker reps={data.repertoires} selected={rep?.id ?? null} onSelect={select} onNew={() => setCreating(true)} />
+        <RepertoirePicker reps={data.repertoires} selected={rep?.id ?? null} onSelect={select} onNew={() => setCreating(true)} onLibrary={openLibrary} />
         {creating && (
           <NewRepertoire
             onCancel={() => setCreating(false)}
@@ -169,7 +186,17 @@ export function OpeningsPage() {
           />
         )}
 
-        {!rep ? (
+        {library ? (
+          <OpeningLibraryPanel
+            openingsReady={openingsReady}
+            onPreview={setPreview}
+            onClose={closeLibrary}
+            onAdded={(id) => {
+              closeLibrary();
+              select(id);
+            }}
+          />
+        ) : !rep ? (
           !creating && (
             <div className={panel} data-testid="openings-empty">
               <p className="font-semibold">Build your first repertoire</p>
@@ -177,7 +204,10 @@ export function OpeningsPage() {
                 A repertoire is the moves you want to play in your openings. Paste a PGN, save the Analysis board, or
                 seed one from the games you have played; then drill it a few minutes a day.
               </p>
-              <button className={`${primary} self-start`} onClick={() => setCreating(true)}>New repertoire</button>
+              <div className="flex flex-wrap gap-2">
+                <button className={primary} onClick={openLibrary}>Browse the library</button>
+                <button className={btn} onClick={() => setCreating(true)}>New repertoire</button>
+              </div>
             </div>
           )
         ) : drilling ? (
@@ -218,7 +248,7 @@ export function OpeningsPage() {
   );
 }
 
-function RepertoirePicker({ reps, selected, onSelect, onNew }: { reps: Repertoire[]; selected: string | null; onSelect: (id: string) => void; onNew: () => void }) {
+function RepertoirePicker({ reps, selected, onSelect, onNew, onLibrary }: { reps: Repertoire[]; selected: string | null; onSelect: (id: string) => void; onNew: () => void; onLibrary: () => void }) {
   if (!reps.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -235,6 +265,7 @@ function RepertoirePicker({ reps, selected, onSelect, onNew }: { reps: Repertoir
         ))}
       </select>
       <button className={btn} onClick={onNew}>New repertoire</button>
+      <button className={btn} onClick={onLibrary}>Library</button>
     </div>
   );
 }

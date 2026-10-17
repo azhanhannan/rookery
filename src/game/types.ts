@@ -35,6 +35,13 @@ export type GameRecord = {
   result: GameResult;
   termination?: string;
   createdAt: string;
+  /**
+   * ISO time the game ended (checkmate, resignation, flag, draw...). Absent = unknown: an older game, or an
+   * imported one whose PGN said nothing about when it ended.
+   */
+  endedAt?: string;
+  /** Takebacks used (practice games). Absent = 0, or a game saved before takebacks were counted. */
+  takebacks?: number;
   /** Time control as "base+increment" in seconds, e.g. "180+2". Absent = unlimited. */
   timeControl?: string;
   review?: GameReview;

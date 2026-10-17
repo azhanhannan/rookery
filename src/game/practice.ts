@@ -100,7 +100,8 @@ export function takeBack(): boolean {
   const human = humanColor(record);
   if (!human || !canTakeBack(record)) return false;
   const keep = record.moves.length - takebackPlies(record, human);
-  const next: GameRecord = { ...record, moves: record.moves.slice(0, keep) };
+  // Counted per press (one or two plies), so later analysis can tell played-through games from taken-back ones.
+  const next: GameRecord = { ...record, moves: record.moves.slice(0, keep), takebacks: (record.takebacks ?? 0) + 1 };
   useGameStore.setState({
     record: next,
     clock: clock ? clockAfterTakeback(clock, record, keep, Date.now()) : null,

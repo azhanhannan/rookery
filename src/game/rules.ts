@@ -119,13 +119,15 @@ export function applyMove(
   if (end) {
     next.result = end.result;
     next.termination = end.termination;
+    next.endedAt = new Date().toISOString();
   }
   return { record: next, move };
 }
 
-export function endRecord(record: GameRecord, end: GameEnd): GameRecord {
+/** Ends a game in progress (resignation, flag, agreed draw...) and stamps when it ended. Finished games are left as they are. */
+export function endRecord(record: GameRecord, end: GameEnd, at: Date = new Date()): GameRecord {
   if (record.result !== '*') return record;
-  return { ...record, result: end.result, termination: end.termination };
+  return { ...record, result: end.result, termination: end.termination, endedAt: at.toISOString() };
 }
 
 export function describeEnd(record: GameRecord): string | null {

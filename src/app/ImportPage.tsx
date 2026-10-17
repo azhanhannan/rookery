@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '../account/authStore';
 import { BatchReviewPanel } from '../components/BatchReviewPanel';
+import { ReReviewOffer } from '../components/ReReviewOffer';
 import { REVIEW } from '../config/tunables';
 import { useGameStore } from '../game/gameStore';
 import {
@@ -62,7 +63,7 @@ function Summary({ summary, onReviewAll }: { summary: ImportSummary; onReviewAll
       {n > 0 && (
         <div className="flex flex-wrap gap-2">
           <button className={btn} disabled={batch === 'running'} onClick={onReviewAll}>
-            Review all {n} (fast)
+            Review all {n}
           </button>
           <a className={btn} href="#/games">See them in My games</a>
         </div>
@@ -279,8 +280,9 @@ export function ImportPage() {
         </section>
       )}
 
-      {summary && <Summary summary={summary} onReviewAll={() => startBatch(summary.importedIds, REVIEW.depth.fast)} />}
+      {summary && <Summary summary={summary} onReviewAll={() => startBatch(summary.importedIds, REVIEW.depth.normal)} />}
       <BatchReviewPanel />
+      <ReReviewOffer />
     </div>
   );
 }

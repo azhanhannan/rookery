@@ -131,6 +131,20 @@ describe('game sync', () => {
     t.stop();
   });
 
+  it('uploads again when the review is replaced (a deeper re-review), and the record keeps endedAt', async () => {
+    const t = await boot(true);
+    mocks.saveGame.mockImplementation(async (req) => okResponse(req));
+    const id = playAndResign(t.useGameStore);
+    t.useGameStore.getState().setReview(id, { version: 1, depth: 12, createdAt: '2026-10-01T00:00:00Z' } as unknown as GameReview);
+    await t.flushGameSync();
+    t.useGameStore.getState().setReview(id, { version: 1, depth: 16, createdAt: '2026-10-18T00:00:00Z' } as unknown as GameReview);
+    await t.flushGameSync();
+    const reviews = mocks.saveGame.mock.calls.map((c) => c[0].record.review?.depth);
+    expect(reviews.slice(-2)).toEqual([12, 16]);
+    expect(mocks.saveGame.mock.calls.at(-1)![0].record.endedAt).toEqual(expect.any(String));
+    t.stop();
+  });
+
   it('queues a failed upload and retries it on the next sign-in and on app start', async () => {
     let t = await boot(true);
     mocks.saveGame.mockRejectedValue(new mocks.ApiError(0, "Can't reach the server."));

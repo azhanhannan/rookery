@@ -233,6 +233,33 @@ describe('games routes', () => {
     expect((await send({ record: { ...record, startFen: 'not a fen' }, userColor: 'w', rated: true })).statusCode).toBe(400);
   });
 
+  it('stores endedAt and takebacks unchanged, and rejects malformed ones', async () => {
+    const app = server.app();
+    const cookie = await signup(app, 'Ana');
+    const record = botWin({ endedAt: '2026-10-18T09:30:15.000Z', takebacks: 2, practice: true });
+    expect((await put(app, cookie, { record, userColor: 'w', rated: false })).statusCode).toBe(201);
+    expect((await get(app, cookie, `/api/games/${record.id}`)).json<GameResponse>().record).toEqual(record);
+
+    const bad = (over: Record<string, unknown>) => {
+      const r = { ...botWin(), ...over } as GameRecord;
+      return put(app, cookie, { record: r, userColor: 'w', rated: false });
+    };
+    for (const over of [{ endedAt: 'yesterday' }, { endedAt: 12 }, { takebacks: -1 }, { takebacks: 1.5 }, { takebacks: '2' }]) {
+      const res = await bad(over);
+      expect(res.statusCode, JSON.stringify(over)).toBe(400);
+    }
+  });
+
+  it('a rated request for a game with takebacks is saved unrated with a reason', async () => {
+    const app = server.app();
+    const cookie = await signup(app, 'Ana');
+    const moves = play(['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'g8f6', 'd2d3', 'f8c5', 'c2c3', 'd7d6', 'b2b4', 'c5b6', 'a2a4', 'a7a6', 'e1g1', 'e8g8', 'h2h3', 'h7h6', 'f1e1', 'f8e8']);
+    const record = botWin({ moves: moves.moves, takebacks: 1 });
+    const body = (await put(app, cookie, { record, userColor: 'w', rated: true })).json<SaveGameResponse>();
+    expect(body.rating).toBeUndefined();
+    expect(body.unratedReason).toBe('Games with takebacks are not rated');
+  });
+
   it('falls back to now for a missing or future date', async () => {
     const app = server.app();
     const cookie = await signup(app, 'Ana');

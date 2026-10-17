@@ -63,6 +63,8 @@ export function ratingIneligibleReason(record: GameRecord, userColor: Color | nu
   if (user.isBot) return "Your side was played by a bot, so it can't be rated";
   if (fenKey(record.startFen) !== fenKey(START_FEN)) return 'Games from a custom position are not rated';
   if (record.result === '*') return 'Unfinished games are not rated';
+  // Takebacks only exist in practice games, which are never rated; a record claiming both is not trusted.
+  if ((record.takebacks ?? 0) > 0) return 'Games with takebacks are not rated';
   if (!ratedCategoryFor(record.timeControl))
     return isUntimed(record.timeControl) ? 'Untimed games are not rated' : 'Games with an unknown time control are not rated';
   // Standard start position, so White made the even plies.

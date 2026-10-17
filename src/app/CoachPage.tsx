@@ -15,8 +15,8 @@ import { message } from './coach/ui';
 /**
  * `#/coach…` (hash after `#/coach`):
  *   ''                              your coaches, your homework, comments on your games, your students
- *   '/student/<id>[/homework]'      a student's games / homework (coach)
- *   '/student/<id>/game/<clientId>' one of a student's games, to comment on (coach)
+ *   '/student/<id>[/homework|/insights]' a student's games / homework / Insights (coach)
+ *   '/student/<id>/game/<clientId>[/<ply>]' one of a student's games, to comment on (coach)
  *   '/game/<clientId>'              your own game with your coaches' comments (student)
  *   '/homework/<id>'                solve a homework set (student)
  */
@@ -39,8 +39,12 @@ export function CoachPage({ path }: { path: string }) {
 
   const parts = path.split('/').filter(Boolean).map(decodeURIComponent);
   if (parts[0] === 'student' && parts[1]) {
-    if (parts[2] === 'game' && parts[3]) return <CoachGameView key={path} studentId={parts[1]} clientId={parts[3]} />;
-    return <StudentView key={parts[1]} studentId={parts[1]} tab={parts[2] === 'homework' ? 'homework' : 'games'} />;
+    if (parts[2] === 'game' && parts[3]) {
+      const ply = Number(parts[4]);
+      return <CoachGameView key={path} studentId={parts[1]} clientId={parts[3]} ply={Number.isInteger(ply) && ply > 0 ? ply : undefined} />;
+    }
+    const tab = parts[2] === 'homework' || parts[2] === 'insights' ? parts[2] : 'games';
+    return <StudentView key={parts[1]} studentId={parts[1]} tab={tab} />;
   }
   if (parts[0] === 'game' && parts[1]) return <MyGameComments key={parts[1]} clientId={parts[1]} />;
   if (parts[0] === 'homework' && parts[1]) return <HomeworkSolver key={parts[1]} homeworkId={parts[1]} />;

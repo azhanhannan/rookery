@@ -18,6 +18,7 @@ import { requireUser } from '../auth/session';
 import type { Db } from '../db';
 import { opponentNameFor, storedRecord, toSummary } from '../games/summary';
 import { validateSaveRequest } from '../games/validate';
+import { writeInsight } from '../insights/store';
 
 type Params = { clientId: string };
 
@@ -158,10 +159,24 @@ export async function gameRoutes(app: FastifyInstance, { db }: { db: Db }) {
     if (!v.ok) return reply.code(400).send({ error: v.error });
     const where = { userId_clientId: { userId: user.id, clientId: v.request.record.id } };
 
+    // Insights facts for the stored game. A failure here never fails the save: a missing row is rebuilt
+    // the next time the facts are read.
+    const insight = async () => {
+      try {
+        const game = await db.game.findUnique({ where, select: { id: true, userId: true, userColor: true, record: true } });
+        if (game) await writeInsight(db, game, (err) => request.log.warn({ err }, 'insights facts failed'));
+      } catch (err) {
+        request.log.warn({ err }, 'could not store insights facts');
+      }
+    };
+
     let existing = await db.game.findUnique({ where });
     if (!existing) {
       const saved = await saveNew(db, user.id, v.request, v.playedAt);
-      if (saved !== 'exists') return reply.code(201).send(saved satisfies SaveGameResponse);
+      if (saved !== 'exists') {
+        await insight();
+        return reply.code(201).send(saved satisfies SaveGameResponse);
+      }
       existing = await db.game.findUnique({ where });
       if (!existing) throw new Error('game vanished after a unique violation');
     }
@@ -171,6 +186,7 @@ export async function gameRoutes(app: FastifyInstance, { db }: { db: Db }) {
         .code(409)
         .send({ error: 'A different game is already saved under this id. Its moves or result cannot be changed.' });
     }
+    await insight();
     return reply.send(replaced satisfies SaveGameResponse);
   });
 

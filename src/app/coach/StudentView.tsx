@@ -9,12 +9,13 @@ import { COACH } from '../../config/tunables';
 import { harvestMistakes, solutionLine } from '../../puzzles/harvest';
 import { reviewFits } from '../../review/reviewView';
 import { GameWithComments } from './GameWithComments';
+import { InsightsTab } from './InsightsTab';
 import { button, card, fenBefore, message, primary, shortDate } from './ui';
 
-const studentUrl = (id: string, tab?: 'homework') => `#/coach/student/${encodeURIComponent(id)}${tab ? `/${tab}` : ''}`;
+const studentUrl = (id: string, tab?: 'homework' | 'insights') => `#/coach/student/${encodeURIComponent(id)}${tab ? `/${tab}` : ''}`;
 
-/** `#/coach/student/<id>[/homework]`: one student's games, or their homework. */
-export function StudentView({ studentId, tab }: { studentId: string; tab: 'games' | 'homework' }) {
+/** `#/coach/student/<id>[/homework|/insights]`: one student's games, homework, or Insights. */
+export function StudentView({ studentId, tab }: { studentId: string; tab: 'games' | 'homework' | 'insights' }) {
   const [student, setStudent] = useState<CoachUser | null>(null);
   const [games, setGames] = useState<CoachGameSummary[]>([]);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
@@ -51,9 +52,9 @@ export function StudentView({ studentId, tab }: { studentId: string; tab: 'games
   if (loading) return <p className="p-6 text-center text-sm text-muted">Loading…</p>;
   if (!student) return <p role="alert" className="p-6 text-center text-sm text-danger">{error ?? 'Not found.'}</p>;
 
-  const tabLink = (t: 'games' | 'homework', label: string) => (
+  const tabLink = (t: 'games' | 'homework' | 'insights', label: string) => (
     <a
-      href={studentUrl(student.id, t === 'homework' ? 'homework' : undefined)}
+      href={studentUrl(student.id, t === 'games' ? undefined : t)}
       className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? 'bg-surface-2 font-semibold' : 'text-muted hover:text-ink'}`}
     >
       {label}
@@ -68,7 +69,7 @@ export function StudentView({ studentId, tab }: { studentId: string; tab: 'games
         <a href={`#/profile/${encodeURIComponent(student.username)}`} className="text-sm text-accent hover:underline">Profile</a>
         <button className={`${button} ml-auto`} onClick={unlink}>Unlink</button>
       </div>
-      <nav className="flex gap-2">{tabLink('games', 'Games')}{tabLink('homework', 'Homework')}</nav>
+      <nav className="flex gap-2">{tabLink('games', 'Games')}{tabLink('insights', 'Insights')}{tabLink('homework', 'Homework')}</nav>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {tab === 'games' ? (
         <section className={card}>
@@ -106,6 +107,8 @@ export function StudentView({ studentId, tab }: { studentId: string; tab: 'games
             <button className={`${button} mt-3`} onClick={() => void load(nextBefore)}>More games</button>
           )}
         </section>
+      ) : tab === 'insights' ? (
+        <InsightsTab student={student} />
       ) : (
         <HomeworkTab student={student} />
       )}
@@ -114,7 +117,7 @@ export function StudentView({ studentId, tab }: { studentId: string; tab: 'games
 }
 
 /** `#/coach/student/<id>/game/<clientId>`: the coach's view of one game, with comments and "add to homework". */
-export function CoachGameView({ studentId, clientId }: { studentId: string; clientId: string }) {
+export function CoachGameView({ studentId, clientId, ply }: { studentId: string; clientId: string; ply?: number }) {
   const [data, setData] = useState<CoachGameResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -182,6 +185,7 @@ export function CoachGameView({ studentId, clientId }: { studentId: string; clie
         record={record}
         comments={data.comments}
         side={side}
+        initialPly={ply}
         actions={actions}
         onComment={async (body, ply) => {
           const res = await api.coach.comment(studentId, clientId, { body, ply });

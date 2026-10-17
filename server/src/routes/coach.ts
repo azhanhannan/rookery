@@ -47,7 +47,7 @@ function newCode(): string {
   return `${raw.slice(0, half)}-${raw.slice(half)}`;
 }
 
-const NOT_LINKED = 'No student by that id is linked to you.';
+export const NOT_LINKED = 'No student by that id is linked to you.';
 const notFound = (reply: FastifyReply, error: string) => reply.code(404).send({ error });
 
 type UserRow = { id: string; username: string };
@@ -58,7 +58,7 @@ const toUser = (u: UserRow): CoachUser => ({ id: u.id, username: u.username });
  * The authorisation check every coach route makes: the student, when `coachId` has an active link to
  * `studentId`; otherwise null. Callers answer 404 for null, so a stranger can't tell who exists.
  */
-async function linkedStudent(db: Db, coachId: string, studentId: string): Promise<UserRow | null> {
+export async function linkedStudent(db: Db, coachId: string, studentId: string): Promise<UserRow | null> {
   const link = await db.coachLink.findUnique({
     where: { coachId_studentId: { coachId, studentId } },
     include: { student: { select: userSelect } },
@@ -243,6 +243,7 @@ export async function coachRoutes(app: FastifyInstance, { db }: { db: Db }) {
     if (!user) return;
     const gone = await db.coachLink.deleteMany({ where: { coachId: request.params.coachId, studentId: user.id } });
     if (!gone.count) return notFound(reply, 'That coach is not linked to you.');
+    await db.coachFocus.deleteMany({ where: { coachId: request.params.coachId, studentId: user.id } });
     return reply.code(204).send();
   });
 
@@ -251,6 +252,7 @@ export async function coachRoutes(app: FastifyInstance, { db }: { db: Db }) {
     if (!user) return;
     const gone = await db.coachLink.deleteMany({ where: { coachId: user.id, studentId: request.params.studentId } });
     if (!gone.count) return notFound(reply, NOT_LINKED);
+    await db.coachFocus.deleteMany({ where: { coachId: user.id, studentId: request.params.studentId } });
     return reply.code(204).send();
   });
 

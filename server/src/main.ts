@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { buildApp } from './app';
 import { googleFromEnv } from './auth/google';
 import { createDb, migrate } from './db';
+import { backfillInsights } from './insights/store';
 import { freePort, portInUse, startEmbeddedDb, stopStaleEmbeddedDb, type EmbeddedDb } from './embeddedDb';
 
 // Dev: `npm run server` (embedded Postgres in .data/pg, kept between runs).
@@ -50,3 +51,10 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 await app.listen({ port, host: '127.0.0.1' });
+
+// Insights facts for games saved before GameInsight existed, or under an older factsVersion. In the
+// background: cheap (no engine), and readers rebuild anything still stale on their own.
+void backfillInsights(db, (err) => app.log.warn({ err }, 'insights facts failed')).then(
+  (n) => n && app.log.info(`Insights: built facts for ${n} saved game${n === 1 ? '' : 's'}`),
+  (err: unknown) => app.log.error({ err }, 'insights backfill failed'),
+);

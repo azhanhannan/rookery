@@ -2,6 +2,7 @@
 // All routes live under /api. Errors are { error: string } with a 4xx/5xx status; the string is
 // written for the player to read.
 import type { Color, GameRecord, GameResult } from '../game/types';
+import type { BucketId, Coverage, GameFacts, HistoryEntry, InsightsModel, Motif, Phase, Trend } from '../insights/types';
 
 export type RatingCategory = 'bullet' | 'blitz' | 'rapid' | 'classical';
 
@@ -246,3 +247,66 @@ export type HomeworkListResponse = { homework: Homework[] };
 // DELETE /api/coach/homework/:id -> 204 (the coach who set it, while still linked).
 // POST /api/coach/homework/:id/attempt { item, solved } -> the updated homework (the student only).
 export type HomeworkAttemptRequest = { item: number; solved: boolean };
+
+// Insights (server/src/routes/insights.ts; pure logic in src/insights). The server keeps one facts record
+// per saved game (GameInsight), rebuilt when INSIGHTS.factsVersion changes, so the numbers cover the
+// account's whole history and a linked coach can read them. The browser app works without any of this.
+
+/** A coach's override of the student's Focus: it outranks the student's own pick. */
+export type CoachFocusInfo = {
+  /** A ledger bucket id, e.g. 'E:hanging', 'M:fork', 'time-trouble', 'conversion' (never an 'other' cell). */
+  bucketId: BucketId;
+  note: string | null;
+  coach: CoachUser;
+  /** When the coach set it: the re-test counts games after this. */
+  createdAt: string;
+};
+
+// GET /api/insights/facts -> the signed-in player's facts for every saved game (not just the ones on this
+// device), what was left out and why, every finished game in order (for "the game after a loss"), and
+// whether any coach is linked (the page then says "Your coach can see this").
+export type InsightsFactsResponse = {
+  factsVersion: number;
+  facts: GameFacts[];
+  coverage: Coverage;
+  history: HistoryEntry[];
+  coachLinked: boolean;
+};
+// GET /api/insights/coach-focus -> the active coach Focus (from a currently linked coach), or null.
+export type CoachFocusResponse = { focus: CoachFocusInfo | null };
+
+/** One deciding position for the coach: the position before the student's move, and the engine's answer. */
+export type CoachEvidence = {
+  clientId: string;
+  /** 1-based ply of the student's move (CoachComment.ply takes it as is). */
+  ply: number;
+  /** Win chance given away, 0-100. */
+  loss: number;
+  /** Position before the move; the student is to move. */
+  fen: string;
+  san: string;
+  bestSan?: string;
+  motif: Motif;
+  phase: Phase;
+  opponentName: string;
+  playedAt: string;
+  color: Color;
+  /** The position as a homework item (engine solution, source set); null when there's no usable line. */
+  homework: HomeworkItem | null;
+};
+
+// GET /api/coach/students/:studentId/insights -> 404 without an active link. The student's Insights at Analyst
+// detail over all their saved games, the evidence positions of every shown bucket (plus the Focus and the
+// coach Focus), long-term trends per bucket once there are INSIGHTS.minSample.trendGames games (else empty),
+// and the active coach Focus. Rating-band comparisons are not offered (they wait on Phase 4 calibration).
+export type CoachInsightsResponse = {
+  student: CoachUser;
+  insights: InsightsModel;
+  evidence: Partial<Record<BucketId, CoachEvidence[]>>;
+  trends: Trend[];
+  focus: CoachFocusInfo | null;
+};
+// PUT /api/coach/students/:studentId/focus { bucketId, note? } -> { focus } (replaces any active one, from any coach).
+// 400 for an unknown or 'other' bucket. DELETE /api/coach/students/:studentId/focus -> 204; 404 unless this coach set it.
+// Homework from an insight goes through POST /api/coach/students/:studentId/homework with CoachEvidence.homework items.
+export type CoachFocusRequest = { bucketId: BucketId; note?: string | null };

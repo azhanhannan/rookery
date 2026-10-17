@@ -33,6 +33,9 @@ model User {
   commentsReceived CoachComment[]  @relation("CommentStudent")
   homeworkSet      Homework[]      @relation("HomeworkCoach")
   homeworkGiven    Homework[]      @relation("HomeworkStudent")
+  gameInsights     GameInsight[]
+  focusSet         CoachFocus[]    @relation("FocusCoach")
+  coachFocus       CoachFocus?     @relation("FocusStudent")
 }
 
 /// A sign-in provider identity (Google) linked to a user. Linked only by signing in with it,
@@ -85,6 +88,7 @@ model Game {
 
   ratingEvent RatingEvent?
   comments    CoachComment[]
+  insight     GameInsight?
 
   @@unique([userId, clientId])
   @@index([userId, playedAt])
@@ -226,4 +230,39 @@ model HomeworkAttempt {
   createdAt  DateTime @default(now())
 
   @@index([homeworkId, item])
+}
+
+/// Insights facts for one saved game (src/insights: buildGameFacts), so a coach can read a student's ledger
+/// without their browser. One row per game, excluded games too (for "reviewed X of Y"). Written when the
+/// game is saved or replaced; rebuilt, never migrated, when `factsVersion` is behind INSIGHTS.factsVersion.
+model GameInsight {
+  gameId       String   @id
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  factsVersion Int
+  /// GameFacts; null when the game is left out of Insights (`excluded` says why).
+  facts        Json?
+  /// ExclusionReason, or null when the game has facts.
+  excluded     String?
+  /// HistoryEntry ("the game after a loss" sees unreviewed games too); null without a side or a result.
+  history      Json?
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// A coach's override of a student's Insights Focus: one active per student (the latest set wins).
+/// Deleted when that coach and student unlink.
+model CoachFocus {
+  studentId String   @id
+  student   User     @relation("FocusStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  coachId   String
+  coach     User     @relation("FocusCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  /// A ledger BucketId, e.g. 'E:hanging' or 'conversion' (never an 'other' cell).
+  bucketId  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([coachId])
 }

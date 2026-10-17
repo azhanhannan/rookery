@@ -18,6 +18,7 @@ export function GameWithComments({
   side,
   onComment,
   actions,
+  initialPly,
 }: {
   record: GameRecord;
   comments: CoachComment[];
@@ -25,8 +26,10 @@ export function GameWithComments({
   side: Color | null;
   onComment?: (body: string, ply: number | null) => Promise<void>;
   actions?: (ply: number) => ReactNode;
+  /** Ply to open on (default: the final position). */
+  initialPly?: number;
 }) {
-  const [ply, setPly] = useState(record.moves.length);
+  const [ply, setPly] = useState(initialPly !== undefined ? Math.min(initialPly, record.moves.length) : record.moves.length);
   const review = reviewFits(record, record.review) ? record.review : undefined;
   const fen = ply === 0 ? record.startFen : record.moves[ply - 1].fenAfter;
   const last = ply > 0 ? record.moves[ply - 1] : null;

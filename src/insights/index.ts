@@ -17,6 +17,7 @@
 // evidence refs { gameId, ply, loss, fenBefore? } and a `train` target (existing routes only).
 // Nothing here reads storage, the engine or the network.
 
+export { moveMotif } from './moveMotif';
 export { buildAllFacts, buildGameFacts, exclusionReason, historyOf, phasesOf } from './facts';
 export {
   afterLossLine,

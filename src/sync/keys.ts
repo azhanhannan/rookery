@@ -23,11 +23,13 @@
  * 'repertoires': the opening trainer (`{version, updatedAt, repertoires, cards}`); repertoires merge by id
  *   (newer `updatedAt` wins), their cards per position like My-mistakes cards; delete markers (`deleted`)
  *   remove a repertoire everywhere and expire after SYNC.tombstoneDays.
+ * 'focus': the Insights Focus (raw JSON with `startedAt`, maybe `endedAt`); the newest `startedAt` wins, and
+ *   for the same Focus an ended copy wins (ending it on one device ends it everywhere).
  */
-export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires' | 'best' | 'log';
+export type SyncKind = 'pref' | 'mistakes' | 'trainedDays' | 'daily' | 'stamped' | 'repertoires' | 'best' | 'log' | 'focus';
 
 /** Kinds whose localStorage value is the raw string itself (not JSON the sync parses). */
-export const RAW_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['pref', 'stamped', 'best', 'log']);
+export const RAW_KINDS: ReadonlySet<SyncKind> = new Set<SyncKind>(['pref', 'stamped', 'best', 'log', 'focus']);
 
 export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.boardTheme': 'pref',
@@ -49,6 +51,7 @@ export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.timedBest': 'best',
   'rookery.trainingLog': 'log',
   'rookery.lessons': 'stamped',
+  'rookery.focus': 'focus',
 };
 
 export function syncKind(key: string): SyncKind | null {

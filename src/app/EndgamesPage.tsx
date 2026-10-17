@@ -23,10 +23,13 @@ function goalText(d: Drill): string {
   return `Win as ${sideName(d.side)}: queen the pawn (or win the defender's last piece) within ${d.moves} moves.`;
 }
 
-/** Endgame drills (#/endgames): key positions to win or hold against Stockfish, judged by the tablebase. */
-export function EndgamesPage() {
+/**
+ * Endgame drills (#/endgames): key positions to win or hold against Stockfish, judged by the tablebase.
+ * `#/endgames/<id>` (`drillId`) opens that drill straight away; an unknown id shows the list.
+ */
+export function EndgamesPage({ drillId }: { drillId?: string } = {}) {
   const [progress, setProgress] = useState<EndgamesProgress>(loadProgress);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => (drillId && DRILLS.some((d) => d.id === drillId) ? drillId : null));
   const drill = DRILLS.find((d) => d.id === selected);
   if (drill) {
     const index = DRILLS.indexOf(drill);

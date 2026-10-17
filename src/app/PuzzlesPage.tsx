@@ -20,11 +20,17 @@ import type { PuzzleMode } from '../puzzles/puzzleStore';
 import { dueItems, loadSchedule, mistakeCounts } from '../puzzles/spacedRepetition';
 import { useCalcMode } from '../components/CalcMode';
 import { HomeworkCard } from './coach/HomeworkCard';
+import type { Motif } from '../insights/types';
+import { mistakesForMotif } from './insights/process';
+import { MOTIF_NAME } from './insights/wording';
 
 type DataState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; set: PuzzleSet };
 
-/** `#/puzzles`: the puzzle trainer (Lichess puzzle database, rated per player). */
-export function PuzzlesPage() {
+/**
+ * `#/puzzles`: the puzzle trainer (Lichess puzzle database, rated per player).
+ * `#/puzzles/mistakes/<motif>` (`mistakesMotif`) opens My mistakes with only that motif's puzzles (Insights' Train this).
+ */
+export function PuzzlesPage({ mistakesMotif }: { mistakesMotif?: Exclude<Motif, 'other'> } = {}) {
   const authStatus = useAuthStore((s) => s.status);
   const [data, setData] = useState<DataState>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -38,7 +44,9 @@ export function PuzzlesPage() {
   const hintSquare = usePuzzleStore((s) => s.hintSquare);
   const phase = usePuzzleStore((s) => s.phase);
   const { loadRating, next, move, stop } = usePuzzleStore.getState();
-  const [mode, setMode] = useState<PuzzleMode>('rated');
+  const [mode, setMode] = useState<PuzzleMode>(mistakesMotif ? 'mistakes' : 'rated');
+  // My mistakes narrowed to one motif, until the player asks for all of them.
+  const [motif, setMotif] = useState<Exclude<Motif, 'other'> | null>(mistakesMotif ?? null);
   const authUser = useAuthStore((s) => s.user);
   const record = usePuzzleStore((s) => s.record);
   const rating = usePuzzleStore((s) => s.rating);
@@ -70,10 +78,19 @@ export function PuzzlesPage() {
     if (mode === 'rated' && puzzles && ratingSource && !puzzle && !empty) next(puzzles, theme);
   }, [mode, puzzles, ratingSource, puzzle, empty, next, theme]);
 
-  const allMistakes = useMemo(
+  const everyMistake = useMemo(
     () => mistakes ?? harvestMistakes(loadHistory(), { userNames: authUser ? [authUser.username] : [] }),
     [mistakes, authUser],
   );
+  const allMistakes = useMemo(
+    () => (motif ? mistakesForMotif(everyMistake, loadHistory(), motif) : everyMistake),
+    [everyMistake, motif],
+  );
+  // Opened on one motif: start its first due puzzle.
+  useEffect(() => {
+    if (mistakesMotif) startMistake(allMistakes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
   // Re-read after every result (`record` changes) so the due count stays current.
   const counts = useMemo(() => mistakeCounts(allMistakes, loadSchedule(), todayKey()), [allMistakes, record]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -98,6 +115,7 @@ export function PuzzlesPage() {
     } else if (m === 'mistakes') {
       const list = harvestMistakes(loadHistory(), { userNames: authUser ? [authUser.username] : [] });
       setMistakes(list);
+      setMotif(null);
       startMistake(list);
     } else if (m === 'timed') {
       // The timed run keeps its own board; the trainer's puzzle is put away.
@@ -178,9 +196,28 @@ export function PuzzlesPage() {
               : 'Positions where you went wrong in your reviewed games · your rating doesn’t change'}
         </p>
       )}
+      {mode === 'mistakes' && motif && (
+        <p data-testid="mistakes-motif" className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-surface p-3 text-sm">
+          <span>
+            Only <span className="font-semibold">{MOTIF_NAME[motif].toLowerCase()}</span>: {allMistakes.length} puzzle
+            {allMistakes.length === 1 ? '' : 's'} from your games
+          </span>
+          <button className="text-accent hover:underline" onClick={() => switchMode('mistakes')}>
+            Show all my mistakes
+          </button>
+        </p>
+      )}
       {mode === 'mistakes' && !puzzle ? (
         <div data-testid="mistakes-empty" className="flex flex-col gap-2 rounded-lg bg-surface p-3 text-sm">
-          {counts.total === 0 ? (
+          {counts.total === 0 && motif ? (
+            <>
+              <p className="font-semibold">No puzzles for this one yet</p>
+              <p className="text-muted">
+                My mistakes only keeps moves the review labelled Mistake, Blunder or Miss and where the better move is
+                clear. Your other mistakes are still waiting.
+              </p>
+            </>
+          ) : counts.total === 0 ? (
             <>
               <p className="font-semibold">No mistakes to practise yet</p>
               <p className="text-muted">

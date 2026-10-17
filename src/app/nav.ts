@@ -14,6 +14,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '#/play', label: 'Play', primary: true },
   { href: '#/review', label: 'Review', primary: true },
   { href: '#/puzzles', label: 'Puzzles', primary: true },
+  { href: '#/insights', label: 'Insights' },
   { href: '#/analysis', label: 'Analysis' },
   { href: '#/openings', label: 'Openings' },
   { href: '#/endgames', label: 'Endgames' },

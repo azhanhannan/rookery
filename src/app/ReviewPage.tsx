@@ -52,7 +52,7 @@ function GamePicker({ intro }: { intro: string }) {
   );
 }
 
-function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: GameRecord) => void }) {
+function GameReviewView({ record, onSaved, initialPly }: { record: GameRecord; onSaved: (r: GameRecord) => void; initialPly?: number }) {
   const setReview = useGameStore((s) => s.setReview);
   const setMaiaMatch = useGameStore((s) => s.setMaiaMatch);
   const review = reviewFits(record, record.review) ? record.review : null;
@@ -121,6 +121,7 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
       record={record}
       review={review}
       header={header}
+      initialPly={initialPly}
       onMaiaMatch={(m) => {
         const saved = setMaiaMatch(record.id, m);
         if (saved) onSaved(saved);
@@ -136,8 +137,9 @@ function GameReviewView({ record, onSaved }: { record: GameRecord; onSaved: (r: 
 /**
  * `#/review` shows the current game when it is finished, otherwise a list of finished games;
  * `#/review/<id>` reviews that game (the current one or a saved one); `#/review/games` is the list.
+ * `initialPly` (from `#/review/<id>?ply=<n>`) opens the review at that move.
  */
-export function ReviewPage({ gameId }: { gameId?: string }) {
+export function ReviewPage({ gameId, initialPly }: { gameId?: string; initialPly?: number }) {
   const current = useGameStore((s) => s.record);
   // A saved (not current) game is read once from storage, then kept here as reviews are added.
   const [saved, setSaved] = useState<GameRecord | null>(() =>
@@ -191,5 +193,5 @@ export function ReviewPage({ gameId }: { gameId?: string }) {
   if (!record || record.result === '*') {
     return <GamePicker intro="That game isn't available for review. Pick a finished game." />;
   }
-  return <GameReviewView key={record.id} record={record} onSaved={setSaved} />;
+  return <GameReviewView key={record.id} record={record} onSaved={setSaved} initialPly={initialPly} />;
 }

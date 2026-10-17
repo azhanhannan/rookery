@@ -3,6 +3,7 @@ import { useAuthStore } from '../account/authStore';
 import { SiteHeader } from '../components/SiteHeader';
 import { APP_NAME } from '../config/tunables';
 import { useFocusMode } from './focusMode';
+import { mistakesMotifFromHash, parseReviewHash, subPath } from './deepLinks';
 import { AboutPage } from './AboutPage';
 import { AccountPage } from './AccountPage';
 import { AuthPage } from './AuthPage';
@@ -36,7 +37,7 @@ const OpeningsRoute = () => (
 const EndgamesPage = lazy(() => import('./EndgamesPage').then((m) => ({ default: m.EndgamesPage })));
 const EndgamesRoute = () => (
   <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading endgames…</p>}>
-    <EndgamesPage />
+    <EndgamesPage key={location.hash} drillId={subPath(location.hash, '#/endgames') ?? undefined} />
   </Suspense>
 );
 
@@ -55,7 +56,15 @@ const CoachPage = lazy(() => import('./CoachPage').then((m) => ({ default: m.Coa
 const LessonsPage = lazy(() => import('./LessonsPage').then((m) => ({ default: m.LessonsPage })));
 const LessonsRoute = () => (
   <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading lessons…</p>}>
-    <LessonsPage />
+    <LessonsPage key={location.hash} lessonId={subPath(location.hash, '#/lessons') ?? undefined} />
+  </Suspense>
+);
+
+// Insights (#/insights) load on first visit too.
+const InsightsPage = lazy(() => import('./InsightsPage').then((m) => ({ default: m.InsightsPage })));
+const InsightsRoute = () => (
+  <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading insights…</p>}>
+    <InsightsPage />
   </Suspense>
 );
 
@@ -76,7 +85,14 @@ const ROUTES: Record<string, () => React.JSX.Element> = {
   '#/endgames': EndgamesRoute,
   '#/drills': DrillsRoute,
   '#/lessons': LessonsRoute,
+  '#/insights': InsightsRoute,
 };
+
+/** Pages that take an id below them (`#/lessons/forks`, `#/endgames/kqk`): the route to look up. */
+function routeKey(hash: string): string {
+  for (const base of ['#/lessons', '#/endgames']) if (hash.startsWith(`${base}/`)) return base;
+  return hash;
+}
 
 function useHash(): string {
   const [hash, setHash] = useState(location.hash);
@@ -107,13 +123,15 @@ export default function App() {
   }, [refreshAuth]);
   // `#/review` and `#/review/<gameId>` carry a parameter, so they are matched by prefix.
   const review = hash === '#/review' || hash.startsWith('#/review/');
-  const gameId = review ? decodeURIComponent(hash.slice('#/review/'.length)) || undefined : undefined;
+  // `#/review/<id>?ply=<n>` opens the review at that move (Insights' evidence links).
+  const { gameId, ply: reviewPly } = parseReviewHash(hash);
   // `#/profile/<username>` likewise.
   const profileName = hash.startsWith('#/profile/') ? decodeURIComponent(hash.slice('#/profile/'.length)) : null;
-  const puzzles = hash === '#/puzzles';
+  // `#/puzzles/mistakes/<motif>`: My mistakes for one motif (Insights' Train this).
+  const puzzles = hash === '#/puzzles' || hash.startsWith('#/puzzles/');
   // `#/coach` and `#/coach/<...>`.
   const coachPath = hash === '#/coach' || hash.startsWith('#/coach/') ? hash.slice('#/coach'.length) : null;
-  const Page = review || profileName || puzzles || coachPath !== null ? null : (ROUTES[hash] ?? PlayPage);
+  const Page = review || profileName || puzzles || coachPath !== null ? null : (ROUTES[routeKey(hash)] ?? PlayPage);
   // Full screen exists on the board pages only.
   const boardPage = Page === PlayPage || review || puzzles || Page === AnalysisRoute || Page === OpeningsRoute;
   const focus = useFocusMode((s) => s.on) && boardPage;
@@ -144,7 +162,7 @@ export default function App() {
           <Page />
         ) : puzzles ? (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading puzzles…</p>}>
-            <PuzzlesPage />
+            <PuzzlesPage key={hash} mistakesMotif={mistakesMotifFromHash(hash) ?? undefined} />
           </Suspense>
         ) : coachPath !== null ? (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading coach…</p>}>
@@ -156,7 +174,7 @@ export default function App() {
           </Suspense>
         ) : (
           <Suspense fallback={<p className="p-6 text-center text-sm text-muted">Loading review…</p>}>
-            <ReviewPage key={hash} gameId={gameId} />
+            <ReviewPage key={hash} gameId={gameId} initialPly={reviewPly} />
           </Suspense>
         )}
       </main>

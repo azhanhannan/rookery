@@ -13,6 +13,7 @@
 // - Opening repertoires: union by id, the newer repertoire wins; cards merge per position like My mistakes.
 //   A deleted repertoire leaves a delete marker (`deleted[id]` = when); the marker beats any copy last changed
 //   before it, and markers are dropped after SYNC.tombstoneDays.
+// - Insights Focus: the newest `startedAt` wins; for the same Focus an ended copy wins.
 // Training merges are commutative and idempotent, so the order devices sync in doesn't matter.
 import type { StateItem } from '../api/types';
 import { EXTRAS, MISTAKES, OPENING_TRAINER, SYNC } from '../config/tunables';
@@ -80,7 +81,40 @@ export function normalizeValue(kind: SyncKind, value: unknown): unknown {
       const l = typeof value === 'string' ? parseLog(value) : undefined;
       return l && JSON.stringify(l);
     }
+    case 'focus':
+      if (value === null) return null;
+      return typeof value === 'string' && value.length <= MAX_PREF_LENGTH && focusStamps(value) ? value : undefined;
   }
+}
+
+// --- Insights Focus (rookery.focus; shape of src/insights/focus.ts Focus + endedAt, kept loose here) ----
+
+/** The Focus's start and end times (ms), or null when the string is not a Focus. */
+function focusStamps(raw: string): { started: number; ended: number | null } | null {
+  try {
+    const v = JSON.parse(raw) as { bucketId?: unknown; startedAt?: unknown; endedAt?: unknown } | null;
+    if (!v || typeof v !== 'object' || typeof v.bucketId !== 'string' || typeof v.startedAt !== 'string') return null;
+    const started = Date.parse(v.startedAt);
+    if (!Number.isFinite(started)) return null;
+    const ended = typeof v.endedAt === 'string' && Number.isFinite(Date.parse(v.endedAt)) ? Date.parse(v.endedAt) : null;
+    return { started, ended };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Two Focus values (normalized; null = none): the newest `startedAt` wins; for the same Focus the ended copy
+ * (the earlier end, if both ended); on a full tie `b`, the one already stored. None loses to any Focus.
+ */
+export function mergeFocus(a: string | null, b: string | null): string | null {
+  const x = a === null ? null : focusStamps(a);
+  const y = b === null ? null : focusStamps(b);
+  if (!x || !y) return x ? a : y ? b : null;
+  if (x.started !== y.started) return x.started > y.started ? a : b;
+  if ((x.ended === null) !== (y.ended === null)) return x.ended !== null ? a : b;
+  if (x.ended !== null && y.ended !== null && x.ended !== y.ended) return x.ended < y.ended ? a : b;
+  return b;
 }
 
 // --- per-mode bests (rookery.timedBest) -----------------------------------------------------------
@@ -420,6 +454,11 @@ export function mergeItem(kind: SyncKind, a: StateItem | undefined, b: StateItem
       return { value: mergeTrainedDays(a.value as string[], b.value as string[]), updatedAt };
     case 'daily':
       return { value: mergeDaily(a.value as DailyRecord | null, b.value as DailyRecord | null), updatedAt };
+    case 'focus': {
+      // The app never clears the key (an ended Focus is kept, marked ended), so none loses to any Focus.
+      const value = mergeFocus(a.value as string | null, b.value as string | null);
+      return value === a.value && value !== b.value ? a : b;
+    }
   }
 }
 

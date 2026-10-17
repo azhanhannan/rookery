@@ -27,10 +27,13 @@ function highlightStyles(squares: string[] | undefined): Record<string, CSSPrope
   return Object.fromEntries((squares ?? []).map((sq) => [sq, { backgroundColor: LESSONS.highlight }]));
 }
 
-/** `#/lessons`: short themed lessons (a few explanation screens, then find-the-move practice). */
-export function LessonsPage() {
+/**
+ * `#/lessons`: short themed lessons (a few explanation screens, then find-the-move practice).
+ * `#/lessons/<id>` (`lessonId`) opens that lesson straight away; an unknown id shows the list.
+ */
+export function LessonsPage({ lessonId }: { lessonId?: string } = {}) {
   const [progress, setProgress] = useState<LessonsProgress>(loadLessonsProgress);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => (lessonId && LESSONS_COURSE.some((l) => l.id === lessonId) ? lessonId : null));
   const lesson = LESSONS_COURSE.find((l) => l.id === selected);
   if (lesson) {
     const next = LESSONS_COURSE[LESSONS_COURSE.indexOf(lesson) + 1];

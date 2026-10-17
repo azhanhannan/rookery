@@ -83,10 +83,13 @@ export function ReviewScreen({
   header,
   onMaiaMatch,
   onReviewChange,
+  initialPly,
 }: {
   record: GameRecord;
   review: GameReview;
   header?: ReactNode;
+  /** Open at this move (a deep link to a position); also skips "where do you think it went wrong?". */
+  initialPly?: number;
   /** Stores a finished style match; without it the panel is hidden. */
   onMaiaMatch?: (match: MaiaMatch) => void;
   /** Stores a review updated in place ("Analyse deeper here"); without it the update lasts until the screen closes. */
@@ -101,7 +104,7 @@ export function ReviewScreen({
     (record.userColor ?? (bot === 'w' ? 'b' : 'w')) === 'b' ? 'black' : 'white',
   );
   useFlipKey(flipOrientation(setOrientation));
-  const [ply, setPly] = useState(0);
+  const [ply, setPly] = useState(() => Math.max(0, Math.min(reviewProp.moves.length, initialPly ?? 0)));
   const [mode, setMode] = useState<Mode>({ kind: 'game' });
   const { style, prefs, rating, settled } = useReviewStyle(record);
   // Whether to ask is decided once per opening of the review, but only after the style is known: on Auto with
@@ -110,7 +113,9 @@ export function ReviewScreen({
   const [askFirst, setAskFirst] = useState<boolean | null>(null);
   const [gaveUp, setGaveUp] = useState(false);
   const styleMatters = prefs.selfReview === 'learner' && prefs.style === null;
-  if (askFirst === null && (settled || gaveUp || !styleMatters)) setAskFirst(shouldSelfReview(prefs.selfReview, style));
+  // A deep link to a move came to look at that move: no question first.
+  if (askFirst === null && initialPly !== undefined) setAskFirst(false);
+  else if (askFirst === null && (settled || gaveUp || !styleMatters)) setAskFirst(shouldSelfReview(prefs.selfReview, style));
   useEffect(() => {
     if (askFirst !== null) return;
     const t = window.setTimeout(() => setGaveUp(true), REVIEW_STYLE.settleMs);

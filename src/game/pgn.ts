@@ -21,6 +21,12 @@ export function toPgn(record: GameRecord): string {
   if (record.black.elo !== undefined) chess.setHeader('BlackElo', String(record.black.elo));
   chess.setHeader('TimeControl', record.timeControl ?? '-');
   if (record.termination) chess.setHeader('Termination', record.termination);
+  const ended = pgnEndTime(record.endedAt);
+  if (ended) {
+    chess.setHeader('EndDate', ended.date);
+    chess.setHeader('EndTime', ended.time);
+  }
+  if (record.takebacks) chess.setHeader('Takebacks', String(record.takebacks));
   if (record.startFen !== START_FEN) {
     chess.setHeader('SetUp', '1');
     chess.setHeader('FEN', record.startFen);
@@ -30,6 +36,27 @@ export function toPgn(record: GameRecord): string {
     if (m.clockMs !== undefined) chess.setComment(`[%clk ${toClk(m.clockMs)}]`);
   }
   return chess.pgn() + '\n';
+}
+
+/** EndDate/EndTime tags (the names Chess.com uses; written and read as UTC) for an ISO end time, or null. */
+function pgnEndTime(iso: string | undefined): { date: string; time: string } | null {
+  if (!iso) return null;
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return null;
+  const s = t.toISOString();
+  return { date: pgnDate(s), time: s.slice(11, 19) };
+}
+
+/** The ISO end time from EndDate/EndTime tags (read as UTC), or undefined when they are missing or malformed. */
+function parseEndTime(date: string | undefined, time: string | undefined): string | undefined {
+  if (!date || !time || !/^\d{4}\.\d{2}\.\d{2}$/.test(date) || !/^\d{2}:\d{2}:\d{2}$/.test(time)) return undefined;
+  const t = new Date(`${date.replaceAll('.', '-')}T${time}Z`);
+  return Number.isNaN(t.getTime()) ? undefined : t.toISOString();
+}
+
+/** A non-negative whole number tag, else undefined. */
+function parseCount(v: string | undefined): number | undefined {
+  return v && /^\d{1,4}$/.test(v) ? Number(v) : undefined;
 }
 
 /** PGN writes "?" for an unknown player; chess.js also fills missing tags with it. */
@@ -76,6 +103,9 @@ export function fromPgn(text: string): GameRecord {
     ? new Date(headers.Date.replaceAll('.', '-') + 'T00:00:00Z').toISOString()
     : new Date().toISOString();
   const timeControl = headers.TimeControl && headers.TimeControl !== '-' ? headers.TimeControl : undefined;
+  // Only a finished game has an end time; takebacks are Rookery's own tag (practice games), kept for a round trip.
+  const endedAt = result !== '*' ? parseEndTime(headers.EndDate, headers.EndTime) : undefined;
+  const takebacks = parseCount(headers.Takebacks) || undefined;
 
   return {
     id: crypto.randomUUID(),
@@ -87,5 +117,7 @@ export function fromPgn(text: string): GameRecord {
     termination,
     createdAt: date,
     timeControl,
+    ...(endedAt ? { endedAt } : {}),
+    ...(takebacks ? { takebacks } : {}),
   };
 }

@@ -24,6 +24,11 @@ const isColor = (v: unknown): v is Color => v === 'w' || v === 'b';
 const RESULTS: readonly GameResult[] = ['1-0', '0-1', '1/2-1/2', '*'];
 const isResult = (v: unknown): v is GameResult => RESULTS.includes(v as GameResult);
 
+/** A parseable date-time string of sane length (GameRecord.endedAt is an ISO string). */
+const isIsoTime = (v: unknown): v is string => isStr(v, 40) && Number.isFinite(Date.parse(v));
+/** A whole number from 0 up to MAX_PLIES (a takeback removes at least one ply, so more can't be real). */
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_PLIES;
+
 function isPlayer(v: unknown): v is PlayerInfo {
   if (!isObj(v) || !isStr(v.name, MAX_NAME) || typeof v.isBot !== 'boolean') return false;
   if (v.engine !== undefined && v.engine !== 'stockfish' && v.engine !== 'maia') return false;
@@ -49,6 +54,8 @@ function shapeError(r: Obj): string | null {
   if (r.review !== undefined && !isObj(r.review)) return 'The game has a malformed review.';
   if (r.maiaMatch !== undefined && !isObj(r.maiaMatch)) return 'The game has a malformed style match.';
   if (r.rated !== undefined && typeof r.rated !== 'boolean') return 'The game has a malformed rated flag.';
+  if (r.endedAt !== undefined && !isIsoTime(r.endedAt)) return 'The game has a malformed end time.';
+  if (r.takebacks !== undefined && !isCount(r.takebacks)) return 'The game has a malformed takeback count.';
   return null;
 }
 

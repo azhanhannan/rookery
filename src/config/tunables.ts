@@ -434,3 +434,83 @@ export const LESSONS = {
   /** The move you just played in a practice position. */
   solvedColor: 'rgba(76, 175, 80, 0.6)',
 };
+
+/**
+ * Insights (#/insights, docs/insights-2026-10/synthesis.md). Win chances are percentages 0-100 from the
+ * player's side; losses are win chance given away (points lost per game = loss / 100).
+ */
+export const INSIGHTS = {
+  /** Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated. */
+  factsVersion: 1,
+  /** Reviews shallower than this are left out (REVIEW.depth.normal). */
+  minReviewDepth: 16,
+  /** Games where the player made fewer moves are left out (RATING.minMoves). */
+  minOwnMoves: 10,
+  /** Error rates skip moves made when already lost (win chance before below this). The ledger keeps them. */
+  lostBelow: 10,
+  /** A move this bad or worse is an error for rates (REVIEW.loss.mistake). */
+  errorLoss: 20,
+  /** A motif-tagged move counts as an event at this loss or more. */
+  eventLoss: 10,
+  /** Time or abandon losses with win chance at least this when the game ended are clock events, not chess. */
+  flagNotWorseWin: 40,
+  /** …and with at least this, "lost on time while better". */
+  flagBetterWin: 60,
+  /** Stalemating move counts as "stalemate given away" when the mover's win chance before was at least this. */
+  stalemateFromWin: 90,
+  /** Conversion / save episodes: two consecutive own moves at or beyond these (+2.0 / -2.0), after this ply. */
+  episode: { winAt: 67.6, loseAt: 32.4, strongWinAt: 75.2, afterPly: 10, run: 2 },
+  /** Time trouble: clock before the move under max(floorMs, share of base time). */
+  timeTrouble: { floorMs: 30_000, baseShare: 0.1 },
+  /** Phases (simplified Lichess Divider): pieces = non-pawn, non-king pieces of both sides. */
+  phase: { middlePieces: 10, backRankSparse: 3, openingMaxPly: 30, endPieces: 6, endMen: 7 },
+  /** Notable moves (largest losses) kept per game as evidence positions. */
+  notableMoves: 5,
+  minSample: {
+    /** Page unlocks at this many qualifying reviewed games; "early read" below `earlyGames`. */
+    pageGames: 10,
+    earlyGames: 20,
+    /** A rate card needs this many qualifying moves and events; "early read" below `earlyReadFactor` × these. */
+    cardMoves: 30,
+    cardEvents: 8,
+    earlyReadFactor: 3,
+    /** Focus: games on file, events in the bucket, and testable (decided by Hannan 18 Oct: 20 games). */
+    focusGames: 20,
+    focusEvents: 8,
+    /** Conversion / saves card: episodes. */
+    episodes: 8,
+    /** Opening row: games, "early read" below `openingEarlyGames`. */
+    openingGames: 10,
+    openingEarlyGames: 30,
+    /** Clock card: moves made in time trouble. */
+    troubleMoves: 30,
+    /** Long-term trend: games. */
+    trendGames: 40,
+    /** After-loss line: games played right after a loss. */
+    afterLossGames: 15,
+  },
+  /** z for 90% intervals; every interval on the page is 90%. */
+  z: 1.645,
+  /** Shrinkage strength, in games: estimate = (sum + k * prior) / (n + k). */
+  shrinkK: 10,
+  /** Testable: at the current rate, at least `events` expected in the next `games` games. */
+  testable: { games: 15, events: 8 },
+  /** Focus re-test (analytics §2). */
+  focus: {
+    /** Target rate = baseline × this. */
+    targetFactor: 0.6,
+    /** The window closes after at least this many new games and days. */
+    minGames: 15,
+    minDays: 14,
+    /** "Too early" below either of these. */
+    earlyGames: 5,
+    earlyMoves: 150,
+    /** P(rate below baseline) for "on track", and for an "improved" (or "worse") verdict. */
+    onTrackP: 0.8,
+    verdictP: 0.95,
+    /** Prior weight on the baseline, in events (Gamma shape). Weak by design. */
+    priorEvents: 2,
+  },
+  /** Bayesian trend: prior sd of the slope, points lost per game per game played. */
+  trendPriorSd: 0.05,
+};

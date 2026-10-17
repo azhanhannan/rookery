@@ -1,6 +1,6 @@
 # Rookery roadmap (after the SPEC phases)
 
-Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 16 Oct 2026 (after wave 3).
+Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 18 Oct 2026 (after wave 4, Insights).
 
 ## Where the ideas came from
 
@@ -19,6 +19,7 @@ one "Review style" setting (Learner / Club / Analyst) instead of picking words v
 | 1 | 15 Oct | Practice vs Rated (takeback, show threat, hint, hanging glow) · Analysis board (variation tree, multi-PV, position setup, lossless PGN) · Bulk + Lichess import, Review all, Openings report · Review styles, proven captions, self-review, threat/better arrows, Analyse deeper · My mistakes puzzles (1/3/7/21 days), daily puzzle, trained-days streak · Play polish (sound packs, clock, X flip, ? sheet, hide ratings, end screen, right-click marks) | `8f9d349`..`d5e4ffa` |
 | 2 | 16 Oct | Account sync (`UserState` table, `GET/PUT /api/state`, `src/sync/`) · Opening trainer `#/openings` · Endgame drills `#/endgames` + Lichess tablebase (Analysis + Review) · Spar button, loss-streak cushion, accuracy wording, Timed puzzles, premoves · Rook mascot, figurines, `#/drills` (name the square), calculation mode, weekly training log | `7d7a616`..`cee87e3` |
 | 3 | 16 Oct | Opening explorer (Lichess masters + online games, token in Settings; Analysis, Review, rare-move note in the trainer) · Coach–student link `#/coach` (invite codes, coach view of games, comments per game/ply, puzzle homework, header badge) · Lessons `#/lessons` (7 lessons, checked positions) · Loose ends: sync delete markers, max/union merges, alternative moves in My mistakes, live theme picker, self-review style race, phone header with a More menu (`src/app/nav.ts`) | `5f75ea6`..`HEAD` |
+| 4 | 18 Oct | Insights `#/insights` from a second panel (BA, SA, coach SME, analytics SME; [`insights-2026-10/`](insights-2026-10/), decisions in `synthesis.md`): typed caption facts + extra motifs (back-rank, ignored threat, stalemate given away, lost on time while better) · `src/insights/` facts, stats, points-lost ledger, Focus with pre-registered re-test, conversion/saves, clock, after-loss line, openings, trend · page by Review style, synced `rookery.focus`, IndexedDB facts cache, Train-this deep links · server `GameInsight`/`CoachFocus` (migration `20261018120000_insights`), full-history facts, coach Insights tab · games record `endedAt`/`takebacks`; Review all at depth 16 + one-off re-review of shallower reviews | `b238823`..`1fae0eb` |
 
 Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`20261016140000_coach`); the server applies migrations on start.
 
@@ -45,6 +46,17 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 ## Left to do
 
 **Panel ideas**: all built (wave 3).
+
+**Insights (wave 4), untried in a real browser**
+- IndexedDB facts cache across reloads; `rookery.focus` sync between two devices; the verdict / window-closed states
+  (need 15 games + 2 weeks); Swap and End; the page against the real server endpoints (e2e mocks them).
+- Server backfill on the real dev DB; coach cards with real named motifs; re-review pausing during a bot game; the
+  re-review offer at phone width. Learner/state wording in `src/app/insights/wording.ts` is the agent's own — review it.
+- Not built: tablebase-wrong motif (reviews store no tablebase result), `critical` / rushed critical moves (reviews keep
+  no second line), rating-band comparison (waits for Phase 4 calibration). Time trouble has no drill, so it is never the
+  ledger's Focus (a coach may still set it).
+- Known: startup backfill can overwrite a row re-uploaded at the same moment (next save fixes it); Chess.com
+  `EndDate`/`EndTime` assumed UTC; re-review replaces "Analyse deeper" positions.
 
 **Wave 3, untried in a real browser** (unit/server/e2e tests pass; no human has clicked through yet)
 - Explorer against Lichess with a real token, and a real 429.

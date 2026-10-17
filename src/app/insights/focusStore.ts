@@ -46,8 +46,8 @@ export function activeFocus(f: StoredFocus | null): StoredFocus | null {
 }
 
 /** Starts (and stores) a Focus on `bucketId`, pre-registered from every fact on file. */
-export function beginFocus(facts: GameFacts[], bucketId: BucketId, now: Date = new Date()): StoredFocus {
-  const f: StoredFocus = startFocus(facts, bucketId, now);
+export function beginFocus(facts: GameFacts[], bucketId: BucketId, now: Date = new Date(), setBy: Focus['setBy'] = 'self'): StoredFocus {
+  const f: StoredFocus = startFocus(facts, bucketId, now, setBy);
   saveFocus(f);
   return f;
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { INSIGHTS } from '../../src/config/tunables';
 import { buildGameFacts, buildInsights, moveMotif } from '../../src/insights';
 import type { GameFacts } from '../../src/insights/types';
@@ -15,6 +15,9 @@ import { syncKind } from '../../src/sync/keys';
 import { startFocus } from '../../src/insights/focus';
 import { hangingGame, hangingGames } from '../fixtures/insightsGames';
 import { makeGame } from '../fixtures/insights';
+
+// Facts for a few dozen real games (chess.js threat checks) take a few seconds under a busy parallel run.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('insights page: the seeded games', () => {
   it('each game leaves a knight hanging at ply 5, and 22 of them make it the Focus', () => {
@@ -88,9 +91,32 @@ describe('loadInsightFacts', () => {
       ['hang-0', local.opponentName],
       ['elsewhere', local.opponentName],
     ]);
-    const r = await loadInsightFacts({ records: [hangingGame(0)], cache: null, serverSource: async () => [remoteNew] });
+    const r = await loadInsightFacts({ records: [hangingGame(0)], cache: null, serverSource: async () => ({ facts: [remoteNew] }) });
     expect(r.fromServer).toBe(1);
     expect(r.coverage).toMatchObject({ total: 2, included: 2 });
+    expect(r.coachLinked).toBe(false);
+    // The server's coverage and history are preferred; games only on this device add to them.
+    const withMeta = await loadInsightFacts({
+      records: [hangingGame(0), hangingGame(1)],
+      cache: null,
+      serverSource: async () => ({
+        factsVersion: INSIGHTS.factsVersion,
+        facts: [buildGameFacts(hangingGame(0))!, remoteNew],
+        coverage: { total: 9, included: 2, excluded: { unreviewed: 7 } },
+        history: [{ gameId: 'elsewhere', playedAt: '2026-09-01T00:00:00.000Z', score: 0 }],
+        coachLinked: true,
+      }),
+    });
+    expect(withMeta.coverage).toEqual({ total: 10, included: 3, excluded: { unreviewed: 7 } });
+    expect(withMeta.history.map((h) => h.gameId)).toEqual(['elsewhere', 'hang-0', 'hang-1']);
+    expect(withMeta.coachLinked).toBe(true);
+    // A server on another facts version: none of its facts are used.
+    const otherVersion = await loadInsightFacts({
+      records: [hangingGame(0)],
+      cache: null,
+      serverSource: async () => ({ factsVersion: INSIGHTS.factsVersion + 1, facts: [remoteNew], coachLinked: true }),
+    });
+    expect(otherVersion.facts.map((f) => f.gameId)).toEqual(['hang-0']);
     const down = await loadInsightFacts({ records: [hangingGame(0)], cache: null, serverSource: () => Promise.reject(new Error('offline')) });
     expect(down.facts).toHaveLength(1);
   });

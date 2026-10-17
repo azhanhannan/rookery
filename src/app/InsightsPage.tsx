@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { pickAccountRating, useAccountRatings } from '../account/accountRating';
 import { useAuthStore } from '../account/authStore';
+import { insightsApi } from '../api/insights';
+import type { CoachFocusInfo } from '../api/types';
 import { MascotSays } from '../components/RookMascot';
 import { loadProgress } from '../endgames/progress';
 import { loadHistory } from '../game/storage';
@@ -46,15 +48,33 @@ export function InsightsPage() {
   const [opponent, setOpponent] = useState<OpponentType | 'all'>('all');
   const [stored, setStored] = useState<StoredFocus | null>(loadFocus);
   const [showAfterLoss, setShowAfterLoss] = useState(false);
+  const [coachFocus, setCoachFocus] = useState<CoachFocusInfo | null>(null);
 
   useEffect(() => {
     let live = true;
-    // SEAM: pass `serverSource` here once the server serves facts for games not on this device.
-    void loadInsightFacts({ userNames: username ? [username] : [] }).then((r) => live && setLoaded(r));
+    // Signed in: the account's facts (every saved game) merge in; with the server down, this device's alone.
+    void loadInsightFacts({ userNames: username ? [username] : [], serverSource: username ? () => insightsApi.facts() : undefined }).then(
+      (r) => live && setLoaded(r),
+    );
     return () => {
       live = false;
     };
   }, [username, reviewedInBatch]);
+
+  useEffect(() => {
+    let live = true;
+    if (!username) {
+      setCoachFocus(null);
+      return;
+    }
+    insightsApi.coachFocus().then(
+      (r) => live && setCoachFocus(r.focus ?? null),
+      () => live && setCoachFocus(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [username]);
 
   const now = useMemo(() => new Date(), [loaded, stored]); // eslint-disable-line react-hooks/exhaustive-deps
   const model = useMemo(
@@ -91,12 +111,17 @@ export function InsightsPage() {
   const cov = loaded.coverage;
   const excluded = Object.entries(cov.excluded).filter(([, n]) => (n ?? 0) > 0);
   const speeds = [...new Set(loaded.facts.map((f) => f.speed))].sort();
-  const extraCards = model.cards.filter((c) => c.role !== 'focus' && c.bucket.id !== focus?.bucketId);
-  const proposal = model.focus && model.focus.id !== focus?.bucketId ? model.focus : null;
+  const shownFocusId = focus?.bucketId ?? coachFocus?.bucketId;
+  const extraCards = model.cards.filter((c) => c.role !== 'focus' && c.bucket.id !== shownFocusId);
+  const bucketById = (id: string) => [...model.ledger.cells, ...model.ledger.overlays].find((b) => b.id === id) ?? null;
+  // A coach's Focus outranks the ledger's pick.
+  const coachBucket = coachFocus ? bucketById(coachFocus.bucketId) : null;
+  const pick = coachBucket ?? model.focus;
+  const proposal = pick && pick.id !== focus?.bucketId ? { bucket: pick, coach: !!coachBucket } : null;
 
-  function start(bucket: LedgerBucket) {
+  function start(bucket: LedgerBucket, byCoach = false) {
     if (!loaded) return;
-    setStored(beginFocus(loaded.facts, bucket.id));
+    setStored(beginFocus(loaded.facts, bucket.id, new Date(), byCoach ? 'coach' : 'self'));
   }
 
   return (
@@ -119,6 +144,11 @@ export function InsightsPage() {
           )}
           {' · '}Review style: {STYLE_NAME[style]} (<a className="text-accent hover:underline" href="#/account">change</a>)
         </p>
+        {loaded.coachLinked && (
+          <p data-testid="coach-can-see" className="font-semibold text-ink">
+            Your coach can see this.
+          </p>
+        )}
         {excluded.length > 0 && style !== 'learner' && (
           <p>Left out: {excluded.map(([why, n]) => `${n} ${EXCLUDED_NAME[why] ?? why}`).join(', ')}.</p>
         )}
@@ -157,13 +187,16 @@ export function InsightsPage() {
           style={style}
           process={process}
           facts={factsById}
-          proposal={model.status === 'locked' ? null : proposal}
+          proposal={model.status === 'locked' && !proposal?.coach ? null : proposal}
+          coach={coachFocus && coachFocus.bucketId === focus.bucketId ? coachFocus : undefined}
           onEnd={(reason) => setStored(finishFocus(focus, reason))}
-          onSwap={(b) => {
+          onSwap={(b, byCoach) => {
             finishFocus(focus, 'swap');
-            start(b);
+            start(b, byCoach);
           }}
         />
+      ) : coachBucket && coachFocus ? (
+        <FocusProposal bucket={coachBucket} style={style} games={model.games} facts={factsById} onStart={() => start(coachBucket, true)} coach={coachFocus} />
       ) : null}
 
       {model.status === 'locked' ? (
@@ -185,6 +218,7 @@ export function InsightsPage() {
       ) : (
         <>
           {!focus &&
+            !coachBucket &&
             (model.focus ? (
               <FocusProposal bucket={model.focus} style={style} games={model.games} facts={factsById} onStart={() => start(model.focus!)} />
             ) : (

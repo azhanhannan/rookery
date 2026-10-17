@@ -10,11 +10,20 @@ import type { Coverage, GameFacts, HistoryEntry } from '../../insights/types';
 import { userColorOf } from '../../puzzles/harvest';
 import { factsKey, idbFactsCache, type FactsCache } from './factsCache';
 
+/** What the server says about the signed-in player's games (shape of InsightsFactsResponse, all optional but facts). */
+export type ServerFacts = {
+  factsVersion?: number;
+  facts: GameFacts[];
+  coverage?: Coverage;
+  history?: HistoryEntry[];
+  coachLinked?: boolean;
+};
+
 /**
- * SEAM for the server (insights/server branch): a function returning the account's facts for games this
- * device may not hold. No fetch code lives here; the caller passes it in.
+ * The account's facts for games this device may not hold. The page passes `insightsApi.facts` when signed
+ * in; tests pass a stub. Any failure is ignored: the local facts stand on their own.
  */
-export type ServerFactsSource = () => Promise<GameFacts[]>;
+export type ServerFactsSource = () => Promise<ServerFacts>;
 
 export type LoadFactsOptions = {
   /** Default: the saved games on this device. */
@@ -37,6 +46,8 @@ export type LoadedFacts = {
   fromServer: number;
   /** The cache failed and was skipped. */
   cacheFailed: boolean;
+  /** The server answered and says a coach is linked ("Your coach can see this"). */
+  coachLinked: boolean;
 };
 
 /** The player's side in a record: the import's own side, else the bot game's human, else a name match. */
@@ -115,23 +126,44 @@ export async function loadInsightFacts(options: LoadFactsOptions = {}): Promise<
 
   let fromServer = 0;
   let all = facts;
+  let coverage: Coverage = { total: records.length, included: facts.length, excluded };
+  let fullHistory = history;
+  let coachLinked = false;
   if (options.serverSource) {
     try {
-      const merged = mergeServerFacts(facts, await options.serverSource());
+      const server = await options.serverSource();
+      // A server on another facts version: its facts don't compare with ours (its history still does).
+      const sameVersion = server.factsVersion === undefined || server.factsVersion === INSIGHTS.factsVersion;
+      const merged = mergeServerFacts(facts, sameVersion && Array.isArray(server.facts) ? server.facts : []);
       all = merged.facts;
       fromServer = merged.added;
+      coachLinked = server.coachLinked === true;
+      if (server.coverage && sameVersion) {
+        // The server's count covers the account's games; games only on this device (not uploaded yet) add to it.
+        const local = new Set(facts.map((f) => f.gameId));
+        const serverIds = new Set(server.facts.map((f) => f.gameId));
+        const onlyHere = [...local].filter((id) => !serverIds.has(id)).length;
+        coverage = { total: server.coverage.total + onlyHere, included: all.length, excluded: server.coverage.excluded };
+      } else {
+        coverage = { total: records.length + fromServer, included: all.length, excluded };
+      }
+      if (Array.isArray(server.history) && server.history.length) {
+        const seen = new Set(server.history.map((h) => h.gameId));
+        fullHistory = [...server.history, ...history.filter((h) => !seen.has(h.gameId))];
+      }
     } catch {
       // The server is optional: local facts stand on their own.
     }
   }
-  history.sort((a, b) => a.playedAt.localeCompare(b.playedAt) || a.gameId.localeCompare(b.gameId));
+  fullHistory = [...fullHistory].sort((a, b) => a.playedAt.localeCompare(b.playedAt) || a.gameId.localeCompare(b.gameId));
   return {
     facts: all,
-    coverage: { total: records.length + fromServer, included: all.length, excluded },
-    history,
+    coverage,
+    history: fullHistory,
     fromCache,
     built: fresh.length,
     fromServer,
     cacheFailed,
+    coachLinked,
   };
 }

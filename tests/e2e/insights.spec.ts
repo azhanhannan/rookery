@@ -22,6 +22,8 @@ async function seed(page: Page, games: GameRecord[], style: 'learner' | 'club' |
 async function open(page: Page, hash: string) {
   await page.goto(`/${hash}`);
   await page.reload();
+  // The page is a lazy chunk: on a cold dev server under a full parallel run it can take a while to compile.
+  if (hash === '#/insights') await expect(page.getByTestId('insights-page')).toBeVisible({ timeout: 30_000 });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -73,7 +75,7 @@ test('Learner: one plain Focus card with its n; start it; Train this lands on My
 
   await page.getByTestId('train-this').click();
   await expect(page).toHaveURL(/#\/puzzles\/mistakes\/hanging$/);
-  await expect(page.getByTestId('mistakes-motif')).toContainText('pieces left hanging');
+  await expect(page.getByTestId('mistakes-motif')).toContainText('pieces left hanging', { timeout: 30_000 });
   await expect(page.getByTestId('mistakes-motif')).toContainText('1 puzzle');
   await expect(page.getByTestId('puzzle-source')).toContainText('From your game vs Bot 1100');
 });
@@ -104,7 +106,7 @@ test('Analyst: Focus with n and intervals, top cards, ledger, after-loss off by 
 
   await card.getByTestId('evidence-link').first().click();
   await expect(page).toHaveURL(/#\/review\/hang-\d+\?ply=5$/);
-  await expect(page.getByTestId('move-panel')).toContainText('3. Nh4');
+  await expect(page.getByTestId('move-panel')).toContainText('3. Nh4', { timeout: 30_000 });
 });
 
 test('deep links: a lesson and an endgame drill open directly', async ({ page }) => {
@@ -115,4 +117,42 @@ test('deep links: a lesson and an endgame drill open directly', async ({ page })
   await expect(page.getByTestId('drill-goal')).toContainText('Checkmate as White');
   await page.goto('/#/lessons/no-such-lesson');
   await expect(page.getByTestId('lessons-list')).toBeVisible();
+});
+
+test('signed in: the coach’s Focus outranks the ledger pick, and the page says the coach can see it', async ({ page }) => {
+  await seed(page, hangingGames(22), 'club');
+  const username = `ins${Date.now() % 1_000_000}`;
+  const res = await page.request.post('/api/auth/signup', { data: { username, password: 'insights-pass-1' } });
+  expect(res.ok()).toBe(true);
+  // The account has no games on the server; it answers with a linked coach and a coach Focus.
+  await page.route('**/api/insights/facts', (route) =>
+    route.fulfill({ json: { factsVersion: 1, facts: [], coverage: { total: 0, included: 0, excluded: {} }, history: [], coachLinked: true } }),
+  );
+  await page.route('**/api/insights/coach-focus', (route) =>
+    route.fulfill({
+      json: { focus: { bucketId: 'M:fork', note: 'Check every knight jump.', coach: { id: 'c1', username: 'coachy' }, createdAt: '2026-10-17T10:00:00.000Z' } },
+    }),
+  );
+  await open(page, '#/insights');
+  await expect(page.getByTestId('coach-can-see')).toHaveText('Your coach can see this.');
+  const card = page.getByTestId('focus-card');
+  await expect(card).toHaveAttribute('data-coach', 'yes');
+  await expect(card).toContainText('Walking into forks');
+  await expect(card.getByTestId('coach-focus')).toContainText('Set by coachy');
+  await expect(card.getByTestId('coach-focus')).toContainText('Check every knight jump.');
+  await card.getByTestId('focus-start').click();
+  await expect(card).toHaveAttribute('data-state', 'too-early');
+  await expect(card.getByTestId('coach-focus')).toBeVisible();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('rookery.focus') ?? 'null'));
+  expect(stored).toMatchObject({ bucketId: 'M:fork', setBy: 'coach' });
+});
+
+test('signed in with the Insights API down: the page still works from this device', async ({ page }) => {
+  await seed(page, hangingGames(22), 'learner');
+  const res = await page.request.post('/api/auth/signup', { data: { username: `down${Date.now() % 1_000_000}`, password: 'insights-pass-1' } });
+  expect(res.ok()).toBe(true);
+  await page.route('**/api/insights/**', (route) => route.fulfill({ status: 500, json: { error: 'boom' } }));
+  await open(page, '#/insights');
+  await expect(page.getByTestId('focus-card')).toHaveAttribute('data-state', 'proposed');
+  await expect(page.getByTestId('coach-can-see')).toHaveCount(0);
 });

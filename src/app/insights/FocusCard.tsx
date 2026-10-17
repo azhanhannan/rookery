@@ -1,5 +1,6 @@
 // The Focus: proposed from the ledger's top eligible bucket, then pinned once started, with its re-test state
 // (too early / on track / not yet / verdict) and the work done since it started.
+import type { CoachFocusInfo } from '../../api/types';
 import type { FocusStatus } from '../../insights/focus';
 import type { GameFacts, LedgerBucket } from '../../insights/types';
 import type { ReviewStyle } from '../../review/reviewStyle';
@@ -18,20 +19,24 @@ export function FocusProposal({
   games,
   facts,
   onStart,
+  coach,
 }: {
   bucket: LedgerBucket;
   style: ReviewStyle;
   games: number;
   facts: Map<string, GameFacts>;
   onStart: () => void;
+  /** Set by the player's coach: it outranks the ledger's pick. */
+  coach?: CoachFocusInfo;
 }) {
   const learner = style === 'learner';
   return (
-    <section className={panel} data-testid="focus-card" data-state="proposed">
+    <section className={panel} data-testid="focus-card" data-state="proposed" data-coach={coach ? 'yes' : undefined}>
       <div className="flex items-start justify-between gap-2">
         <h2 className="font-semibold">{learner ? 'Something to work on' : `Focus: ${bucketName(bucket.id)}`}</h2>
-        <Tag tone="accent">Focus</Tag>
+        <Tag tone="accent">{coach ? 'Coach’s focus' : 'Focus'}</Tag>
       </div>
+      {coach && <CoachNote coach={coach} />}
       {learner ? (
         <>
           <MascotSays testId="focus-says">{bucketPlain(bucket.id)}</MascotSays>
@@ -58,6 +63,17 @@ export function FocusProposal({
           : 'Starting it pins this Focus and freezes where you start from. Only games after today count, for at least 15 games and 2 weeks.'}
       </p>
     </section>
+  );
+}
+
+function CoachNote({ coach }: { coach: CoachFocusInfo }) {
+  return (
+    <div className="rounded-lg bg-surface-2 p-2 text-sm" data-testid="coach-focus">
+      <p>
+        Set by <span className="font-semibold">{coach.coach.username}</span>, your coach, on {shortDate(coach.createdAt)}
+      </p>
+      {coach.note && <p className="text-muted">“{coach.note}”</p>}
+    </div>
   );
 }
 
@@ -101,6 +117,7 @@ export function ActiveFocus({
   process,
   facts,
   proposal,
+  coach,
   onEnd,
   onSwap,
 }: {
@@ -112,9 +129,11 @@ export function ActiveFocus({
   process: ProcessMeasures;
   facts: Map<string, GameFacts>;
   /** The ledger's current top pick, when it differs from the pinned Focus. */
-  proposal: LedgerBucket | null;
+  proposal: { bucket: LedgerBucket; coach: boolean } | null;
+  /** The coach's Focus, when the pinned one is it. */
+  coach?: CoachFocusInfo;
   onEnd: (reason: 'window' | 'stopped') => void;
-  onSwap: (bucket: LedgerBucket) => void;
+  onSwap: (bucket: LedgerBucket, byCoach: boolean) => void;
 }) {
   const learner = style === 'learner';
   const text = focusStateText(status, learner);
@@ -126,6 +145,7 @@ export function ActiveFocus({
         <h2 className="font-semibold">{learner ? 'Your focus' : `Your focus: ${bucketName(focus.bucketId)}`}</h2>
         <Tag tone="accent">Focus</Tag>
       </div>
+      {coach && <CoachNote coach={coach} />}
       {learner ? <MascotSays testId="focus-says">{bucketPlain(focus.bucketId)}</MascotSays> : <p className="text-sm">{bucketPlain(focus.bucketId)}</p>}
       <div className="flex flex-col gap-1 rounded-lg bg-surface-2 p-2" data-testid="focus-status">
         <p className="flex items-center gap-2">
@@ -159,8 +179,8 @@ export function ActiveFocus({
           </button>
         )}
         {proposal && (
-          <button className={btn} onClick={() => onSwap(proposal)} data-testid="focus-swap">
-            Swap to: {bucketName(proposal.id)}
+          <button className={btn} onClick={() => onSwap(proposal.bucket, proposal.coach)} data-testid="focus-swap">
+            {proposal.coach ? 'Switch to your coach’s focus' : 'Swap to'}: {bucketName(proposal.bucket.id)}
           </button>
         )}
       </div>

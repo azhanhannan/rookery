@@ -20,6 +20,11 @@ export type RunReviewOptions = {
   signal?: AbortSignal;
   /** Called after each analysed position: done of total (total = moves + 1). */
   onProgress?: (p: ReviewProgress) => void;
+  /**
+   * Awaited before each position is analysed, so a low-priority run can
+   * wait while the engine is wanted elsewhere. It should settle promptly once `signal` aborts.
+   */
+  beforePosition?: () => Promise<void>;
 };
 
 /** Enough for dozens of games; the oldest entries go first. */
@@ -37,7 +42,7 @@ export function clearAnalysisCache(): void {
 
 /** Analyses every position of a finished game and builds its review. Does not modify the record. */
 export async function runReview(record: GameRecord, opts: RunReviewOptions = {}): Promise<GameReview> {
-  const { signal, onProgress } = opts;
+  const { signal, onProgress, beforePosition } = opts;
   if (signal?.aborted) throw abortError();
   if (record.moves.length === 0) throw new Error('Cannot review a game with no moves');
   if (record.result === '*') throw new Error('Only finished games can be reviewed');
@@ -52,6 +57,7 @@ export async function runReview(record: GameRecord, opts: RunReviewOptions = {})
   await engine.setOption('Hash', REVIEW.hashMb);
   const analyses: AnalysisResult[] = [];
   for (const fen of fens) {
+    if (beforePosition) await beforePosition();
     if (signal?.aborted) throw abortError();
     analyses.push(await analyse(engine, fen, depth, signal));
     onProgress?.({ done: analyses.length, total: fens.length });

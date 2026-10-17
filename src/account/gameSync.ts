@@ -20,9 +20,14 @@ export function userColorFor(record: GameRecord): Color | null {
   return record[human === 'w' ? 'white' : 'black'].isBot ? null : human;
 }
 
-/** One upload per distinct finished state: the game, then again once it carries a review or a Maia match. */
+/**
+ * One upload per distinct finished state: the game, then again once it carries a review (again for each new
+ * review, such as a deeper re-review) or a Maia match.
+ */
 function syncKey(record: GameRecord): string | null {
-  return record.result === '*' ? null : `${record.id}:${record.review ? 'reviewed' : 'plain'}${record.maiaMatch ? ':maia' : ''}`;
+  if (record.result === '*') return null;
+  const review = record.review ? `reviewed@${record.review.createdAt}` : 'plain';
+  return `${record.id}:${review}${record.maiaMatch ? ':maia' : ''}`;
 }
 
 export function readQueue(): string[] {

@@ -22,6 +22,7 @@ import { PracticeTag } from '../components/PracticePanel';
 import { practiceIdsOnDevice } from '../game/practice';
 import { usePlaySettings } from '../settings/playSettings';
 import { BatchReviewPanel } from '../components/BatchReviewPanel';
+import { ReReviewOffer } from '../components/ReReviewOffer';
 import { useBatchReview } from './batchReview';
 import { OpeningsReport, type OpeningPick } from './OpeningsReport';
 
@@ -440,6 +441,7 @@ export function GamesPage() {
         ))}
       </div>
       <BatchReviewPanel />
+      <ReReviewOffer />
       {tab === 'openings' && status !== 'unknown' ? (
         <OpeningsReport
           signedIn={status === 'signed-in'}

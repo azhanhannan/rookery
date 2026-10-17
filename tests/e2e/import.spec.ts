@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { SAMPLE_REVIEWED_RECORD } from '../fixtures/sample-review';
 
 // Bulk import (multi-game PGN, Lichess) and the Openings report on My games. Lichess is never contacted:
 // its export endpoint is answered by page.route.
@@ -97,7 +98,7 @@ test('Review all reviews the imported games in the background, across pages', as
   await page.goto('/#/import');
   await page.getByLabel('PGN', { exact: true }).fill(MULTI);
   await page.getByRole('button', { name: 'Import 3 games' }).click();
-  await page.getByRole('button', { name: 'Review all 2 (fast)' }).click();
+  await page.getByRole('button', { name: 'Review all 2' }).click();
   await expect(page.getByTestId('batch-review')).toContainText('Reviewing game');
   // Leaving the page does not stop it; My games shows the same run.
   await page.getByRole('navigation').getByRole('link', { name: 'Play' }).click();
@@ -107,4 +108,32 @@ test('Review all reviews the imported games in the background, across pages', as
   await expect(page.getByTestId('game-row').filter({ hasText: 'Reviewed' })).toHaveCount(2);
   await page.getByRole('tab', { name: 'Openings' }).click();
   await expect(page.getByTestId('openings-report')).toContainText(/reviewed/);
+});
+
+test('games reviewed at a lower depth are offered a background re-review, which survives a reload', async ({ page }) => {
+  test.setTimeout(180_000);
+  const shallow = { ...SAMPLE_REVIEWED_RECORD, review: { ...SAMPLE_REVIEWED_RECORD.review!, depth: 12 } };
+  await page.goto('/');
+  await page.evaluate((r) => {
+    localStorage.clear();
+    localStorage.setItem('rookery.games', JSON.stringify([r]));
+  }, shallow);
+  await page.goto('/#/games');
+  await page.reload();
+  const offer = page.getByTestId('rereview-offer');
+  await expect(offer).toContainText('1 game reviewed at a lower depth than now (depth 16)');
+  await offer.getByRole('button', { name: 'Re-review in the background' }).click();
+  await expect(page.getByTestId('batch-review')).toContainText('Re-reviewing game 1 of 1 at depth 16');
+  await expect(offer).toHaveCount(0);
+  // A reload mid-run picks it up again.
+  await page.reload();
+  await expect(page.getByTestId('batch-review')).toContainText(/Re-reviewing game 1 of 1|Re-review finished/);
+  await expect(page.getByTestId('batch-review')).toContainText('Re-review finished', { timeout: 150_000 });
+  await expect(page.getByTestId('batch-review')).toContainText('1 re-reviewed');
+  await expect(page.getByTestId('rereview-offer')).toHaveCount(0);
+  const depths = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem('rookery.games') ?? '[]') as { review?: { depth: number } }[]).map((g) => g.review?.depth),
+  );
+  expect(depths).toEqual([16]);
+  expect(await page.evaluate(() => localStorage.getItem('rookery.reReview'))).toBeNull();
 });

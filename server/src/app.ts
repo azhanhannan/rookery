@@ -7,6 +7,7 @@ import { fileCatalog, type PuzzleCatalog } from './puzzles/catalog';
 import { authRoutes } from './routes/auth';
 import { coachRoutes } from './routes/coach';
 import { gameRoutes } from './routes/games';
+import { insightRoutes } from './routes/insights';
 import { oauthRoutes } from './routes/oauth';
 import { profileRoutes } from './routes/profile';
 import { puzzleRoutes } from './routes/puzzles';
@@ -50,6 +51,7 @@ export async function buildApp({
       await api.register(puzzleRoutes, { db, puzzles });
       await api.register(stateRoutes, { db });
       await api.register(coachRoutes, { db });
+      await api.register(insightRoutes, { db });
       api.get('/health', async () => ({ ok: true }));
     },
     { prefix: '/api' },

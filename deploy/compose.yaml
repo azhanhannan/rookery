@@ -1,0 +1,65 @@
+# Production stack on the droplet, in /opt/rookery next to .env, deploy.sh and backup.sh.
+# CI copies this file on every deploy; edit it here, not on the server.
+name: rookery
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rookery
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: rookery
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/18/docker: mount the parent.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rookery -d rookery"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .env}/rookery-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "5181"
+      TRUST_PROXY: "1"
+      DATABASE_URL: postgresql://rookery:${POSTGRES_PASSWORD}@db:5432/rookery
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: https://${DOMAIN}/api/auth/google/callback
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5181/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Migrations run before the server listens.
+      start_period: 60s
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/rookery-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

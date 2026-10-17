@@ -19,6 +19,7 @@ export async function buildApp({
   logger = false,
   google = null,
   puzzles = fileCatalog(),
+  trustProxy = false,
 }: {
   db: Db;
   logger?: boolean;
@@ -26,9 +27,11 @@ export async function buildApp({
   google?: OAuthProvider | null;
   /** Puzzle id -> rating for rating attempts; defaults to public/puzzles/puzzles.json. */
   puzzles?: PuzzleCatalog;
+  /** Behind a reverse proxy: take request.ip from X-Forwarded-For, so login throttling sees the real client. */
+  trustProxy?: boolean;
 }): Promise<FastifyInstance> {
   // A GameRecord with a full review is well over Fastify's 1 MB default.
-  const app = Fastify({ logger, bodyLimit: 8 * 1024 * 1024 });
+  const app = Fastify({ logger, bodyLimit: 8 * 1024 * 1024, trustProxy });
   await app.register(cookie);
 
   app.decorateRequest('user', null);

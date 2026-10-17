@@ -29,11 +29,13 @@
     "glicko2": "^1.2.1",
     "onnxruntime-web": "1.30.0",
     "pg": "^8.23.1",
+    "prisma": "^7.10.0",
     "react": "^19.2.8",
     "react-chessboard": "^5.12.1",
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1",
     "stockfish": "^19.0.1",
+    "tsx": "^4.23.15",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -48,9 +50,7 @@
     "embedded-postgres": "^18.4.0-beta.17",
     "jsdom": "^29.1.1",
     "oxlint": "^1.81.0",
-    "prisma": "^7.10.0",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.4"

@@ -1,0 +1,6 @@
+# Scripts and config that run on Linux (droplet, CI, Docker): LF even when checked out on Windows,
+# or bash fails on the \r ("set: pipefail\r: invalid option name").
+*.sh text eol=lf
+deploy/** text eol=lf
+Dockerfile text eol=lf
+.github/** text eol=lf

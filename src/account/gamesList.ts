@@ -1,7 +1,7 @@
 // Pure helpers for the My games page: labels, filters, stats and day groups. Shared by the server-backed
 // list (signed in) and the list of games saved on this device (signed out or offline).
 import type { GameFilter, GameStats, GameSummary } from '../api/types';
-import { botColor } from '../game/rules';
+import { myColor } from '../game/myColor';
 import type { Color, GameRecord } from '../game/types';
 
 export type Outcome = 'won' | 'lost' | 'drawn' | 'none';
@@ -43,9 +43,7 @@ export const fullMoves = (plies: number) => Math.ceil(plies / 2);
 
 /** The side an imported game says the player played; else the non-bot side when exactly one side is a bot; else null. */
 export function personColor(record: GameRecord): Color | null {
-  if (record.userColor) return record.userColor;
-  if (record.white.isBot === record.black.isBot) return null;
-  return botColor(record) === 'w' ? 'b' : 'w';
+  return myColor(record);
 }
 
 /** A game saved on this device, shown like a saved one (no rating change: that only exists on the server). */

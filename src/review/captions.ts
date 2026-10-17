@@ -30,6 +30,28 @@ export type CaptionInput = {
   scoreAfter?: Score;
 };
 
+/** What a caption rule proved, before it is put into words. `san`/`uci` is the witness move (yours or the reply). */
+export type CaptionFact =
+  | { kind: 'missed-mate-1'; san: string; uci: string }
+  | { kind: 'missed-mate-2'; san: string; uci: string }
+  | { kind: 'allowed-mate-1'; san: string; uci: string }
+  | { kind: 'allowed-mate-2' }
+  /** The reply takes a piece nobody defends. */
+  | { kind: 'left-undefended'; piece: PieceSymbol; square: Square; san: string }
+  /** Defended on paper, but no recapture is legal. */
+  | { kind: 'lost-for-free'; piece: PieceSymbol; square: Square; san: string }
+  | { kind: 'lost-to-cheaper'; piece: PieceSymbol; square: Square; san: string; by: PieceSymbol }
+  /** `piece` on `square` attacks `targets` (king first). */
+  | { kind: 'fork'; piece: PieceSymbol; square: Square; san: string; targets: PieceSymbol[] }
+  | { kind: 'missed-free-piece'; piece: PieceSymbol; square: Square; san: string };
+
+export type CaptionKind = CaptionFact['kind'];
+
+export const CAPTION_KINDS: readonly CaptionKind[] = [
+  'missed-mate-1', 'missed-mate-2', 'allowed-mate-1', 'allowed-mate-2',
+  'left-undefended', 'lost-for-free', 'lost-to-cheaper', 'fork', 'missed-free-piece',
+];
+
 function mateFor(score: Score | undefined, color: Color): number | null {
   if (!score || !('mate' in score)) return null;
   const mine = color === 'w' ? score.mate > 0 : score.mate < 0;
@@ -68,20 +90,21 @@ function material(chess: Chess, color: Color): number {
   return sum;
 }
 
-/** Mate rules. Returns a caption, `null` for "no mate story", or `'unprovable'` to silence every other rule. */
-function mateCaption(i: CaptionInput, played: Move, me: Color): string | null | 'unprovable' {
+/** Mate rules. Returns a fact, `null` for "no mate story", or `'unprovable'` to silence every other rule. */
+function mateFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null | 'unprovable' {
   const them = other(me);
   // You missed a mate.
   if (!played.san.endsWith('#') && mateFor(i.scoreAfter, me) === null) {
     const mates = matingMoves(i.fenBefore);
     if (mates.length > 0) {
       const shown = mates.find((m) => m.from + m.to + (m.promotion ?? '') === i.bestBefore?.toLowerCase()) ?? mates[0];
-      return `You missed mate in 1 (${shown.san}).`;
+      return { kind: 'missed-mate-1', san: shown.san, uci: shown.lan };
     }
     const n = mateFor(i.scoreBefore, me);
     if (n !== null) {
       if (n === 2 && i.bestBefore && forcesMateIn2(i.fenBefore, i.bestBefore)) {
-        return `You missed mate in 2, starting with ${findMove(i.fenBefore, i.bestBefore)!.san}.`;
+        const first = findMove(i.fenBefore, i.bestBefore)!;
+        return { kind: 'missed-mate-2', san: first.san, uci: first.lan };
       }
       return 'unprovable';
     }
@@ -91,11 +114,11 @@ function mateCaption(i: CaptionInput, played: Move, me: Color): string | null | 
   const theirMates = matingMoves(played.after);
   if (theirMates.length > 0) {
     const shown = theirMates.find((m) => m.from + m.to + (m.promotion ?? '') === i.bestAfter?.toLowerCase()) ?? theirMates[0];
-    return `This allowed mate in 1 (${shown.san}).`;
+    return { kind: 'allowed-mate-1', san: shown.san, uci: shown.lan };
   }
   const n = mateFor(i.scoreAfter, them);
   if (n !== null) {
-    if (n === 2 && i.bestAfter && forcesMateIn2(played.after, i.bestAfter)) return 'This allowed mate in 2.';
+    if (n === 2 && i.bestAfter && forcesMateIn2(played.after, i.bestAfter)) return { kind: 'allowed-mate-2' };
     return 'unprovable';
   }
   return null;
@@ -106,7 +129,7 @@ function mateCaption(i: CaptionInput, played: Move, me: Color): string | null | 
  * on f6 undefended — Bxf6 wins it." The net material over the move, the reply and any recapture (static
  * exchange) must be a real loss, so trades (Bxf6 gxf6) never read as a hung piece.
  */
-function hangingCaption(i: CaptionInput, played: Move, me: Color): string | null {
+function hangingFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null {
   if (!i.bestAfter) return null;
   const reply = findMove(played.after, i.bestAfter);
   if (!reply?.captured || reply.flags.includes('e')) return null;
@@ -122,15 +145,14 @@ function hangingCaption(i: CaptionInput, played: Move, me: Color): string | null
 
   const pos = new Chess(played.after);
   const recaptures = afterReply.moves({ verbose: true }).filter((m) => m.to === square);
-  const where = `your ${PIECE_NAME[piece]} on ${square}`;
   if (recaptures.length === 0) {
-    if (pos.attackers(square, me).length === 0) return `This left ${where} undefended — ${reply.san} wins it.`;
-    return `${reply.san} wins ${where} for free.`;
+    const kind = pos.attackers(square, me).length === 0 ? 'left-undefended' : 'lost-for-free';
+    return { kind, piece, square, san: reply.san };
   }
   // Defended, but the attacker is cheaper: one recapture, and the opponent comes out ahead by the difference.
   const attacker = reply.piece;
   if (PIECE_VALUE[attacker] < PIECE_VALUE[piece] && see(new Chess(played.after), square, other(me)) === PIECE_VALUE[piece] - PIECE_VALUE[attacker]) {
-    return `${reply.san} wins ${where} for a ${PIECE_NAME[attacker]}.`;
+    return { kind: 'lost-to-cheaper', piece, square, san: reply.san, by: attacker };
   }
   return null;
 }
@@ -140,7 +162,7 @@ function hangingCaption(i: CaptionInput, played: Move, me: Color): string | null
  * the king, worth more than it, or undefended; you can't take it; and the engine's line then has it capture
  * one of them. "This allowed a fork on e7 — Ne7+ attacks your king and rook."
  */
-function forkCaption(i: CaptionInput, played: Move, me: Color): string | null {
+function forkFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null {
   const line = i.lineAfter ?? [];
   if (!i.bestAfter || line.length < 3 || line[0].toLowerCase() !== i.bestAfter.toLowerCase()) return null;
   const fork = findMove(played.after, i.bestAfter);
@@ -171,39 +193,69 @@ function forkCaption(i: CaptionInput, played: Move, me: Color): string | null {
 
   const order: PieceSymbol[] = ['k', 'q', 'r', 'b', 'n'];
   const names = targets.map((t) => t.type).sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  return `This allowed a fork on ${from} — ${fork.san} attacks your ${listPieces(names)}.`;
+  return { kind: 'fork', piece: forker, square: from, san: fork.san, targets: names };
 }
 
 /** The engine's best move took a piece nobody could take back: "You missed a free rook on a8 (Bxa8)." */
-function missedFreeCaption(i: CaptionInput, played: Move): string | null {
+function missedFreeFact(i: CaptionInput, played: Move): CaptionFact | null {
   if (!i.bestBefore) return null;
   const best = findMove(i.fenBefore, i.bestBefore);
   if (!best?.captured || best.flags.includes('e')) return null;
   if (played.captured && PIECE_VALUE[played.captured] >= PIECE_VALUE[best.captured]) return null;
   const after = new Chess(best.after);
   if (after.moves({ verbose: true }).some((m) => m.to === best.to)) return null;
-  return `You missed a free ${PIECE_NAME[best.captured]} on ${best.to} (${best.san}).`;
+  return { kind: 'missed-free-piece', piece: best.captured, square: best.to as Square, san: best.san };
 }
 
-/** One plain sentence explaining a weak move, or null when no rule can prove one. */
-export function caption(i: CaptionInput): string | null {
+/** What a rule proved about a weak move, or null when no rule can prove one. */
+export function captionFact(i: CaptionInput): CaptionFact | null {
   if (!CAPTIONED.has(i.label)) return null;
   const played = findMove(i.fenBefore, i.uci);
   if (!played) return null;
   const me = played.color;
-  const mate = mateCaption(i, played, me);
+  const mate = mateFact(i, played, me);
   if (mate === 'unprovable') return null;
   if (mate) return mate;
-  return hangingCaption(i, played, me) ?? forkCaption(i, played, me) ?? missedFreeCaption(i, played);
+  return hangingFact(i, played, me) ?? forkFact(i, played, me) ?? missedFreeFact(i, played);
 }
 
-/** The caption for the move at `ply` of a stored review (positions[ply - 1] before, positions[ply] after). */
-export function captionForMove(review: GameReview, ply: number): string | null {
+/** The Review screen's sentence for a fact. */
+export function captionText(f: CaptionFact): string {
+  switch (f.kind) {
+    case 'missed-mate-1':
+      return `You missed mate in 1 (${f.san}).`;
+    case 'missed-mate-2':
+      return `You missed mate in 2, starting with ${f.san}.`;
+    case 'allowed-mate-1':
+      return `This allowed mate in 1 (${f.san}).`;
+    case 'allowed-mate-2':
+      return 'This allowed mate in 2.';
+    case 'left-undefended':
+      return `This left your ${PIECE_NAME[f.piece]} on ${f.square} undefended — ${f.san} wins it.`;
+    case 'lost-for-free':
+      return `${f.san} wins your ${PIECE_NAME[f.piece]} on ${f.square} for free.`;
+    case 'lost-to-cheaper':
+      return `${f.san} wins your ${PIECE_NAME[f.piece]} on ${f.square} for a ${PIECE_NAME[f.by]}.`;
+    case 'fork':
+      return `This allowed a fork on ${f.square} — ${f.san} attacks your ${listPieces(f.targets)}.`;
+    case 'missed-free-piece':
+      return `You missed a free ${PIECE_NAME[f.piece]} on ${f.square} (${f.san}).`;
+  }
+}
+
+/** One plain sentence explaining a weak move, or null when no rule can prove one. */
+export function caption(i: CaptionInput): string | null {
+  const f = captionFact(i);
+  return f ? captionText(f) : null;
+}
+
+/** The caption input for the move at `ply` of a stored review (positions[ply - 1] before, positions[ply] after). */
+export function captionInputFor(review: GameReview, ply: number): CaptionInput | null {
   const move = review.moves[ply - 1];
   const before = review.positions[ply - 1];
   const after = review.positions[ply];
   if (!move || !before || !after) return null;
-  return caption({
+  return {
     label: move.label,
     fenBefore: before.fen,
     uci: move.uci,
@@ -212,5 +264,17 @@ export function captionForMove(review: GameReview, ply: number): string | null {
     bestAfter: after.bestMove,
     lineAfter: after.bestLine,
     scoreAfter: after.score,
-  });
+  };
+}
+
+/** The proven fact for the move at `ply` of a stored review. */
+export function captionFactForMove(review: GameReview, ply: number): CaptionFact | null {
+  const input = captionInputFor(review, ply);
+  return input ? captionFact(input) : null;
+}
+
+/** The caption for the move at `ply` of a stored review. */
+export function captionForMove(review: GameReview, ply: number): string | null {
+  const f = captionFactForMove(review, ply);
+  return f ? captionText(f) : null;
 }

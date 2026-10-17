@@ -2,7 +2,7 @@
 // Lives in the app layer and only watches the game store, so game logic stays free of network code.
 import { ApiError, api } from '../api/client';
 import { useGameStore } from '../game/gameStore';
-import { botColor } from '../game/rules';
+import { myColor } from '../game/myColor';
 import { findArchivedGame } from '../game/storage';
 import type { Color, GameRecord } from '../game/types';
 import { useAuthStore } from './authStore';
@@ -13,11 +13,7 @@ const QUEUE_KEY = 'rookery.unsynced';
 
 /** The side the signed-in player played: the human side of a bot game, null for two people at one screen. */
 export function userColorFor(record: GameRecord): Color | null {
-  if (record.userColor) return record.userColor;
-  const bot = botColor(record);
-  if (!bot) return null;
-  const human: Color = bot === 'w' ? 'b' : 'w';
-  return record[human === 'w' ? 'white' : 'black'].isBot ? null : human;
+  return myColor(record);
 }
 
 /** One upload per distinct finished state: the game, then again once it carries a review or a Maia match. */

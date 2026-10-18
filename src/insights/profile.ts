@@ -1,5 +1,7 @@
 // Player profile, "Your recent games" (pure): a re-reading of the Insights model as dated, counted habit lines.
-// Spec: docs/player-profile-2026-10/decision.md (Slice 1). No new facts, no engine: InsightsModel -> PlayerProfile.
+// Spec: docs/player-profile-2026-10/decision.md (Slices 1-3). No engine: InsightsModel -> PlayerProfile.
+// Slice 2 adds rushed critical moves (a clock line); Slice 3 cost by type (forcing vs quiet moves), the first
+// style-gated line: 40 games at one speed against people and Maia bots, the flip test, never on Learner.
 //
 // Rules the wording keeps (decision §2):
 // - Verbs, not nouns: what the player did in these games, never what they are. PROFILE_BANNED is tested.
@@ -11,19 +13,21 @@
 // - The Focus stays the only action: no line carries a training link; the line matching the Focus says so.
 import { INSIGHTS } from '../config/tunables';
 import type { Estimate } from './stats';
-import type { BucketId, EpisodeStat, EvidenceRef, InsightsModel, ModelWindow, Phase, PhaseRate, Speed } from './types';
+import type { BucketId, CostByType, EpisodeStat, EvidenceRef, InsightsModel, ModelWindow, Phase, PhaseRate, Speed } from './types';
 
 export type ProfileState = 'clear' | 'leaning' | 'not-enough';
 /** strength / habit: a clear comparison either way; reassurance: "not where you lose points"; neutral: leaning. */
 export type ProfileTone = 'strength' | 'habit' | 'reassurance' | 'neutral';
-export type ProfileTrait = 'phase' | 'threats' | 'conversion' | 'saves' | 'clock' | 'openings';
+export type ProfileTrait = 'phase' | 'threats' | 'conversion' | 'saves' | 'clock' | 'openings' | 'cost-by-type';
+/** Style-gated traits (decision §5): Learner never sees them. */
+export const STYLE_TRAITS: readonly ProfileTrait[] = ['cost-by-type'];
 /** 'all': every opponent the filters keep (own errors); 'human-like': people and Maia bots only. */
 export type ProfileGroup = 'all' | 'human-like';
 /** How `estimate` reads: per 100 moves, a share (0-1), or a ratio. */
 export type ProfileFormat = 'per100' | 'share' | 'ratio';
 
 export type ProfileLine = {
-  /** 'phase', 'phase-strength', 'threats', 'conversion', 'saves', 'clock', 'openings'. */
+  /** 'phase', 'phase-strength', 'threats', 'conversion', 'saves', 'clock', 'rushed-critical', 'openings', 'cost-by-type'. */
   id: string;
   trait: ProfileTrait;
   /** Phase lines: which phase. */
@@ -70,7 +74,7 @@ export type PlayerProfile = {
   lines: ProfileLine[];
   /** Lines still below their gate, with "n of X". */
   waiting: ProfileLine[];
-  /** Style lines (later slices): games at the best speed against people and Maia bots, of styleGames. */
+  /** Style lines: games at the speed they are read at (the filter's, or the most played) vs people and Maia bots. */
   style: { have: number; of: number; speed: Speed | null };
   focus: { id: BucketId | null; lineId: string | null };
   closing: string;
@@ -110,6 +114,7 @@ export const PROFILE_BANNED: readonly RegExp[] = [
 ];
 
 const PHASE_WORD: Record<Phase, string> = { O: 'opening', M: 'middlegame', E: 'endgame' };
+const SPEED_WORD: Record<Speed, string> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid', classical: 'classical', untimed: 'untimed' };
 const rate1 = (x: number) => x.toFixed(1);
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const times = (n: number) => `${n} time${n === 1 ? '' : 's'}`;
@@ -355,6 +360,110 @@ function clockLine(model: InsightsModel): ProfileLine {
   return { ...base, ...common, tone: 'neutral', state: 'leaning', text: `With the clock low: ${counts}; no clear difference yet.${flag}` };
 }
 
+/**
+ * Rushed critical moves (Slice 2): positions where only one move held, played in under half the usual time per
+ * move, against those played slowly. Needs clocks and reviews that kept the second engine line (version 2).
+ */
+function rushedLine(model: InsightsModel): ProfileLine {
+  const base: Base = { id: 'rushed-critical', trait: 'clock', title: 'Taking time when one move holds', group: 'all' };
+  const g = INSIGHTS.minSample;
+  const what = 'clocked games reviewed with two engine lines';
+  const r = model.clock?.rushedCritical ?? null;
+  if (!r) {
+    const line = waitingLine(base, { have: 0, of: g.clockGames, what }, 0);
+    const old = model.clock?.games ?? 0;
+    return old ? { ...line, note: `${plural(old, 'clocked game')} reviewed before the second engine line was kept: a re-review counts them here.` } : line;
+  }
+  if (r.games < g.clockGames) return waitingLine(base, { have: r.games, of: g.clockGames, what }, r.games);
+  if (r.moves < g.cardMoves) return waitingLine(base, { have: r.moves, of: g.cardMoves, what: 'moves where only one move held' }, r.games);
+  const errors = r.rushedErrors + r.slowErrors;
+  if (errors < g.cardEvents) return waitingLine(base, { have: errors, of: g.cardEvents, what: 'errors where only one move held' }, r.games);
+  const slow = r.moves - r.rushed;
+  const counts = `${plural(r.rushedErrors, 'error')} in ${r.rushed} quick moves, ${r.slowErrors} in ${slow} slower ones`;
+  const lead = `In ${r.moves} positions where only one move held, you moved quickly (under half your usual time per move) ${times(r.rushed)}`;
+  const common = {
+    n: r.moves,
+    unit: 'moves where only one move held',
+    games: r.games,
+    estimate: r.ratio,
+    format: 'ratio' as const,
+    reference: 1,
+    isFocus: false,
+    evidence: evidenceOf(r.evidence),
+    detail: `Quick moves: ${pct(r.share.value)} of these (90%: ${pct(r.share.lo)}–${pct(r.share.hi)}). Estimate: error rate on quick moves ÷ on slower ones.`,
+  };
+  if (r.ratio.lo > 1) {
+    return {
+      ...base,
+      ...common,
+      tone: 'habit',
+      state: 'clear',
+      text: `${lead}, and those quick moves went wrong more often: ${counts}, about ${r.ratio.value.toFixed(1)}× as often.`,
+    };
+  }
+  if (r.ratio.hi < 1) {
+    return { ...base, ...common, tone: 'strength', state: 'clear', text: `${lead}, and those quick moves held up: ${counts}.` };
+  }
+  return { ...base, ...common, tone: 'neutral', state: 'leaning', text: `${lead}: ${counts}; no clear difference yet.` };
+}
+
+const p100 = (x: number) => x.toFixed(1);
+
+/**
+ * Cost by type (Slice 3): win chance given away per 100 forcing moves (captures, checks, sacrifices) against per
+ * 100 quiet ones. A habit, never a forcing share. People and Maia bots at one speed; style gate and flip test.
+ */
+function costLine(model: InsightsModel): ProfileLine {
+  const base: Base = { id: 'cost-by-type', trait: 'cost-by-type', title: 'Forcing and quiet moves', group: 'human-like' };
+  const c: CostByType = model.costByType;
+  const g = INSIGHTS.minSample;
+  const sp = c.speed ? `${SPEED_WORD[c.speed]} ` : '';
+  const note = c.stockfishGames
+    ? `${plural(c.stockfishGames, `${sp}game`)} against Stockfish levels left out: their weaker levels give pieces away at random.`
+    : undefined;
+  if (c.state === 'not-enough') {
+    const need =
+      c.games < g.styleGames
+        ? { have: c.games, of: g.styleGames, what: `${sp}games vs people and Maia bots` }
+        : c.forcing.moves < g.cardMoves
+          ? { have: c.forcing.moves, of: g.cardMoves, what: 'forcing moves' }
+          : { have: c.quiet.moves, of: g.cardMoves, what: 'quiet moves' };
+    const line = waitingLine(base, need, c.games);
+    return note ? { ...line, note } : line;
+  }
+  const head =
+    `In ${c.games} ${sp}games against people and Maia bots, your forcing moves (captures, checks, sacrifices) gave away ` +
+    `${p100(c.forcing.per100)} points of win chance per 100 moves, your quiet moves ${p100(c.quiet.per100)} ` +
+    `(${c.forcing.moves} forcing, ${c.quiet.moves} quiet moves)`;
+  const detail = 'Estimate: forcing minus quiet, points per 100 moves, interval clustered by game.';
+  const common = {
+    n: c.forcing.moves + c.quiet.moves,
+    unit: 'moves',
+    games: c.games,
+    estimate: c.difference,
+    format: 'per100' as const,
+    reference: 0,
+    isFocus: false,
+    evidence: evidenceOf(c.evidence),
+    ...(note ? { note } : {}),
+  };
+  if (c.state === 'clear') {
+    const costlier = c.difference.lo > 0 ? 'forcing' : 'quiet';
+    return { ...base, ...common, detail, tone: 'habit', state: 'clear', text: `${head}. Your ${costlier} moves cost you more.` };
+  }
+  const excludes = c.difference.lo > 0 || c.difference.hi < 0;
+  return {
+    ...base,
+    ...common,
+    tone: 'neutral',
+    state: 'leaning',
+    text: `${head}; no clear difference yet.`,
+    detail: excludes
+      ? `${detail} The difference moves when ${INSIGHTS.flipTest.games} games are added at either end of your range (flip test), so it stays leaning.`
+      : detail,
+  };
+}
+
 /** Opening approach, and the "not the problem" line when the opening clearly holds up. */
 function openingLine(model: InsightsModel): ProfileLine {
   const base: Base = { id: 'openings', trait: 'openings', title: 'Your openings', group: 'all' };
@@ -438,12 +547,23 @@ export function buildProfile(model: InsightsModel, options: ProfileOptions = {})
     groupNote: groupNote(model.window),
     lines: [],
     waiting: [],
-    style: { have: best?.[1] ?? 0, of: g.styleGames, speed: best?.[0] ?? null },
+    style: model.costByType.speed
+      ? { have: model.costByType.games, of: g.styleGames, speed: model.costByType.speed }
+      : { have: best?.[1] ?? 0, of: g.styleGames, speed: best?.[0] ?? null },
     focus: { id: focusId, lineId: null },
     closing: CLOSING_LINE,
   };
   if (profile.status === 'locked') return profile;
-  const all = [...phaseLines(model), threatLine(model), episodeLine(model, 'conversion'), episodeLine(model, 'saves'), clockLine(model), openingLine(model)];
+  const all = [
+    ...phaseLines(model),
+    threatLine(model),
+    episodeLine(model, 'conversion'),
+    episodeLine(model, 'saves'),
+    clockLine(model),
+    rushedLine(model),
+    openingLine(model),
+    costLine(model),
+  ];
   const shown = all.filter((l) => l.state !== 'not-enough');
   const lineId = focusLineId(focusId, shown);
   profile.lines = shown.map((l) => (l.id === lineId ? { ...l, isFocus: true } : l));
@@ -458,9 +578,12 @@ export type LearnerView = { strength: ProfileLine | null; reassurance: ProfileLi
 
 const STRENGTH_ORDER = ['conversion', 'saves', 'threats', 'phase-strength', 'clock'];
 
-/** Learner (decision §2, amendment §5): one proven strength, one reassurance, clear lines only, no numbers. */
+/**
+ * Learner (decision §2, amendment §5): one proven strength, one reassurance, clear lines only, no numbers, and
+ * nothing of style.
+ */
 export function learnerView(profile: PlayerProfile): LearnerView {
-  const clear = profile.lines.filter((l) => l.state === 'clear' && l.plain);
+  const clear = profile.lines.filter((l) => l.state === 'clear' && l.plain && !STYLE_TRAITS.includes(l.trait));
   const strength = STRENGTH_ORDER.map((id) => clear.find((l) => l.id === id && l.tone === 'strength')).find((l) => l) ?? null;
   const reassurance = clear.find((l) => l.tone === 'reassurance') ?? null;
   return { strength, reassurance };
@@ -472,8 +595,6 @@ export function clubLines(profile: PlayerProfile): ProfileLine[] {
 }
 
 // ---- sentences around the lines ------------------------------------------------------------------------
-
-const SPEED_WORD: Record<Speed, string> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid', classical: 'classical', untimed: 'untimed' };
 
 /** "From your 24 reviewed games, 3 Oct – 17 Oct: 18 vs Stockfish levels, 4 vs Maia bots, 2 vs people." */
 export function windowText(profile: PlayerProfile, formatDate: (iso: string) => string = (iso) => iso.slice(0, 10)): string {
@@ -499,9 +620,12 @@ export function noFocusText(profile: PlayerProfile): string {
   return profile.games < of ? `No Focus yet: ${profile.games} of ${of} games.` : 'No Focus yet: nothing stands out clearly enough to train.';
 }
 
-/** Club and Analyst: where the style lines stand (they come in later slices). */
+/** Club and Analyst: where the style lines stand (forcing and quiet moves need the style gate). */
 export function styleText(profile: PlayerProfile): string {
   const s = profile.style;
+  if (s.speed && s.have >= s.of) {
+    return `Lines about how you play are read from your ${s.have} ${SPEED_WORD[s.speed]} games against people and Maia bots.`;
+  }
   const best = s.speed ? ` (most so far: ${s.have} ${SPEED_WORD[s.speed]})` : '';
   return `Lines about how you play need ${s.of} games at one speed against people and Maia bots: not enough yet${best}.`;
 }

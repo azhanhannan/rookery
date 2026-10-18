@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { CLOSING_LINE } from '../../src/insights/profile';
 import type { GameRecord } from '../../src/game/types';
 import type { PuzzleSet } from '../../src/puzzles/types';
-import { hangingGames, profileGames } from '../fixtures/insightsGames';
+import { forcingCostGame, hangingGames, profileGames } from '../fixtures/insightsGames';
 
 // "Your recent games" on #/insights at phone width, one test per Review style. The seeded set: 22 games that
 // leave a knight hanging against a Stockfish level (the Focus: pieces left hanging, opening) and 10 wins against
@@ -110,6 +110,11 @@ test('Analyst: every line with estimate, 90% interval, state, group and evidence
   await expect(waiting).toContainText('Using the clock: 0 of 15 games with a clock.');
   await expect(waiting).toContainText('Saving worse games: 0 of 8 clearly losing positions vs people and Maia bots.');
   await expect(waiting).toContainText('22 clearly losing positions against Stockfish levels left out');
+  // Slice 2: rushed critical moves need clocked games reviewed with two engine lines.
+  await expect(waiting).toContainText('Taking time when one move holds: 0 of 15 clocked games reviewed with two engine lines.');
+  // Slice 3: forcing vs quiet waits for 40 games at one speed against people and Maia bots.
+  await expect(waiting).toContainText('Forcing and quiet moves: 10 of 40 untimed games vs people and Maia bots.');
+  await expect(waiting).toContainText('22 untimed games against Stockfish levels left out');
   // No Train button anywhere in the section: its only links are evidence positions.
   await expect(section.getByTestId('train-this')).toHaveCount(0);
   await expect(section.getByText(/Train this/)).toHaveCount(0);
@@ -120,4 +125,27 @@ test('Analyst: every line with estimate, 90% interval, state, group and evidence
   await expect(link).toContainText('vs Maia 1100');
   await link.click();
   await expect(page).toHaveURL(/#\/review\/maia-\d+\?ply=13$/);
+});
+
+test('Club and Learner: forcing vs quiet moves once 40 games vs Maia pass the style gate; Learner sees none of it', async ({ page }) => {
+  const games = Array.from({ length: 40 }, (_, i) => forcingCostGame(i)).reverse();
+  await seed(page, games, 'club');
+  const section = page.getByTestId('profile-section');
+  const cost = section.locator('[data-testid="profile-line"][data-line="cost-by-type"]');
+  await expect(cost).toHaveAttribute('data-state', 'clear');
+  await expect(cost).toContainText('Forcing and quiet moves');
+  await expect(cost).toContainText(
+    'In 40 untimed games against people and Maia bots, your forcing moves (captures, checks, sacrifices) gave away 20.0 points of win chance per 100 moves',
+  );
+  await expect(cost).toContainText('Your forcing moves cost you more.');
+  await expect(section.getByTestId('profile-style-note')).toHaveText('Lines about how you play are read from your 40 untimed games against people and Maia bots.');
+  await expect(section.getByRole('link')).toHaveCount(0);
+  await noHorizontalScroll(page);
+
+  await seed(page, games, 'learner');
+  const learner = page.getByTestId('profile-section');
+  await expect(learner).toHaveAttribute('data-status', 'open');
+  await expect(learner).not.toContainText('Forcing');
+  await expect(learner).not.toContainText('forcing');
+  await expect(learner.getByTestId('profile-line')).toHaveCount(0);
 });

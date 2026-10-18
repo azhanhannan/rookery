@@ -60,3 +60,24 @@ export function maiaConversionGame(i: number): GameRecord {
 export function profileGames(maia = 10): GameRecord[] {
   return [...hangingGames(22), ...Array.from({ length: maia }, (_, i) => maiaConversionGame(i)).reverse()];
 }
+
+/**
+ * Game `i` of a series against a Maia bot where the player's one capture costs win chance: 1.e4 d5 2.exd5 (White
+ * 50% -> 30%) Qxd5, then quiet knight moves. Untimed, reviewed at depth 16 (format 2). Forty of them pass the
+ * style gate for cost by type: forcing moves clearly cost more than quiet ones.
+ */
+export function forcingCostGame(i: number): GameRecord {
+  const createdAt = new Date(Date.UTC(2026, 8, 1 + i, 16)).toISOString();
+  const g = makeGame({
+    id: `forcing-${i}`,
+    sans: ['e4', 'd5', 'exd5', 'Qxd5', ...shuffleSans(22)],
+    wins: (index) => (index < 3 ? 50 : 30),
+    result: '1/2-1/2',
+    termination: 'agreement',
+    botEngine: 'maia',
+    reviewVersion: 2,
+    createdAt,
+    endedAt: createdAt,
+  });
+  return { ...g, white: { name: 'You', isBot: false }, black: { name: 'Maia 1500', isBot: true, elo: 1500, engine: 'maia' } };
+}

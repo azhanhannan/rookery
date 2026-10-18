@@ -5,13 +5,16 @@ import {
   buildInsights,
   buildLedger,
   clockCard,
+  costByType,
+  flipStable,
   openingRows,
   phaseRates,
+  rushedCritical,
   trendFor,
 } from '../../src/insights/aggregate';
 import { buildGameFacts } from '../../src/insights/facts';
 import type { GameFacts } from '../../src/insights/types';
-import { day, fakeFacts, makeGame, type FakeGame } from '../fixtures/insights';
+import { day, fakeFacts, makeGame, type FakeGame, type FakeMove } from '../fixtures/insights';
 
 const many = (n: number, f: (i: number) => Omit<FakeGame, 'id'>) => Array.from({ length: n }, (_, i) => fakeFacts({ id: `g${i}`, at: day(i), ...f(i) }));
 
@@ -257,5 +260,131 @@ describe('insights: openings and trend', () => {
     expect(trendFor(better.slice(0, 30), 'M:hanging')).toMatchObject({ shown: false, direction: 'no-clear-change' });
     const flat = many(50, (i) => ({ moves: [{ phase: 'M', loss: 20 + (i % 3) * 5, motif: 'hanging' }] }));
     expect(trendFor(flat, 'M:hanging').direction).toBe('no-clear-change');
+  });
+});
+
+/**
+ * A clocked game with a version 2 review: `usual` moves at 10 s (the median), then critical moves, each
+ * `[spentMs, loss]`. Quick = under half the median (5 s).
+ */
+const clocked = (critical: [number, number][], usual = 10): FakeMove[] => [
+  ...Array.from({ length: usual }, () => ({ phase: 'M' as const, spentMs: 10_000, clockMs: 60_000, timeTrouble: false, critical: false })),
+  ...critical.map(([spentMs, loss]) => ({ phase: 'M' as const, spentMs, loss, clockMs: 60_000, timeTrouble: false, critical: true })),
+];
+
+describe('insights: rushed critical moves (profile Slice 2)', () => {
+  it('quick = under half the game’s median time; errors compared with slow critical moves', () => {
+    const facts = many(2, () => ({ moves: clocked([[2_000, 30], [4_999, 0], [5_000, 25], [20_000, 0]]) }));
+    const r = rushedCritical(facts)!;
+    expect(r).toMatchObject({ games: 2, moves: 8, rushed: 4, rushedErrors: 2, slowErrors: 2, shown: false });
+    expect(r.share.value).toBeCloseTo(0.5, 10);
+    expect(r.ratio.value).toBeCloseTo(1, 10);
+    expect(r.evidence.map((e) => [e.gameId, e.loss])).toEqual([['g0', 30], ['g1', 30]]);
+  });
+
+  it('the median is per game: the same 6 s is quick in a slow game and not in a fast one', () => {
+    const slowGame = fakeFacts({ id: 'slow', moves: clocked([[6_000, 0]]).map((m) => (m.critical ? m : { ...m, spentMs: 20_000 })) });
+    const fastGame = fakeFacts({ id: 'fast', moves: clocked([[6_000, 0]]).map((m) => (m.critical ? m : { ...m, spentMs: 8_000 })) });
+    expect(rushedCritical([slowGame])!.rushed).toBe(1);
+    expect(rushedCritical([fastGame])!.rushed).toBe(0);
+  });
+
+  it('only version 2 reviews count; book moves, already-lost positions and clock-only games are left out', () => {
+    const v1 = fakeFacts({ id: 'v1', moves: clocked([]).map(({ critical: _c, ...m }) => m) });
+    expect(rushedCritical([v1])).toBeNull();
+    const game = fakeFacts({
+      id: 'g',
+      moves: [
+        ...clocked([[1_000, 30]]),
+        { phase: 'M', spentMs: 1_000, loss: 30, critical: true, winBefore: 5, clockMs: 1 },
+        { phase: 'O', spentMs: 1_000, loss: 30, critical: true, inBook: true, clockMs: 1 },
+      ],
+    });
+    expect(rushedCritical([game])).toMatchObject({ games: 1, moves: 1, rushed: 1, rushedErrors: 1 });
+    expect(rushedCritical([{ ...game, clockOnly: true }])).toBeNull();
+    // Wired into the clock card.
+    expect(clockCard([game])!.rushedCritical).toMatchObject({ moves: 1 });
+  });
+
+  it('gate: 15 games, 30 critical moves, 8 errors; then the ratio and its interval', () => {
+    const habit = (n: number) => many(n, (i) => ({ moves: clocked([[2_000, 30], [2_000, 0], [15_000, i === 0 ? 30 : 0], [15_000, 0]]) }));
+    expect(rushedCritical(habit(14))!.shown).toBe(false);
+    const r = rushedCritical(habit(16))!;
+    expect(r).toMatchObject({ games: 16, moves: 64, rushed: 32, rushedErrors: 16, slowErrors: 1, shown: true });
+    expect(r.ratio.value).toBeCloseTo(16, 10);
+    expect(r.ratio.lo).toBeGreaterThan(1);
+    // Few critical moves: not shown, however many games.
+    const few = many(20, () => ({ moves: clocked([[2_000, 30]]) }));
+    expect(rushedCritical(few)).toMatchObject({ games: 20, moves: 20, shown: false });
+  });
+});
+
+/** A game against `opponent` with one forcing move losing `f` and one quiet move losing `q` (win-chance points). */
+const typed = (f: number, q: number): FakeMove[] => [
+  { phase: 'M', forcing: true, loss: f },
+  { phase: 'M', forcing: false, loss: q },
+];
+
+describe('insights: cost by type, forcing vs quiet (profile Slice 3)', () => {
+  const steady = (n: number, opponent: GameFacts['opponent'] = 'maia', speed: GameFacts['speed'] = 'rapid') =>
+    many(n, (i) => ({ opponent, speed, moves: typed(i % 2 ? 4 : 3, 1) }));
+
+  it('points per 100 moves on each kind, pooled over games; moves without the flag (older facts) are skipped', () => {
+    const c = costByType(steady(40));
+    expect(c).toMatchObject({ speed: 'rapid', games: 40, stockfishGames: 0, forcing: { moves: 40 }, quiet: { moves: 40 } });
+    expect(c.forcing.per100).toBeCloseTo(3.5, 10);
+    expect(c.quiet.per100).toBeCloseTo(1, 10);
+    expect(c.difference.value).toBeCloseTo(2.5, 10);
+    expect(c.difference.lo).toBeGreaterThan(0);
+    expect(c.flipStable).toBe(true);
+    expect(c.state).toBe('clear');
+  });
+
+  it('people and Maia bots pooled; Stockfish-level games never count, and are counted', () => {
+    const facts = [...steady(20, 'human'), ...steady(20, 'maia').map((f, i) => ({ ...f, gameId: `m${i}` })), ...steady(30, 'stockfish').map((f, i) => ({ ...f, gameId: `s${i}` }))];
+    const c = costByType(facts);
+    expect(c).toMatchObject({ games: 40, stockfishGames: 30, state: 'clear' });
+    // A Stockfish-only player never gets the line, however many games.
+    expect(costByType(steady(80, 'stockfish'))).toMatchObject({ speed: null, games: 0, state: 'not-enough' });
+  });
+
+  it('the style gate is 40 games at one speed: games at two speeds don’t add up', () => {
+    const facts = [...steady(30, 'maia', 'rapid'), ...steady(25, 'maia', 'blitz').map((f, i) => ({ ...f, gameId: `b${i}` }))];
+    expect(costByType(facts)).toMatchObject({ speed: 'rapid', games: 30, state: 'not-enough' });
+    expect(costByType(facts, 'blitz')).toMatchObject({ speed: 'blitz', games: 25, state: 'not-enough' });
+    expect(INSIGHTS.minSample.styleGames).toBe(40);
+  });
+
+  it('the interval spans 0: leaning, not clear', () => {
+    const c = costByType(many(40, (i) => ({ opponent: 'human', moves: typed(i % 2 ? 4 : 0, i % 2 ? 0 : 4) })));
+    expect(c.state).toBe('leaning');
+    expect(c.difference.lo).toBeLessThan(0);
+    expect(c.difference.hi).toBeGreaterThan(0);
+  });
+
+  it('flip test: 10 games added at the 5th percentile carry the difference across 0, so it stays leaning', () => {
+    // 34 games where forcing costs 3 more, 6 where quiet costs 8 more: the interval excludes 0, the flip doesn't hold.
+    const facts = many(40, (i) => ({ opponent: 'maia', moves: i < 34 ? typed(4, 1) : typed(0, 8) }));
+    const c = costByType(facts);
+    expect(c.difference.lo).toBeGreaterThan(0);
+    expect(c.flipStable).toBe(false);
+    expect(c.state).toBe('leaning');
+    const row = (a: number, b: number) => ({ aSum: a, aN: 1, bSum: b, bN: 1 });
+    const rows = Array.from({ length: 40 }, (_, i) => (i < 34 ? row(4, 1) : row(0, 8)));
+    expect(flipStable(rows, true)).toBe(false);
+    // Without the far tail the same majority holds up.
+    expect(flipStable(Array.from({ length: 40 }, (_, i) => (i % 2 ? row(4, 1) : row(3, 1))), true)).toBe(true);
+  });
+
+  it('evidence: the largest losses on the costlier kind', () => {
+    const c = costByType(many(40, (i) => ({ opponent: 'maia', moves: typed(i === 3 ? 40 : 12, 1) })));
+    expect(c.evidence[0]).toMatchObject({ gameId: 'g3', loss: 40 });
+    expect(c.evidence).toHaveLength(INSIGHTS.notableMoves);
+  });
+
+  it('in the model, with the page’s filters', () => {
+    const facts = [...steady(40, 'maia'), ...steady(5, 'human').map((f, i) => ({ ...f, gameId: `h${i}` }))];
+    expect(buildInsights(facts, { style: 'analyst' }).costByType).toMatchObject({ games: 45, state: 'clear' });
+    expect(buildInsights(facts, { style: 'analyst', opponent: 'human' }).costByType).toMatchObject({ games: 5, state: 'not-enough' });
   });
 });

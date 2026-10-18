@@ -3,7 +3,7 @@
 import { INSIGHTS } from '../config/tunables';
 import { openingFamily, UNKNOWN_OPENING } from '../account/openingsReport';
 import { bucketGames, CELL_IDS, OVERLAY_IDS, priorsOf, qualifies, summariseBucket } from './buckets';
-import { bayesSlope, diffOfMeans, medianOf, poissonRate, rateRatio, shrink, wilson } from './stats';
+import { bayesSlope, clusteredRatioDiff, diffOfMeans, medianOf, poissonRate, rateRatio, shrink, wilson, type ClusterRow } from './stats';
 import { CONVERSION_TARGET, OPENINGS_TARGET, trainForPhase } from './train';
 import {
   HUMAN_LIKE,
@@ -11,6 +11,7 @@ import {
   type AfterLossLine,
   type BucketId,
   type ClockCard,
+  type CostByType,
   type Episode,
   type EpisodeCard,
   type EpisodeStat,
@@ -28,6 +29,8 @@ import {
   type OpponentFilter,
   type OpponentType,
   type PhaseRate,
+  type RushedCritical,
+  type Speed,
   type ThreatStat,
   type Trend,
 } from './types';
@@ -268,7 +271,130 @@ export function clockCard(facts: GameFacts[]): ClockCard | null {
     shown,
     differs: shown && (ratio.lo > 1 || ratio.hi < 1),
     lostOnTimeWhileBetter: timed.filter((f) => f.lostOnTimeWhileBetter).map((f) => f.gameId),
-    rushedCritical: null,
+    rushedCritical: rushedCritical(timed),
+  };
+}
+
+/**
+ * Rushed critical moves over clocked games (see `RushedCritical`). Only games whose review stored the second line
+ * (version 2: `critical` set on the moves) count; null when there are none yet.
+ */
+export function rushedCritical(timed: GameFacts[]): RushedCritical | null {
+  let games = 0;
+  let moves = 0;
+  let rushed = 0;
+  let rushedErrors = 0;
+  let slowErrors = 0;
+  const evidence: EvidenceRef[] = [];
+  for (const f of timed) {
+    if (f.clockOnly || !f.moves.some((m) => m.critical !== undefined)) continue;
+    const median = medianOf(f.moves.filter((m) => !m.inBook && m.spentMs !== undefined).map((m) => m.spentMs!));
+    if (median === null) continue;
+    games++;
+    for (const m of f.moves) {
+      if (!m.critical || m.spentMs === undefined || !qualifies(m)) continue;
+      moves++;
+      const error = m.loss >= INSIGHTS.errorLoss;
+      if (m.spentMs < INSIGHTS.rushedShare * median) {
+        rushed++;
+        if (error) {
+          rushedErrors++;
+          evidence.push({ gameId: f.gameId, ply: m.ply, loss: m.loss });
+        }
+      } else if (error) slowErrors++;
+    }
+  }
+  if (games === 0) return null;
+  const slow = moves - rushed;
+  const g = INSIGHTS.minSample;
+  return {
+    games,
+    moves,
+    rushed,
+    rushedErrors,
+    slowErrors,
+    share: wilson(rushed, moves),
+    ratio: rushed && slow ? rateRatio(rushedErrors, rushed, slowErrors, slow) : { value: 1, lo: 0, hi: Infinity },
+    shown: games >= g.clockGames && moves >= g.cardMoves && rushedErrors + slowErrors >= g.cardEvents,
+    evidence: evidence.sort((a, b) => b.loss - a.loss).slice(0, INSIGHTS.notableMoves),
+  };
+}
+
+/** The speed a style line is read at: the filter's, or the one with the most games (ties: first in order). */
+function styleSpeed(games: GameFacts[], speed: Speed | 'all'): Speed | null {
+  if (speed !== 'all') return speed;
+  const counts = new Map<Speed, number>();
+  for (const f of games) counts.set(f.speed, (counts.get(f.speed) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+}
+
+const sameSide = (e: { lo: number; hi: number }, positive: boolean) => (positive ? e.lo > 0 : e.hi < 0);
+
+/**
+ * Flip test (analytics round 1, "Reliability"): add INSIGHTS.flipTest.games copies of the game at the 5th and at
+ * the 95th percentile of the per-game difference; the line is stable when neither moves the interval across 0.
+ */
+export function flipStable(rows: ClusterRow[], positive: boolean): boolean {
+  const per = rows
+    .filter((r) => r.aN > 0 && r.bN > 0)
+    .map((r) => ({ r, d: r.aSum / r.aN - r.bSum / r.bN }))
+    .sort((x, y) => x.d - y.d);
+  if (per.length === 0) return false;
+  const t = INSIGHTS.flipTest;
+  return [t.lowPct, t.highPct].every((p) => {
+    const row = per[Math.round(p * (per.length - 1))].r;
+    return sameSide(clusteredRatioDiff([...rows, ...Array.from({ length: t.games }, () => row)]), positive);
+  });
+}
+
+/**
+ * Cost by type: win chance given away on forcing moves against quiet ones, per 100 moves, against people and Maia
+ * bots at one speed (never Stockfish levels). Clear only past the style gate, with the interval of the difference
+ * excluding 0 and the flip test passed; leaning past the gate otherwise.
+ */
+export function costByType(facts: GameFacts[], speed: Speed | 'all' = 'all'): CostByType {
+  const chess = facts.filter((f) => !f.clockOnly);
+  const humanLike = chess.filter((f) => HUMAN_LIKE.includes(f.opponent));
+  const sp = styleSpeed(humanLike, speed);
+  const games = humanLike.filter((f) => f.speed === sp);
+  const rows: ClusterRow[] = [];
+  const forcingMoves: EvidenceRef[] = [];
+  const quietMoves: EvidenceRef[] = [];
+  for (const f of games) {
+    const row: ClusterRow = { aSum: 0, aN: 0, bSum: 0, bN: 0 };
+    for (const m of f.moves) {
+      if (m.forcing === undefined || !qualifies(m)) continue;
+      const ref = { gameId: f.gameId, ply: m.ply, loss: m.loss };
+      if (m.forcing) {
+        row.aSum += m.loss;
+        row.aN++;
+        if (m.loss >= INSIGHTS.eventLoss) forcingMoves.push(ref);
+      } else {
+        row.bSum += m.loss;
+        row.bN++;
+        if (m.loss >= INSIGHTS.eventLoss) quietMoves.push(ref);
+      }
+    }
+    rows.push(row);
+  }
+  const fN = rows.reduce((s, r) => s + r.aN, 0);
+  const qN = rows.reduce((s, r) => s + r.bN, 0);
+  const difference = clusteredRatioDiff(rows);
+  const g = INSIGHTS.minSample;
+  const gate = games.length >= g.styleGames && fN >= g.cardMoves && qN >= g.cardMoves;
+  const excludes = difference.lo > 0 || difference.hi < 0;
+  const stable = gate && excludes && flipStable(rows, difference.lo > 0);
+  const costlier = difference.value >= 0 ? forcingMoves : quietMoves;
+  return {
+    speed: sp,
+    games: games.length,
+    stockfishGames: chess.filter((f) => f.opponent === 'stockfish' && f.speed === sp).length,
+    forcing: { moves: fN, per100: fN ? rows.reduce((s, r) => s + r.aSum, 0) / fN : 0 },
+    quiet: { moves: qN, per100: qN ? rows.reduce((s, r) => s + r.bSum, 0) / qN : 0 },
+    difference,
+    flipStable: stable,
+    state: !gate ? 'not-enough' : stable ? 'clear' : 'leaning',
+    evidence: costlier.sort((a, b) => b.loss - a.loss).slice(0, INSIGHTS.notableMoves),
   };
 }
 
@@ -382,6 +508,7 @@ export function buildInsights(allFacts: GameFacts[], options: InsightsOptions): 
     conversion: episodeCard(facts, (f) => f.conversion, (f) => f.conversionStrong),
     saves: episodeCard(facts, (f) => f.save),
     clock: clockCard(facts),
+    costByType: costByType(facts, options.speed ?? 'all'),
     threats: threatStat(facts),
     window: modelWindow(facts),
     afterLoss: status === 'locked' ? null : afterLossLine(facts, options),

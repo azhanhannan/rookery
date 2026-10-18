@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bayesSlope,
+  clusteredRatioDiff,
   diffOfMeans,
   diffOfRates,
   gammaP,
@@ -94,5 +95,32 @@ describe('insights stats: known values', () => {
     const flat = bayesSlope(xs, xs.map((x) => (x % 2 ? 0.6 : 0.4)), 0.05);
     expect(flat.lo).toBeLessThan(0);
     expect(flat.hi).toBeGreaterThan(0);
+  });
+});
+
+describe('insights stats: clustered difference of pooled means (cost by type)', () => {
+  it('pooled means, and the hand-computed cluster-robust interval', () => {
+    // 34 games: forcing 4 (1 move), quiet 1 (1 move); 6 games: forcing 0, quiet 8.
+    const rows = [...Array.from({ length: 34 }, () => ({ aSum: 4, aN: 1, bSum: 1, bN: 1 })), ...Array.from({ length: 6 }, () => ({ aSum: 0, aN: 1, bSum: 8, bN: 1 }))];
+    const e = clusteredRatioDiff(rows);
+    expect(e.value).toBeCloseTo(136 / 40 - 82 / 40, 10);
+    const d1 = (4 - 3.4) / 40 - (1 - 2.05) / 40;
+    const d2 = (0 - 3.4) / 40 - (8 - 2.05) / 40;
+    const se = Math.sqrt((40 / 39) * (34 * d1 * d1 + 6 * d2 * d2));
+    expect(e.lo).toBeCloseTo(e.value - 1.645 * se, 10);
+    expect(e.hi).toBeCloseTo(e.value + 1.645 * se, 10);
+  });
+
+  it('pooled, not averaged per game: a game with many moves weighs more', () => {
+    const e = clusteredRatioDiff([
+      { aSum: 10, aN: 10, bSum: 0, bN: 1 },
+      { aSum: 0, aN: 1, bSum: 0, bN: 1 },
+    ]);
+    expect(e.value).toBeCloseTo(10 / 11, 10);
+  });
+
+  it('an empty kind or a single game: no interval', () => {
+    expect(clusteredRatioDiff([{ aSum: 1, aN: 1, bSum: 0, bN: 0 }, { aSum: 1, aN: 1, bSum: 0, bN: 0 }])).toEqual({ value: 0, lo: -Infinity, hi: Infinity });
+    expect(clusteredRatioDiff([{ aSum: 3, aN: 1, bSum: 1, bN: 1 }])).toEqual({ value: 2, lo: -Infinity, hi: Infinity });
   });
 });

@@ -15,6 +15,7 @@ import type {
   TrainTarget,
   Trend,
 } from '../../insights/types';
+import { CALCULATION_TARGET } from '../../insights/train';
 import { reviewHref, trainHref } from '../deepLinks';
 import { bucketName, PHASE_NAME, pct, plural, pts, rate1, trainLabel, withInterval } from './wording';
 
@@ -225,7 +226,46 @@ export function ClockView({ clock }: { clock: ClockCard | null }) {
       {clock.lostOnTimeWhileBetter.length > 0 && (
         <p className="text-sm">Lost on time while better: {plural(clock.lostOnTimeWhileBetter.length, 'game')}.</p>
       )}
+      <RushedCriticalView r={clock.rushedCritical} />
     </section>
+  );
+}
+
+/** Rushed critical moves (profile Slice 2): only-move positions played in under half the usual time. */
+function RushedCriticalView({ r }: { r: ClockCard['rushedCritical'] }) {
+  if (!r) {
+    return (
+      <p className="text-sm text-muted" data-testid="rushed-critical">
+        Positions where only one move held: re-review your clocked games to count them.
+      </p>
+    );
+  }
+  const slow = r.moves - r.rushed;
+  const habit = r.shown && r.ratio.lo > 1;
+  return (
+    <div className="flex flex-col gap-2" data-testid="rushed-critical">
+      {r.shown ? (
+        <p className="text-sm">
+          Where only one move held: {r.rushedErrors} errors in {plural(r.rushed, 'quick move')} (under half your usual time), {r.slowErrors} in{' '}
+          {plural(slow, 'slower move')}.{' '}
+          {r.ratio.lo > 1 || r.ratio.hi < 1 ? (
+            <>Errors are {withInterval(r.ratio, (x) => `${x.toFixed(1)}×`)} as frequent on the quick ones.</>
+          ) : (
+            <span className="text-muted">No clear difference (ratio {withInterval(r.ratio, (x) => `${x.toFixed(1)}×`)}).</span>
+          )}
+        </p>
+      ) : (
+        <p className="text-sm text-muted">
+          Where only one move held: not enough yet ({plural(r.moves, 'move')} over {plural(r.games, 'clocked game')} reviewed with two engine lines).
+        </p>
+      )}
+      {habit && (
+        <>
+          <p className="text-xs text-muted">Calculation mode on Puzzles hides the pieces: you work out the whole line before you move.</p>
+          <TrainLink target={CALCULATION_TARGET} testId="rushed-train" />
+        </>
+      )}
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INSIGHTS } from '../../src/config/tunables';
 import { myColor } from '../../src/game/myColor';
-import { buildAllFacts, buildGameFacts, criticalAt, exclusionReason, historyOf, opponentTypeOf, phasesOf } from '../../src/insights/facts';
+import { buildAllFacts, buildGameFacts, criticalAt, exclusionReason, historyOf, isForcing, opponentTypeOf, phasesOf } from '../../src/insights/facts';
 import {
   allowedBackRankMate,
   gaveAwayStalemate,
@@ -11,6 +11,7 @@ import {
   newThreat,
 } from '../../src/insights/motifs';
 import { captionFact } from '../../src/review/captions';
+import { hangingGame } from '../fixtures/insightsGames';
 import { makeGame, shuffleSans } from '../fixtures/insights';
 
 describe('myColor', () => {
@@ -271,5 +272,38 @@ describe('insights facts: critical moves from the second line', () => {
   it('from the mover’s side: the same gap counts for Black', () => {
     const g = makeGame({ reviewVersion: 2, user: 'b', engine: { 3: { bestMove: 'g8f6', score: { cp: -300 }, second: { move: 'b8c6', score: { cp: 100 } } } } });
     expect(buildGameFacts(g)!.moves.find((m) => m.ply === 4)!.critical).toBe(true);
+  });
+});
+
+describe('insights facts: forcing moves (factsVersion 3, cost by type)', () => {
+  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+  it('captures and checks are forcing; a quiet developing move is not; an illegal move is unknown', () => {
+    expect(isForcing('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2', 'e4d5')).toBe(true);
+    expect(isForcing('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', 'a1a8')).toBe(true);
+    expect(isForcing(START, 'e2e4')).toBe(false);
+    expect(isForcing(START, 'e2e5')).toBeUndefined();
+  });
+
+  it('a sacrifice that creates a threat is forcing: the rook goes en prise and threatens mate on the back rank', () => {
+    // Re5: dxe5 wins the rook, but Re8# is threatened.
+    expect(isForcing('6k1/5ppp/p2p4/R7/8/8/5PPP/6K1 w - - 0 1', 'a5e5')).toBe(true);
+    // The same rook move with the e-file shut by a defended pawn on e6: material given away, no threat. Not forcing.
+    expect(isForcing('6k1/5ppp/p2pp3/R7/8/8/5PPP/6K1 w - - 0 1', 'a5e5')).toBe(false);
+  });
+
+  it('a piece simply left hanging is a blunder, not a sacrifice: 3.Nh4?? is quiet', () => {
+    const f = buildGameFacts(hangingGame(0))!;
+    expect(f.factsVersion).toBe(3);
+    expect(f.moves.find((m) => m.ply === 5)).toMatchObject({ forcing: false, motif: 'hanging' });
+    expect(f.moves.every((m) => typeof m.forcing === 'boolean')).toBe(true);
+  });
+
+  it('every own move carries the flag, from Black’s side too', () => {
+    // 1.e4 d5 2.exd5 Qxd5: Black's recapture is forcing.
+    const g = makeGame({ user: 'b', sans: ['e4', 'd5', 'exd5', 'Qxd5', ...shuffleSans(20)] });
+    const f = buildGameFacts(g)!;
+    expect(f.moves.find((m) => m.ply === 2)!.forcing).toBe(false);
+    expect(f.moves.find((m) => m.ply === 4)!.forcing).toBe(true);
   });
 });

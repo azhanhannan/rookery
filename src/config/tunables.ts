@@ -492,6 +492,12 @@ export const INSIGHTS = {
     trendGames: 40,
     /** After-loss line: games played right after a loss. */
     afterLossGames: 15,
+    /** Player profile ("Your recent games", docs/player-profile-2026-10/decision.md §5): the section opens here. */
+    profileGames: 20,
+    /** Profile clock line: games with a clock reading (plus `troubleMoves`). */
+    clockGames: 15,
+    /** Profile style lines (later slices): games per speed against people and Maia bots. */
+    styleGames: 40,
   },
   /** z for 90% intervals; every interval on the page is 90%. */
   z: 1.645,

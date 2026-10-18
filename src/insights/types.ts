@@ -233,6 +233,10 @@ export type EpisodeStat = {
   shown: boolean;
   earlyRead: boolean;
   gameIds: string[];
+  /** Mean win chance (0-1) at the episodes' starts: what the positions were worth on average. 0 with none. */
+  expected: number;
+  /** Where each episode began, in game order. */
+  starts: { gameId: string; ply: number }[];
 };
 
 export type EpisodeCard = {
@@ -261,6 +265,37 @@ export type ClockCard = {
   lostOnTimeWhileBetter: string[];
   /** Needs `critical` on moves, which stored reviews don't have yet: null until then. */
   rushedCritical: null | { moves: number; rushed: number; rushedErrors: number; slowErrors: number };
+};
+
+/**
+ * Checking the opponent's threats: own qualifying moves right after the opponent's move made a threat a rule can
+ * show (`oppThreat`), and how often such a move gave material or mate away (loss >= eventLoss with a motif in
+ * THREAT_MOTIFS); the same event on the other moves is the comparison.
+ */
+export type ThreatStat = {
+  moves: number;
+  missed: number;
+  /** missed / moves, Wilson 90%. */
+  share: Estimate;
+  otherMoves: number;
+  otherMissed: number;
+  /** Rate after a threat ÷ rate on other moves, log-scale 90% interval. */
+  ratio: Estimate;
+  /** Passes the rate-card gate (cardMoves moves, cardEvents events). */
+  shown: boolean;
+  evidence: EvidenceRef[];
+};
+
+/** Which games the model covers: count, dates, and the split by opponent type and by speed. */
+export type ModelWindow = {
+  games: number;
+  /** playedAt of the oldest and newest game; absent with no games. */
+  from?: string;
+  to?: string;
+  opponents: Record<OpponentType, number>;
+  speeds: Partial<Record<Speed, number>>;
+  /** Games per speed against people and Maia bots (the style-line gate). */
+  humanLikeBySpeed: Partial<Record<Speed, number>>;
 };
 
 export type AfterLossLine = {
@@ -333,6 +368,8 @@ export type InsightsModel = {
   conversion: EpisodeCard;
   saves: EpisodeCard;
   clock: ClockCard | null;
+  threats: ThreatStat;
+  window: ModelWindow;
   /** Null unless the strict rules pass (and never on Learner). */
   afterLoss: AfterLossLine | null;
   openings: OpeningRow[];

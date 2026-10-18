@@ -6,7 +6,7 @@ import type { CoachFocusInfo } from '../api/types';
 import { MascotSays } from '../components/RookMascot';
 import { loadProgress } from '../endgames/progress';
 import { loadHistory } from '../game/storage';
-import { buildInsights, focusStatus } from '../insights';
+import { buildInsights, buildProfile, focusStatus } from '../insights';
 import type { LedgerBucket, OpponentFilter, Speed } from '../insights/types';
 import { loadLessonsProgress } from '../lessons/progress';
 import { harvestMistakes } from '../puzzles/harvest';
@@ -20,7 +20,9 @@ import { activeFocus, beginFocus, finishFocus, loadFocus, type StoredFocus } fro
 import { loadInsightFacts, type LoadedFacts } from './insights/loadFacts';
 import { AfterLossView, BucketCard, ClockView, EpisodesView, LedgerTable, OpeningsView, panel, PhaseRates, Tag } from './insights/parts';
 import { mistakesForMotif, processMeasures } from './insights/process';
-import { plural, SPEED_NAME } from './insights/wording';
+import { ProfileSection } from './insights/ProfileSection';
+import { plural, shortDate, SPEED_NAME } from './insights/wording';
+import { reviewHref } from './deepLinks';
 
 const EXCLUDED_NAME: Record<string, string> = {
   'no-side': 'no side to call yours',
@@ -118,6 +120,21 @@ export function InsightsPage() {
   const coachBucket = coachFocus ? bucketById(coachFocus.bucketId) : null;
   const pick = coachBucket ?? model.focus;
   const proposal = pick && pick.id !== focus?.bucketId ? { bucket: pick, coach: !!coachBucket } : null;
+
+  // "Your recent games": the same filtered model; the Focus it points at is the one shown above it.
+  const profile = buildProfile(model, { focusId: focus?.bucketId ?? coachBucket?.id ?? model.focus?.id ?? null });
+  const profileSection = (
+    <ProfileSection
+      profile={profile}
+      style={style}
+      evidenceHref={reviewHref}
+      gameLabel={(id) => {
+        const g = factsById.get(id);
+        return g ? `vs ${g.opponentName} · ${shortDate(g.playedAt)}` : 'A game';
+      }}
+      onShowFocus={() => document.querySelector('[data-testid="focus-card"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+    />
+  );
 
   function start(bucket: LedgerBucket, byCoach = false) {
     if (!loaded) return;
@@ -217,6 +234,9 @@ export function InsightsPage() {
             </a>
           </div>
         </div>
+      ) : null}
+      {model.status === 'locked' ? (
+        profileSection
       ) : (
         <>
           {!focus &&
@@ -232,6 +252,8 @@ export function InsightsPage() {
                 </MascotSays>
               </div>
             ))}
+
+          {profileSection}
 
           {style === 'club' &&
             extraCards.slice(0, 1).map((c) => <BucketCard key={c.bucket.id} bucket={c.bucket} role="watch" facts={factsById} trend={c.trend} />)}

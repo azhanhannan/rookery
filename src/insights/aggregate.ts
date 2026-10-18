@@ -11,20 +11,28 @@ import {
   type AfterLossLine,
   type BucketId,
   type ClockCard,
+  type Episode,
   type EpisodeCard,
   type EpisodeStat,
+  type EvidenceRef,
   type GameFacts,
   type InsightCard,
   type InsightsModel,
   type InsightsOptions,
   type Ledger,
   type LedgerBucket,
+  type ModelWindow,
+  type Motif,
+  type MoveFact,
   type OpeningRow,
   type OpponentFilter,
   type OpponentType,
   type PhaseRate,
+  type ThreatStat,
   type Trend,
 } from './types';
+
+type EpisodeOf = (f: GameFacts) => Episode | undefined;
 
 const byPlayed = (a: GameFacts, b: GameFacts) => a.playedAt.localeCompare(b.playedAt) || a.gameId.localeCompare(b.gameId);
 const rank = (a: LedgerBucket, b: LedgerBucket) => b.lowerBound - a.lowerBound || b.pointsPerGame.value - a.pointsPerGame.value;
@@ -125,13 +133,19 @@ export function phaseRates(facts: GameFacts[]): PhaseRate[] {
   });
 }
 
-function episodeStat(games: GameFacts[], overall: number): EpisodeStat {
+function episodeStat(games: GameFacts[], overall: number, episodeOf: EpisodeOf): EpisodeStat {
   const won = games.filter((f) => f.score === 1).length;
   const drawn = games.filter((f) => f.score === 0.5).length;
   const n = games.length;
   const g = INSIGHTS.minSample;
+  const starts = games.flatMap((f) => {
+    const e = episodeOf(f);
+    return e ? [{ gameId: f.gameId, ply: e.startPly, win: e.win }] : [];
+  });
   return {
     episodes: n,
+    expected: starts.length ? starts.reduce((s, e) => s + e.win, 0) / starts.length / 100 : 0,
+    starts: starts.map(({ gameId, ply }) => ({ gameId, ply })),
     won,
     drawn,
     lost: n - won - drawn,
@@ -143,20 +157,82 @@ function episodeStat(games: GameFacts[], overall: number): EpisodeStat {
   };
 }
 
-function episodeCard(facts: GameFacts[], pick: (f: GameFacts) => boolean, withStrong?: (f: GameFacts) => boolean): EpisodeCard {
+function episodeCard(facts: GameFacts[], episodeOf: EpisodeOf, strongOf?: EpisodeOf): EpisodeCard {
   const chess = facts.filter((f) => !f.clockOnly);
   const overall = chess.length ? chess.reduce((s, f) => s + f.score, 0) / chess.length : 0.5;
-  const games = chess.filter(pick);
+  const games = chess.filter((f) => !!episodeOf(f));
+  const stat = (g: GameFacts[]) => episodeStat(g, overall, episodeOf);
   const card: EpisodeCard = {
-    all: episodeStat(games, overall),
-    human: episodeStat(games.filter((f) => f.opponent === 'human'), overall),
-    maia: episodeStat(games.filter((f) => f.opponent === 'maia'), overall),
-    stockfish: episodeStat(games.filter((f) => f.opponent === 'stockfish'), overall),
-    humanLike: episodeStat(games.filter((f) => HUMAN_LIKE.includes(f.opponent)), overall),
+    all: stat(games),
+    human: stat(games.filter((f) => f.opponent === 'human')),
+    maia: stat(games.filter((f) => f.opponent === 'maia')),
+    stockfish: stat(games.filter((f) => f.opponent === 'stockfish')),
+    humanLike: stat(games.filter((f) => HUMAN_LIKE.includes(f.opponent))),
     train: CONVERSION_TARGET,
   };
-  if (withStrong) card.strong = episodeStat(chess.filter(withStrong), overall);
+  if (strongOf) card.strong = episodeStat(chess.filter((f) => !!strongOf(f)), overall, strongOf);
   return card;
+}
+
+/** Motifs that mean "the opponent's threat went through": material or mate given away. */
+export const THREAT_MOTIFS: readonly Motif[] = ['ignored-threat', 'hanging', 'allowed-mate', 'back-rank'];
+
+const gaveAway = (m: MoveFact) => m.loss >= INSIGHTS.eventLoss && !!m.motif && THREAT_MOTIFS.includes(m.motif);
+
+/** Checking their threats: own moves right after a threat, how often one went through, and the other moves. */
+export function threatStat(facts: GameFacts[]): ThreatStat {
+  let moves = 0;
+  let missed = 0;
+  let otherMoves = 0;
+  let otherMissed = 0;
+  const evidence: EvidenceRef[] = [];
+  for (const f of facts) {
+    if (f.clockOnly) continue;
+    for (const m of f.moves) {
+      if (!qualifies(m)) continue;
+      const event = gaveAway(m);
+      if (m.oppThreat) {
+        moves++;
+        if (event) {
+          missed++;
+          evidence.push({ gameId: f.gameId, ply: m.ply, loss: m.loss });
+        }
+      } else {
+        otherMoves++;
+        if (event) otherMissed++;
+      }
+    }
+  }
+  const g = INSIGHTS.minSample;
+  return {
+    moves,
+    missed,
+    share: wilson(missed, moves),
+    otherMoves,
+    otherMissed,
+    ratio: moves && otherMoves ? rateRatio(missed, moves, otherMissed, otherMoves) : { value: 1, lo: 0, hi: Infinity },
+    shown: moves >= g.cardMoves && missed >= g.cardEvents,
+    evidence: evidence.sort((a, b) => b.loss - a.loss).slice(0, INSIGHTS.notableMoves),
+  };
+}
+
+/** Which games the model covers: count, dates, and the split by opponent type and by speed. */
+export function modelWindow(facts: GameFacts[]): ModelWindow {
+  const opponents: Record<OpponentType, number> = { human: 0, maia: 0, stockfish: 0 };
+  const speeds: ModelWindow['speeds'] = {};
+  const humanLikeBySpeed: ModelWindow['humanLikeBySpeed'] = {};
+  for (const f of facts) {
+    opponents[f.opponent]++;
+    speeds[f.speed] = (speeds[f.speed] ?? 0) + 1;
+    if (HUMAN_LIKE.includes(f.opponent)) humanLikeBySpeed[f.speed] = (humanLikeBySpeed[f.speed] ?? 0) + 1;
+  }
+  const w: ModelWindow = { games: facts.length, opponents, speeds, humanLikeBySpeed };
+  if (facts.length) {
+    const times = facts.map((f) => f.playedAt).sort();
+    w.from = times[0];
+    w.to = times[times.length - 1];
+  }
+  return w;
 }
 
 export function clockCard(facts: GameFacts[]): ClockCard | null {
@@ -303,9 +379,11 @@ export function buildInsights(allFacts: GameFacts[], options: InsightsOptions): 
     focus,
     cards: status === 'locked' ? [] : cardsFor(options.style, ledger, focus, facts),
     phaseRates: phaseRates(facts),
-    conversion: episodeCard(facts, (f) => !!f.conversion, (f) => !!f.conversionStrong),
-    saves: episodeCard(facts, (f) => !!f.save),
+    conversion: episodeCard(facts, (f) => f.conversion, (f) => f.conversionStrong),
+    saves: episodeCard(facts, (f) => f.save),
     clock: clockCard(facts),
+    threats: threatStat(facts),
+    window: modelWindow(facts),
     afterLoss: status === 'locked' ? null : afterLossLine(facts, options),
     openings: openingRows(facts),
   };

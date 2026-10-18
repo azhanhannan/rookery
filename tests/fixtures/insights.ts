@@ -173,6 +173,8 @@ export function fakeFacts(g: FakeGame): GameFacts {
       ...(m.motif ? { motif: m.motif } : {}),
       ...(m.timeTrouble !== undefined ? { timeTrouble: m.timeTrouble } : {}),
       ...(m.clockMs !== undefined ? { clockMs: m.clockMs } : {}),
+      ...(m.spentMs !== undefined ? { spentMs: m.spentMs } : {}),
+      ...(m.critical !== undefined ? { critical: m.critical } : {}),
     });
     ply += 2;
   };

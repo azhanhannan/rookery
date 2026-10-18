@@ -233,6 +233,9 @@ describe('insights', () => {
     expect(conv.note).toContain('3 clearly winning positions against Stockfish levels left out');
     // The coach Focus outranks the ledger's pick, and the matching line says so.
     expect(p.focus).toEqual({ id: 'conversion', lineId: 'conversion' });
+    // Slice 2: no clocks here, so rushed critical moves wait (and the clock card has nothing to say about them).
+    expect(p.waiting.find((l) => l.id === 'rushed-critical')?.need).toEqual({ have: 0, of: 15, what: 'clocked games reviewed with two engine lines' });
+    expect(body.insights.clock).toBeNull();
 
     // Nothing of it on the public profile, signed out or as the coach.
     for (const who of [undefined, coach]) {

@@ -263,8 +263,32 @@ export type ClockCard = {
   /** The interval of the ratio excludes 1: a comparison sentence may be shown. */
   differs: boolean;
   lostOnTimeWhileBetter: string[];
-  /** Needs `critical` on moves, which stored reviews don't have yet: null until then. */
-  rushedCritical: null | { moves: number; rushed: number; rushedErrors: number; slowErrors: number };
+  /** Critical moves and the clock: null until a clocked game has a version 2 review (`critical` on its moves). */
+  rushedCritical: RushedCritical | null;
+};
+
+/**
+ * Rushed critical moves (decision Slice 2; analytics: insights round 1 §4). A critical move is one where only one
+ * move held (`MoveFact.critical`); it was rushed when played in under INSIGHTS.rushedShare of the player's median
+ * time per move in that game. Errors (loss >= errorLoss) on rushed critical moves are compared with critical moves
+ * played slowly. Own decisions, so every opponent counts (the page filter applies).
+ */
+export type RushedCritical = {
+  /** Clocked games with at least one critical-tagged qualifying move (version 2 reviews only). */
+  games: number;
+  /** Qualifying critical moves with a time reading. */
+  moves: number;
+  rushed: number;
+  rushedErrors: number;
+  slowErrors: number;
+  /** rushed / moves, Wilson 90%. */
+  share: Estimate;
+  /** Error rate on rushed ÷ on slow critical moves, log-scale 90% interval. */
+  ratio: Estimate;
+  /** Passes the gate: minSample.clockGames games, cardMoves critical moves, cardEvents errors. */
+  shown: boolean;
+  /** Rushed critical moves that were errors, largest loss first. */
+  evidence: EvidenceRef[];
 };
 
 /**

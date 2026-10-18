@@ -110,6 +110,8 @@ test('Analyst: every line with estimate, 90% interval, state, group and evidence
   await expect(waiting).toContainText('Using the clock: 0 of 15 games with a clock.');
   await expect(waiting).toContainText('Saving worse games: 0 of 8 clearly losing positions vs people and Maia bots.');
   await expect(waiting).toContainText('22 clearly losing positions against Stockfish levels left out');
+  // Slice 2: rushed critical moves need clocked games reviewed with two engine lines.
+  await expect(waiting).toContainText('Taking time when one move holds: 0 of 15 clocked games reviewed with two engine lines.');
   // No Train button anywhere in the section: its only links are evidence positions.
   await expect(section.getByTestId('train-this')).toHaveCount(0);
   await expect(section.getByText(/Train this/)).toHaveCount(0);

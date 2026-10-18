@@ -38,3 +38,5 @@ export function trainForBucket(id: BucketId): TrainTarget | null {
 
 export const OPENINGS_TARGET: TrainTarget = { kind: 'openings', href: '#/openings' };
 export const CONVERSION_TARGET: TrainTarget = { kind: 'endgames', href: '#/endgames' };
+/** Rushed critical moves (profile Slice 2) and cost by type: calculation mode on Puzzles. */
+export const CALCULATION_TARGET: TrainTarget = { kind: 'calculation', href: '#/puzzles' };

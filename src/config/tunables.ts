@@ -470,6 +470,11 @@ export const INSIGHTS = {
   phase: { middlePieces: 10, backRankSparse: 3, openingMaxPly: 30, endPieces: 6, endMen: 7 },
   /** Notable moves (largest losses) kept per game as evidence positions. */
   notableMoves: 5,
+  /**
+   * Rushed critical moves (profile Slice 2): a critical move (only one move holds) played in less than this
+   * share of the player's median time per move in that game (non-book moves with a clock reading).
+   */
+  rushedShare: 0.5,
   minSample: {
     /** Page unlocks at this many qualifying reviewed games; "early read" below `earlyGames`. */
     pageGames: 10,

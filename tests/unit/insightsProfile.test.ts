@@ -188,6 +188,60 @@ describe('profile: the clock', () => {
   });
 });
 
+/** Clocked moves with a version 2 review: 10 at 10 s, then critical ones as [spentMs, loss]. */
+const clockedCritical = (critical: [number, number][]): FakeMove[] => [
+  ...Array.from({ length: 10 }, () => ({ phase: 'M' as const, spentMs: 10_000, clockMs: 60_000, timeTrouble: false, critical: false })),
+  ...critical.map(([spentMs, loss]) => ({ phase: 'M' as const, spentMs, loss, clockMs: 60_000, timeTrouble: false, critical: true })),
+];
+
+describe('profile: rushed critical moves (Slice 2)', () => {
+  it('no clocks: waits with "0 of 15 clocked games reviewed with two engine lines"', () => {
+    const p = profileOf(middlegameLeaker());
+    expect(waiting(p, 'rushed-critical')!.need).toEqual({ have: 0, of: 15, what: 'clocked games reviewed with two engine lines' });
+    expect(waiting(p, 'rushed-critical')!.note).toBeUndefined();
+  });
+
+  it('clocked games from before the second line: waits, and says a re-review counts them', () => {
+    const p = profileOf(middlegameLeaker(25, () => [{ phase: 'E', timeTrouble: false, clockMs: 60000, spentMs: 5000 }]));
+    const w = waiting(p, 'rushed-critical')!;
+    expect(w.need!.have).toBe(0);
+    expect(w.note).toBe('25 clocked games reviewed before the second engine line was kept: a re-review counts them here.');
+  });
+
+  it('quick critical moves go wrong more often: a clear habit with the ratio, all opponents, no training link', () => {
+    const p = profileOf(middlegameLeaker(25, (i) => clockedCritical([[2_000, 30], [2_000, 0], [15_000, i === 0 ? 30 : 0], [15_000, 0]])));
+    const r = line(p, 'rushed-critical')!;
+    expect(r).toMatchObject({ trait: 'clock', tone: 'habit', state: 'clear', group: 'all', format: 'ratio', reference: 1, n: 100, games: 25 });
+    expect(r.text).toBe(
+      'In 100 positions where only one move held, you moved quickly (under half your usual time per move) 50 times, and those quick moves went wrong more often: 25 errors in 50 quick moves, 1 in 50 slower ones, about 25.0× as often.',
+    );
+    expect(r.estimate.lo).toBeGreaterThan(1);
+    expect(r.evidence).toHaveLength(INSIGHTS.notableMoves);
+    expect(r).not.toHaveProperty('train');
+    expect(r.plain).toBeUndefined();
+  });
+
+  it('no clear difference: leaning; too few critical moves or errors: waiting with "n of X"', () => {
+    const even = profileOf(middlegameLeaker(25, (i) => clockedCritical([[2_000, i % 4 ? 0 : 30], [15_000, i % 4 === 1 ? 30 : 0]])));
+    expect(line(even, 'rushed-critical')).toMatchObject({ state: 'leaning', tone: 'neutral' });
+    expect(line(even, 'rushed-critical')!.text).toContain('no clear difference yet');
+    const few = profileOf(middlegameLeaker(25, () => clockedCritical([[2_000, 0]])));
+    expect(waiting(few, 'rushed-critical')!.need).toEqual({ have: 25, of: 30, what: 'moves where only one move held' });
+    const clean = profileOf(middlegameLeaker(25, () => clockedCritical([[2_000, 0], [15_000, 0]])));
+    expect(waiting(clean, 'rushed-critical')!.need).toEqual({ have: 0, of: 8, what: 'errors where only one move held' });
+    const short = profileOf(middlegameLeaker(25, (i) => (i < 10 ? clockedCritical([[2_000, 30], [15_000, 0]]) : [])));
+    expect(waiting(short, 'rushed-critical')!.need).toEqual({ have: 10, of: 15, what: 'clocked games reviewed with two engine lines' });
+  });
+
+  it('Learner never sees it', () => {
+    const p = profileOf(middlegameLeaker(25, () => clockedCritical([[2_000, 0], [2_000, 0], [15_000, 30], [15_000, 0]])));
+    const r = line(p, 'rushed-critical')!;
+    expect(r).toMatchObject({ tone: 'strength', state: 'clear' });
+    const v = learnerView(p);
+    expect([v.strength?.id, v.reassurance?.id]).not.toContain('rushed-critical');
+  });
+});
+
 describe('profile: the Focus', () => {
   const facts = middlegameLeaker(25, (i) => [{ oppThreat: true }, { oppThreat: true }, ...(i % 2 ? [{ oppThreat: true, loss: 30, motif: 'ignored-threat' as const }] : [])], () => ({
     opponent: 'human',
@@ -303,6 +357,10 @@ describe('profile: wording rules (decision §2, AC4)', () => {
       middlegameLeaker(25, () => [{ phase: 'E', timeTrouble: true, clockMs: 5000, loss: 30 }, { phase: 'E', timeTrouble: true, clockMs: 4000 }]),
       middlegameLeaker(25, () => [{ phase: 'E', timeTrouble: true, clockMs: 5000 }, { phase: 'E', timeTrouble: false, clockMs: 9000, loss: 30 }], () => ({ extra: { lostOnTimeWhileBetter: true } })),
       many(25, () => ({ opening: 'Italian Game', moves: [{ phase: 'O', loss: 30 }, { phase: 'O', loss: 30 }, { phase: 'M', loss: 30 }] })),
+      middlegameLeaker(25, () => [{ phase: 'E', timeTrouble: false, clockMs: 60000, spentMs: 5000 }]),
+      middlegameLeaker(25, (i) => clockedCritical([[2_000, 30], [2_000, 0], [15_000, i === 0 ? 30 : 0], [15_000, 0]])),
+      middlegameLeaker(25, () => clockedCritical([[2_000, 0], [2_000, 0], [15_000, 30], [15_000, 0]])),
+      middlegameLeaker(25, (i) => clockedCritical([[2_000, i % 4 ? 0 : 30], [15_000, i % 4 === 1 ? 30 : 0]])),
     ];
     let checked = 0;
     for (const facts of scenarios) {

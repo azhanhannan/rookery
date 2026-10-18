@@ -28,6 +28,7 @@ import {
   type OpponentFilter,
   type OpponentType,
   type PhaseRate,
+  type RushedCritical,
   type ThreatStat,
   type Trend,
 } from './types';
@@ -268,7 +269,52 @@ export function clockCard(facts: GameFacts[]): ClockCard | null {
     shown,
     differs: shown && (ratio.lo > 1 || ratio.hi < 1),
     lostOnTimeWhileBetter: timed.filter((f) => f.lostOnTimeWhileBetter).map((f) => f.gameId),
-    rushedCritical: null,
+    rushedCritical: rushedCritical(timed),
+  };
+}
+
+/**
+ * Rushed critical moves over clocked games (see `RushedCritical`). Only games whose review stored the second line
+ * (version 2: `critical` set on the moves) count; null when there are none yet.
+ */
+export function rushedCritical(timed: GameFacts[]): RushedCritical | null {
+  let games = 0;
+  let moves = 0;
+  let rushed = 0;
+  let rushedErrors = 0;
+  let slowErrors = 0;
+  const evidence: EvidenceRef[] = [];
+  for (const f of timed) {
+    if (f.clockOnly || !f.moves.some((m) => m.critical !== undefined)) continue;
+    const median = medianOf(f.moves.filter((m) => !m.inBook && m.spentMs !== undefined).map((m) => m.spentMs!));
+    if (median === null) continue;
+    games++;
+    for (const m of f.moves) {
+      if (!m.critical || m.spentMs === undefined || !qualifies(m)) continue;
+      moves++;
+      const error = m.loss >= INSIGHTS.errorLoss;
+      if (m.spentMs < INSIGHTS.rushedShare * median) {
+        rushed++;
+        if (error) {
+          rushedErrors++;
+          evidence.push({ gameId: f.gameId, ply: m.ply, loss: m.loss });
+        }
+      } else if (error) slowErrors++;
+    }
+  }
+  if (games === 0) return null;
+  const slow = moves - rushed;
+  const g = INSIGHTS.minSample;
+  return {
+    games,
+    moves,
+    rushed,
+    rushedErrors,
+    slowErrors,
+    share: wilson(rushed, moves),
+    ratio: rushed && slow ? rateRatio(rushedErrors, rushed, slowErrors, slow) : { value: 1, lo: 0, hi: Infinity },
+    shown: games >= g.clockGames && moves >= g.cardMoves && rushedErrors + slowErrors >= g.cardEvents,
+    evidence: evidence.sort((a, b) => b.loss - a.loss).slice(0, INSIGHTS.notableMoves),
   };
 }
 

@@ -1,5 +1,6 @@
 // Player profile, "Your recent games" (pure): a re-reading of the Insights model as dated, counted habit lines.
-// Spec: docs/player-profile-2026-10/decision.md (Slice 1). No new facts, no engine: InsightsModel -> PlayerProfile.
+// Spec: docs/player-profile-2026-10/decision.md (Slices 1-2). No engine: InsightsModel -> PlayerProfile.
+// Slice 2 adds rushed critical moves (a clock line).
 //
 // Rules the wording keeps (decision §2):
 // - Verbs, not nouns: what the player did in these games, never what they are. PROFILE_BANNED is tested.
@@ -23,7 +24,7 @@ export type ProfileGroup = 'all' | 'human-like';
 export type ProfileFormat = 'per100' | 'share' | 'ratio';
 
 export type ProfileLine = {
-  /** 'phase', 'phase-strength', 'threats', 'conversion', 'saves', 'clock', 'openings'. */
+  /** 'phase', 'phase-strength', 'threats', 'conversion', 'saves', 'clock', 'rushed-critical', 'openings'. */
   id: string;
   trait: ProfileTrait;
   /** Phase lines: which phase. */
@@ -110,6 +111,7 @@ export const PROFILE_BANNED: readonly RegExp[] = [
 ];
 
 const PHASE_WORD: Record<Phase, string> = { O: 'opening', M: 'middlegame', E: 'endgame' };
+const SPEED_WORD: Record<Speed, string> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid', classical: 'classical', untimed: 'untimed' };
 const rate1 = (x: number) => x.toFixed(1);
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const times = (n: number) => `${n} time${n === 1 ? '' : 's'}`;
@@ -355,6 +357,53 @@ function clockLine(model: InsightsModel): ProfileLine {
   return { ...base, ...common, tone: 'neutral', state: 'leaning', text: `With the clock low: ${counts}; no clear difference yet.${flag}` };
 }
 
+/**
+ * Rushed critical moves (Slice 2): positions where only one move held, played in under half the usual time per
+ * move, against those played slowly. Needs clocks and reviews that kept the second engine line (version 2).
+ */
+function rushedLine(model: InsightsModel): ProfileLine {
+  const base: Base = { id: 'rushed-critical', trait: 'clock', title: 'Taking time when one move holds', group: 'all' };
+  const g = INSIGHTS.minSample;
+  const what = 'clocked games reviewed with two engine lines';
+  const r = model.clock?.rushedCritical ?? null;
+  if (!r) {
+    const line = waitingLine(base, { have: 0, of: g.clockGames, what }, 0);
+    const old = model.clock?.games ?? 0;
+    return old ? { ...line, note: `${plural(old, 'clocked game')} reviewed before the second engine line was kept: a re-review counts them here.` } : line;
+  }
+  if (r.games < g.clockGames) return waitingLine(base, { have: r.games, of: g.clockGames, what }, r.games);
+  if (r.moves < g.cardMoves) return waitingLine(base, { have: r.moves, of: g.cardMoves, what: 'moves where only one move held' }, r.games);
+  const errors = r.rushedErrors + r.slowErrors;
+  if (errors < g.cardEvents) return waitingLine(base, { have: errors, of: g.cardEvents, what: 'errors where only one move held' }, r.games);
+  const slow = r.moves - r.rushed;
+  const counts = `${plural(r.rushedErrors, 'error')} in ${r.rushed} quick moves, ${r.slowErrors} in ${slow} slower ones`;
+  const lead = `In ${r.moves} positions where only one move held, you moved quickly (under half your usual time per move) ${times(r.rushed)}`;
+  const common = {
+    n: r.moves,
+    unit: 'moves where only one move held',
+    games: r.games,
+    estimate: r.ratio,
+    format: 'ratio' as const,
+    reference: 1,
+    isFocus: false,
+    evidence: evidenceOf(r.evidence),
+    detail: `Quick moves: ${pct(r.share.value)} of these (90%: ${pct(r.share.lo)}–${pct(r.share.hi)}). Estimate: error rate on quick moves ÷ on slower ones.`,
+  };
+  if (r.ratio.lo > 1) {
+    return {
+      ...base,
+      ...common,
+      tone: 'habit',
+      state: 'clear',
+      text: `${lead}, and those quick moves went wrong more often: ${counts}, about ${r.ratio.value.toFixed(1)}× as often.`,
+    };
+  }
+  if (r.ratio.hi < 1) {
+    return { ...base, ...common, tone: 'strength', state: 'clear', text: `${lead}, and those quick moves held up: ${counts}.` };
+  }
+  return { ...base, ...common, tone: 'neutral', state: 'leaning', text: `${lead}: ${counts}; no clear difference yet.` };
+}
+
 /** Opening approach, and the "not the problem" line when the opening clearly holds up. */
 function openingLine(model: InsightsModel): ProfileLine {
   const base: Base = { id: 'openings', trait: 'openings', title: 'Your openings', group: 'all' };
@@ -443,7 +492,15 @@ export function buildProfile(model: InsightsModel, options: ProfileOptions = {})
     closing: CLOSING_LINE,
   };
   if (profile.status === 'locked') return profile;
-  const all = [...phaseLines(model), threatLine(model), episodeLine(model, 'conversion'), episodeLine(model, 'saves'), clockLine(model), openingLine(model)];
+  const all = [
+    ...phaseLines(model),
+    threatLine(model),
+    episodeLine(model, 'conversion'),
+    episodeLine(model, 'saves'),
+    clockLine(model),
+    rushedLine(model),
+    openingLine(model),
+  ];
   const shown = all.filter((l) => l.state !== 'not-enough');
   const lineId = focusLineId(focusId, shown);
   profile.lines = shown.map((l) => (l.id === lineId ? { ...l, isFocus: true } : l));
@@ -472,8 +529,6 @@ export function clubLines(profile: PlayerProfile): ProfileLine[] {
 }
 
 // ---- sentences around the lines ------------------------------------------------------------------------
-
-const SPEED_WORD: Record<Speed, string> = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid', classical: 'classical', untimed: 'untimed' };
 
 /** "From your 24 reviewed games, 3 Oct – 17 Oct: 18 vs Stockfish levels, 4 vs Maia bots, 2 vs people." */
 export function windowText(profile: PlayerProfile, formatDate: (iso: string) => string = (iso) => iso.slice(0, 10)): string {

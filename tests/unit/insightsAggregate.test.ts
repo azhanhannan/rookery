@@ -7,11 +7,12 @@ import {
   clockCard,
   openingRows,
   phaseRates,
+  rushedCritical,
   trendFor,
 } from '../../src/insights/aggregate';
 import { buildGameFacts } from '../../src/insights/facts';
 import type { GameFacts } from '../../src/insights/types';
-import { day, fakeFacts, makeGame, type FakeGame } from '../fixtures/insights';
+import { day, fakeFacts, makeGame, type FakeGame, type FakeMove } from '../fixtures/insights';
 
 const many = (n: number, f: (i: number) => Omit<FakeGame, 'id'>) => Array.from({ length: n }, (_, i) => fakeFacts({ id: `g${i}`, at: day(i), ...f(i) }));
 
@@ -257,5 +258,61 @@ describe('insights: openings and trend', () => {
     expect(trendFor(better.slice(0, 30), 'M:hanging')).toMatchObject({ shown: false, direction: 'no-clear-change' });
     const flat = many(50, (i) => ({ moves: [{ phase: 'M', loss: 20 + (i % 3) * 5, motif: 'hanging' }] }));
     expect(trendFor(flat, 'M:hanging').direction).toBe('no-clear-change');
+  });
+});
+
+/**
+ * A clocked game with a version 2 review: `usual` moves at 10 s (the median), then critical moves, each
+ * `[spentMs, loss]`. Quick = under half the median (5 s).
+ */
+const clocked = (critical: [number, number][], usual = 10): FakeMove[] => [
+  ...Array.from({ length: usual }, () => ({ phase: 'M' as const, spentMs: 10_000, clockMs: 60_000, timeTrouble: false, critical: false })),
+  ...critical.map(([spentMs, loss]) => ({ phase: 'M' as const, spentMs, loss, clockMs: 60_000, timeTrouble: false, critical: true })),
+];
+
+describe('insights: rushed critical moves (profile Slice 2)', () => {
+  it('quick = under half the game’s median time; errors compared with slow critical moves', () => {
+    const facts = many(2, () => ({ moves: clocked([[2_000, 30], [4_999, 0], [5_000, 25], [20_000, 0]]) }));
+    const r = rushedCritical(facts)!;
+    expect(r).toMatchObject({ games: 2, moves: 8, rushed: 4, rushedErrors: 2, slowErrors: 2, shown: false });
+    expect(r.share.value).toBeCloseTo(0.5, 10);
+    expect(r.ratio.value).toBeCloseTo(1, 10);
+    expect(r.evidence.map((e) => [e.gameId, e.loss])).toEqual([['g0', 30], ['g1', 30]]);
+  });
+
+  it('the median is per game: the same 6 s is quick in a slow game and not in a fast one', () => {
+    const slowGame = fakeFacts({ id: 'slow', moves: clocked([[6_000, 0]]).map((m) => (m.critical ? m : { ...m, spentMs: 20_000 })) });
+    const fastGame = fakeFacts({ id: 'fast', moves: clocked([[6_000, 0]]).map((m) => (m.critical ? m : { ...m, spentMs: 8_000 })) });
+    expect(rushedCritical([slowGame])!.rushed).toBe(1);
+    expect(rushedCritical([fastGame])!.rushed).toBe(0);
+  });
+
+  it('only version 2 reviews count; book moves, already-lost positions and clock-only games are left out', () => {
+    const v1 = fakeFacts({ id: 'v1', moves: clocked([]).map(({ critical: _c, ...m }) => m) });
+    expect(rushedCritical([v1])).toBeNull();
+    const game = fakeFacts({
+      id: 'g',
+      moves: [
+        ...clocked([[1_000, 30]]),
+        { phase: 'M', spentMs: 1_000, loss: 30, critical: true, winBefore: 5, clockMs: 1 },
+        { phase: 'O', spentMs: 1_000, loss: 30, critical: true, inBook: true, clockMs: 1 },
+      ],
+    });
+    expect(rushedCritical([game])).toMatchObject({ games: 1, moves: 1, rushed: 1, rushedErrors: 1 });
+    expect(rushedCritical([{ ...game, clockOnly: true }])).toBeNull();
+    // Wired into the clock card.
+    expect(clockCard([game])!.rushedCritical).toMatchObject({ moves: 1 });
+  });
+
+  it('gate: 15 games, 30 critical moves, 8 errors; then the ratio and its interval', () => {
+    const habit = (n: number) => many(n, (i) => ({ moves: clocked([[2_000, 30], [2_000, 0], [15_000, i === 0 ? 30 : 0], [15_000, 0]]) }));
+    expect(rushedCritical(habit(14))!.shown).toBe(false);
+    const r = rushedCritical(habit(16))!;
+    expect(r).toMatchObject({ games: 16, moves: 64, rushed: 32, rushedErrors: 16, slowErrors: 1, shown: true });
+    expect(r.ratio.value).toBeCloseTo(16, 10);
+    expect(r.ratio.lo).toBeGreaterThan(1);
+    // Few critical moves: not shown, however many games.
+    const few = many(20, () => ({ moves: clocked([[2_000, 30]]) }));
+    expect(rushedCritical(few)).toMatchObject({ games: 20, moves: 20, shown: false });
   });
 });

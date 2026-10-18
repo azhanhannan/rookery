@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { INSIGHTS } from '../../src/config/tunables';
 import type { GameRecord } from '../../src/game/types';
 import type { PuzzleSet } from '../../src/puzzles/types';
 import { hangingGames } from '../fixtures/insightsGames';
@@ -126,7 +127,7 @@ test('signed in: the coach’s Focus outranks the ledger pick, and the page says
   expect(res.ok()).toBe(true);
   // The account has no games on the server; it answers with a linked coach and a coach Focus.
   await page.route('**/api/insights/facts', (route) =>
-    route.fulfill({ json: { factsVersion: 1, facts: [], coverage: { total: 0, included: 0, excluded: {} }, history: [], coachLinked: true } }),
+    route.fulfill({ json: { factsVersion: INSIGHTS.factsVersion, facts: [], coverage: { total: 0, included: 0, excluded: {} }, history: [], coachLinked: true } }),
   );
   await page.route('**/api/insights/coach-focus', (route) =>
     route.fulfill({

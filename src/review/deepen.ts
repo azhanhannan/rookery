@@ -9,13 +9,20 @@ import { reviewMove, summarize, toPosition } from './buildReview';
 import { whiteWin } from './classify';
 import type { GameReview, MoveReview, PositionReview } from './types';
 
-/** A stored position as a one-line analysis (the second line, used only by the Great check, is not stored). */
+/**
+ * A stored position as an analysis: its best line, plus the second line's move and score when the review kept
+ * it (version 2; the Great check reads it). Version 1 reviews give a one-line analysis.
+ */
 export function storedAnalysis(pos: PositionReview, depth: number): AnalysisResult {
+  const d = pos.depth ?? depth;
   const lines =
     pos.bestMove && pos.score
-      ? [{ rank: 1, move: pos.bestMove, score: pos.score, pv: pos.bestLine, depth: pos.depth ?? depth }]
+      ? [
+          { rank: 1, move: pos.bestMove, score: pos.score, pv: pos.bestLine, depth: d },
+          ...(pos.second ? [{ rank: 2, move: pos.second.move, score: pos.second.score, pv: [pos.second.move], depth: d }] : []),
+        ]
       : [];
-  return { fen: pos.fen, lines, depth: pos.depth ?? depth };
+  return { fen: pos.fen, lines, depth: d };
 }
 
 /** Positions whose analysis "Analyse deeper here" refreshes for the move at `ply` (0 = start position). */
@@ -26,8 +33,8 @@ export function deepenIndices(ply: number): number[] {
 /**
  * Pure: the review with fresh analyses for some positions. Every move that starts or ends on a refreshed
  * position is re-labelled, plus the move after the last of them (its Miss check reads the previous loss).
- * A re-labelled move whose "before" analysis is the stored single line can't be re-checked for Great, so
- * a Great it already had is kept rather than downgraded to Best.
+ * A re-labelled move whose "before" analysis is a stored single line (a version 1 review) can't be re-checked
+ * for Great, so a Great it already had is kept rather than downgraded to Best.
  */
 export function applyDeepAnalysis(review: GameReview, updates: Map<number, AnalysisResult>): GameReview {
   const positions = review.positions.map((p, i) => {
@@ -64,7 +71,8 @@ export function applyDeepAnalysis(review: GameReview, updates: Map<number, Analy
       inBook: old.label === 'Book',
       lastCapture: prevPlayed?.captured ? prevPlayed.to : undefined,
     });
-    if (old.label === 'Great' && next.label === 'Best' && !updates.has(ply - 1)) {
+    // A stored second line lets the Great check run again; without one (version 1) the old Great stands.
+    if (old.label === 'Great' && next.label === 'Best' && !updates.has(ply - 1) && !positions[ply - 1].second) {
       next.label = 'Great';
       next.explanation = old.explanation;
     }

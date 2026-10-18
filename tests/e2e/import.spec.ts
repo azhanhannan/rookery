@@ -121,7 +121,7 @@ test('games reviewed at a lower depth are offered a background re-review, which 
   await page.goto('/#/games');
   await page.reload();
   const offer = page.getByTestId('rereview-offer');
-  await expect(offer).toContainText('1 game reviewed at a lower depth than now (depth 16)');
+  await expect(offer).toContainText('1 game has an older review: below depth 16, or without the engine’s second-best move');
   await offer.getByRole('button', { name: 'Re-review in the background' }).click();
   await expect(page.getByTestId('batch-review')).toContainText('Re-reviewing game 1 of 1 at depth 16');
   await expect(offer).toHaveCount(0);

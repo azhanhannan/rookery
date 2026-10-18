@@ -33,7 +33,16 @@ export const MOTIFS: readonly Motif[] = [
   'hanging', 'fork', 'missed-free-piece', 'missed-mate', 'allowed-mate', 'back-rank', 'ignored-threat', 'stalemate', 'other',
 ];
 
-export type OpponentType = 'human' | 'bot';
+/**
+ * Who sat opposite: a person, a Maia bot (trained on human games), or a Stockfish level (weakened bots that
+ * blunder on a dice roll). Opponent-dependent traits (conversion, saves) never use Stockfish-level games.
+ */
+export type OpponentType = 'human' | 'maia' | 'stockfish';
+export const OPPONENT_TYPES: readonly OpponentType[] = ['human', 'maia', 'stockfish'];
+/** The page's opponent filter: one type, both kinds of bot, or everyone. */
+export type OpponentFilter = OpponentType | 'bot' | 'all';
+/** Opponent types whose games count for opponent-dependent traits (decision §4): people and Maia bots. */
+export const HUMAN_LIKE: readonly OpponentType[] = ['human', 'maia'];
 export type Speed = RatingCategory | 'untimed';
 
 /** Why a game is left out of Insights. */
@@ -55,7 +64,11 @@ export type MoveFact = {
   loss: number;
   label: MoveLabel;
   inBook: boolean;
-  /** Only one move holds (multiPV gap >= REVIEW.greatGap). Absent: stored reviews don't keep the second line yet. */
+  /**
+   * Only one move holds: the best line is at least REVIEW.greatGap (win chance) better than the second.
+   * False when there was a second line within the gap, or only one legal move. Absent: a version 1 review,
+   * which never stored the second line (re-review to fill it).
+   */
   critical?: boolean;
   /** Own clock after the move, and time spent on it (previous own clock - this one + increment). */
   clockMs?: number;
@@ -220,12 +233,19 @@ export type EpisodeStat = {
   shown: boolean;
   earlyRead: boolean;
   gameIds: string[];
+  /** Mean win chance (0-1) at the episodes' starts: what the positions were worth on average. 0 with none. */
+  expected: number;
+  /** Where each episode began, in game order. */
+  starts: { gameId: string; ply: number }[];
 };
 
 export type EpisodeCard = {
   all: EpisodeStat;
   human: EpisodeStat;
-  bot: EpisodeStat;
+  maia: EpisodeStat;
+  stockfish: EpisodeStat;
+  /** People and Maia bots pooled: what opponent-dependent profile lines use (never Stockfish levels). */
+  humanLike: EpisodeStat;
   /** Conversion only: the +3.0 check. */
   strong?: EpisodeStat;
   train: TrainTarget;
@@ -245,6 +265,37 @@ export type ClockCard = {
   lostOnTimeWhileBetter: string[];
   /** Needs `critical` on moves, which stored reviews don't have yet: null until then. */
   rushedCritical: null | { moves: number; rushed: number; rushedErrors: number; slowErrors: number };
+};
+
+/**
+ * Checking the opponent's threats: own qualifying moves right after the opponent's move made a threat a rule can
+ * show (`oppThreat`), and how often such a move gave material or mate away (loss >= eventLoss with a motif in
+ * THREAT_MOTIFS); the same event on the other moves is the comparison.
+ */
+export type ThreatStat = {
+  moves: number;
+  missed: number;
+  /** missed / moves, Wilson 90%. */
+  share: Estimate;
+  otherMoves: number;
+  otherMissed: number;
+  /** Rate after a threat ÷ rate on other moves, log-scale 90% interval. */
+  ratio: Estimate;
+  /** Passes the rate-card gate (cardMoves moves, cardEvents events). */
+  shown: boolean;
+  evidence: EvidenceRef[];
+};
+
+/** Which games the model covers: count, dates, and the split by opponent type and by speed. */
+export type ModelWindow = {
+  games: number;
+  /** playedAt of the oldest and newest game; absent with no games. */
+  from?: string;
+  to?: string;
+  opponents: Record<OpponentType, number>;
+  speeds: Partial<Record<Speed, number>>;
+  /** Games per speed against people and Maia bots (the style-line gate). */
+  humanLikeBySpeed: Partial<Record<Speed, number>>;
 };
 
 export type AfterLossLine = {
@@ -291,7 +342,7 @@ export type Trend = {
 export type InsightsOptions = {
   style: ReviewStyle;
   speed?: Speed | 'all';
-  opponent?: OpponentType | 'all';
+  opponent?: OpponentFilter;
   now?: Date;
   /** Every finished game in order (reviewed or not), for the after-loss line. Default: the facts themselves. */
   history?: HistoryEntry[];
@@ -307,7 +358,7 @@ export type InsightsModel = {
   /** Games still needed to unlock the page (0 when unlocked). */
   needGames: number;
   coverage?: Coverage;
-  filters: { speed: Speed | 'all'; opponent: OpponentType | 'all' };
+  filters: { speed: Speed | 'all'; opponent: OpponentFilter };
   ledger: Ledger;
   /** The top eligible bucket, or null. */
   focus: LedgerBucket | null;
@@ -317,6 +368,8 @@ export type InsightsModel = {
   conversion: EpisodeCard;
   saves: EpisodeCard;
   clock: ClockCard | null;
+  threats: ThreatStat;
+  window: ModelWindow;
   /** Null unless the strict rules pass (and never on Learner). */
   afterLoss: AfterLossLine | null;
   openings: OpeningRow[];

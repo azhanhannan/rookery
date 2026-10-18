@@ -440,8 +440,12 @@ export const LESSONS = {
  * player's side; losses are win chance given away (points lost per game = loss / 100).
  */
 export const INSIGHTS = {
-  /** Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated. */
-  factsVersion: 1,
+  /**
+   * Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated.
+   * 2 (player profile Step 0): `MoveFact.critical` from the stored second line, and opponents split into
+   * human / maia / stockfish.
+   */
+  factsVersion: 2,
   /** Reviews shallower than this are left out (REVIEW.depth.normal). */
   minReviewDepth: 16,
   /** Games where the player made fewer moves are left out (RATING.minMoves). */
@@ -488,6 +492,12 @@ export const INSIGHTS = {
     trendGames: 40,
     /** After-loss line: games played right after a loss. */
     afterLossGames: 15,
+    /** Player profile ("Your recent games", docs/player-profile-2026-10/decision.md §5): the section opens here. */
+    profileGames: 20,
+    /** Profile clock line: games with a clock reading (plus `troubleMoves`). */
+    clockGames: 15,
+    /** Profile style lines (later slices): games per speed against people and Maia bots. */
+    styleGames: 40,
   },
   /** z for 90% intervals; every interval on the page is 90%. */
   z: 1.645,

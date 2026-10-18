@@ -8,6 +8,7 @@ import { bucketName, homeworkFromEvidence, homeworkTitleFor } from '../../coach/
 import { useHomeworkDraft } from '../../coach/homeworkDraft';
 import { COACH, INSIGHTS } from '../../config/tunables';
 import type { BucketId, LedgerBucket, Trend } from '../../insights/types';
+import { ProfileSection } from '../insights/ProfileSection';
 import { button, card, message, primary, shortDate } from './ui';
 
 const studentUrl = (id: string) => `#/coach/student/${encodeURIComponent(id)}`;
@@ -35,7 +36,7 @@ export function InsightsTab({ student }: { student: CoachUser }) {
 
   if (error && !data) return <p role="alert" className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading insights…</p>;
-  const { insights, evidence, trends, focus } = data;
+  const { insights, evidence, trends, focus, profile } = data;
   const trendOf = new Map(trends.map((t) => [t.bucketId, t]));
   const cov = insights.coverage;
 
@@ -116,6 +117,15 @@ export function InsightsTab({ student }: { student: CoachUser }) {
         {note && <p className="mt-2 text-xs" role="status">{note}</p>}
         {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       </section>
+
+      {profile && (
+        <ProfileSection
+          profile={profile}
+          style="analyst"
+          coach={{ username: student.username }}
+          evidenceHref={(gameId, ply) => `${studentUrl(student.id)}/game/${encodeURIComponent(gameId)}${ply !== undefined ? `/${ply}` : ''}`}
+        />
+      )}
 
       {insights.status === 'locked' ? (
         <section className={card}>

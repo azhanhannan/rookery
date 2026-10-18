@@ -2,6 +2,7 @@
 // All routes live under /api. Errors are { error: string } with a 4xx/5xx status; the string is
 // written for the player to read.
 import type { Color, GameRecord, GameResult } from '../game/types';
+import type { PlayerProfile } from '../insights/profile';
 import type { BucketId, Coverage, GameFacts, HistoryEntry, InsightsModel, Motif, Phase, Trend } from '../insights/types';
 
 export type RatingCategory = 'bullet' | 'blitz' | 'rapid' | 'classical';
@@ -305,6 +306,11 @@ export type CoachInsightsResponse = {
   evidence: Partial<Record<BucketId, CoachEvidence[]>>;
   trends: Trend[];
   focus: CoachFocusInfo | null;
+  /**
+   * "Your recent games" as the student sees it (src/insights/profile.ts over the same model), pointing at the
+   * coach Focus when one is set. Coaches only: the public profile never carries it.
+   */
+  profile: PlayerProfile;
 };
 // PUT /api/coach/students/:studentId/focus { bucketId, note? } -> { focus } (replaces any active one, from any coach).
 // 400 for an unknown or 'other' bucket. DELETE /api/coach/students/:studentId/focus -> 204; 404 unless this coach set it.

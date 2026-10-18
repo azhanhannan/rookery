@@ -10,6 +10,7 @@
 //        the Focus (top eligible bucket), cards by Review style, phase error rates, conversion and saves,
 //        clock card, after-loss line (null unless it passes the strict rules), opening rows.
 //        Pass `history: historyOf(records)` so "after a loss" also sees unreviewed games.
+//   2b. buildProfile(model, { focusId? }) -> PlayerProfile   ("Your recent games": habit lines, profile.ts)
 //   3. startFocus(facts, bucketId, now) -> Focus   (store it; synced key later)
 //      focusStatus(focus, facts, now) -> FocusStatus   ('too-early' | 'on-track' | 'not-yet' | 'verdict')
 //
@@ -36,3 +37,23 @@ export { allowedBackRankMate, gaveAwayStalemate, ignoredThreat, isBackRankMate, 
 export { trainForBucket, trainForMotif, trainForPhase } from './train';
 export * from './stats';
 export * from './types';
+export {
+  buildProfile,
+  clubLines,
+  CLOSING_LINE,
+  focusLineId,
+  learnerView,
+  lockedText,
+  noFocusText,
+  PROFILE_BANNED,
+  profileTexts,
+  SECTION_TITLE,
+  styleText,
+  windowText,
+  type LearnerView,
+  type PlayerProfile,
+  type ProfileLine,
+  type ProfileOptions,
+  type ProfileState,
+  type ProfileTone,
+} from './profile';

@@ -40,6 +40,19 @@ describe('insights: page gates', () => {
     expect(buildInsights(facts, { style: 'club' }).filters).toEqual({ speed: 'all', opponent: 'all' });
   });
 
+  it('opponent filter: people, Maia bots, Stockfish levels, or both kinds of bot', () => {
+    const facts = [
+      ...many(4, () => ({ opponent: 'human' })),
+      ...many(5, () => ({ opponent: 'maia' })),
+      ...many(6, () => ({ opponent: 'stockfish' })),
+    ].map((f, i) => ({ ...f, gameId: `o${i}` }));
+    expect(buildInsights(facts, { style: 'club', opponent: 'human' }).games).toBe(4);
+    expect(buildInsights(facts, { style: 'club', opponent: 'maia' }).games).toBe(5);
+    expect(buildInsights(facts, { style: 'club', opponent: 'stockfish' }).games).toBe(6);
+    expect(buildInsights(facts, { style: 'club', opponent: 'bot' }).games).toBe(11);
+    expect(buildInsights(facts, { style: 'club', opponent: 'all' }).games).toBe(15);
+  });
+
   it('facts from an older version are ignored (rebuilt, never mixed)', () => {
     const facts = typicalPlayer(12).map((f) => ({ ...f, factsVersion: INSIGHTS.factsVersion - 1 }));
     expect(buildInsights(facts, { style: 'club' }).games).toBe(0);
@@ -155,13 +168,18 @@ describe('insights: conversion and saves', () => {
   it('Wilson score by opponent type, shown from 8 episodes', () => {
     const facts = many(12, (i) => ({
       score: i < 6 ? 1 : i < 9 ? 0.5 : 0,
-      opponent: i % 2 ? 'human' : 'bot',
+      opponent: i % 2 ? 'human' : i % 4 === 0 ? 'maia' : 'stockfish',
       extra: { conversion: { startPly: 21, win: 80 } },
     }));
     const model = buildInsights(facts, { style: 'club' });
     expect(model.conversion.all).toMatchObject({ episodes: 12, won: 6, drawn: 3, lost: 3, shown: true, earlyRead: true });
     expect(model.conversion.all.score.value).toBeCloseTo(7.5 / 12, 10);
-    expect(model.conversion.human.episodes + model.conversion.bot.episodes).toBe(12);
+    expect(model.conversion.human.episodes).toBe(6);
+    expect(model.conversion.maia.episodes).toBe(3);
+    expect(model.conversion.stockfish.episodes).toBe(3);
+    // People and Maia pooled; Stockfish levels never.
+    expect(model.conversion.humanLike.episodes).toBe(9);
+    expect(model.conversion.humanLike.gameIds).not.toContain(facts[2].gameId);
     expect(model.conversion.human.shown).toBe(false);
     expect(model.saves.all.episodes).toBe(0);
   });

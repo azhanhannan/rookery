@@ -6,8 +6,8 @@ import type { CoachFocusInfo } from '../api/types';
 import { MascotSays } from '../components/RookMascot';
 import { loadProgress } from '../endgames/progress';
 import { loadHistory } from '../game/storage';
-import { buildInsights, focusStatus } from '../insights';
-import type { LedgerBucket, OpponentType, Speed } from '../insights/types';
+import { buildInsights, buildProfile, focusStatus } from '../insights';
+import type { LedgerBucket, OpponentFilter, Speed } from '../insights/types';
 import { loadLessonsProgress } from '../lessons/progress';
 import { harvestMistakes } from '../puzzles/harvest';
 import { loadSchedule } from '../puzzles/spacedRepetition';
@@ -20,7 +20,9 @@ import { activeFocus, beginFocus, finishFocus, loadFocus, type StoredFocus } fro
 import { loadInsightFacts, type LoadedFacts } from './insights/loadFacts';
 import { AfterLossView, BucketCard, ClockView, EpisodesView, LedgerTable, OpeningsView, panel, PhaseRates, Tag } from './insights/parts';
 import { mistakesForMotif, processMeasures } from './insights/process';
-import { plural, SPEED_NAME } from './insights/wording';
+import { ProfileSection } from './insights/ProfileSection';
+import { plural, shortDate, SPEED_NAME } from './insights/wording';
+import { reviewHref } from './deepLinks';
 
 const EXCLUDED_NAME: Record<string, string> = {
   'no-side': 'no side to call yours',
@@ -45,7 +47,7 @@ export function InsightsPage() {
   const reviewedInBatch = useBatchReview((s) => s.reviewed);
   const [loaded, setLoaded] = useState<LoadedFacts | null>(null);
   const [speed, setSpeed] = useState<Speed | 'all'>('all');
-  const [opponent, setOpponent] = useState<OpponentType | 'all'>('all');
+  const [opponent, setOpponent] = useState<OpponentFilter>('all');
   const [stored, setStored] = useState<StoredFocus | null>(loadFocus);
   const [showAfterLoss, setShowAfterLoss] = useState(false);
   const [coachFocus, setCoachFocus] = useState<CoachFocusInfo | null>(null);
@@ -119,6 +121,21 @@ export function InsightsPage() {
   const pick = coachBucket ?? model.focus;
   const proposal = pick && pick.id !== focus?.bucketId ? { bucket: pick, coach: !!coachBucket } : null;
 
+  // "Your recent games": the same filtered model; the Focus it points at is the one shown above it.
+  const profile = buildProfile(model, { focusId: focus?.bucketId ?? coachBucket?.id ?? model.focus?.id ?? null });
+  const profileSection = (
+    <ProfileSection
+      profile={profile}
+      style={style}
+      evidenceHref={reviewHref}
+      gameLabel={(id) => {
+        const g = factsById.get(id);
+        return g ? `vs ${g.opponentName} · ${shortDate(g.playedAt)}` : 'A game';
+      }}
+      onShowFocus={() => document.querySelector('[data-testid="focus-card"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+    />
+  );
+
   function start(bucket: LedgerBucket, byCoach = false) {
     if (!loaded) return;
     setStored(beginFocus(loaded.facts, bucket.id, new Date(), byCoach ? 'coach' : 'self'));
@@ -169,10 +186,12 @@ export function InsightsPage() {
           </label>
           <label className="flex items-center gap-1">
             <span className="text-muted">Opponents</span>
-            <select className="rounded bg-surface-2 px-2 py-1" value={opponent} onChange={(e) => setOpponent(e.target.value as OpponentType | 'all')} data-testid="filter-opponent">
+            <select className="rounded bg-surface-2 px-2 py-1" value={opponent} onChange={(e) => setOpponent(e.target.value as OpponentFilter)} data-testid="filter-opponent">
               <option value="all">People and bots</option>
               <option value="human">People</option>
-              <option value="bot">Bots</option>
+              <option value="bot">Bots (all)</option>
+              <option value="maia">Maia bots</option>
+              <option value="stockfish">Stockfish levels</option>
             </select>
           </label>
           {filtered && <span className="self-center text-xs text-muted">{plural(model.games, 'game')} match</span>}
@@ -215,6 +234,9 @@ export function InsightsPage() {
             </a>
           </div>
         </div>
+      ) : null}
+      {model.status === 'locked' ? (
+        profileSection
       ) : (
         <>
           {!focus &&
@@ -230,6 +252,8 @@ export function InsightsPage() {
                 </MascotSays>
               </div>
             ))}
+
+          {profileSection}
 
           {style === 'club' &&
             extraCards.slice(0, 1).map((c) => <BucketCard key={c.bucket.id} bucket={c.bucket} role="watch" facts={factsById} trend={c.trend} />)}

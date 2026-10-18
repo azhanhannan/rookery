@@ -13,10 +13,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/review/reviewRunner', () => ({ runReview: mocks.runReview }));
 vi.mock('../../src/account/gameSync', () => ({ queueGameUpload: mocks.queueGameUpload }));
 
-/** A review that fits `r`, at `depth`. */
-function reviewFor(r: GameRecord, depth: number, createdAt = new Date().toISOString()): GameReview {
+/** A review that fits `r`, at `depth` (current format unless `version` says otherwise). */
+function reviewFor(r: GameRecord, depth: number, createdAt = new Date().toISOString(), version: 1 | 2 = 2): GameReview {
   return {
-    version: 1,
+    version,
     depth,
     createdAt,
     positions: [r.startFen, ...r.moves.map((m) => m.fenAfter)].map((fen) => ({ fen })),
@@ -73,6 +73,23 @@ describe('shallowReviewIds', () => {
     expect(t.shallowReviewIds(games, 20)).toEqual([a.id, b.id]);
     expect(t.reReviewDepth()).toBe(16);
   });
+
+  it('also lists version 1 reviews (no second engine line) at any depth', async () => {
+    const t = await boot();
+    const a = finished(['e2e4']);
+    const b = finished(['d2d4']);
+    const c = finished(['c2c4']);
+    const games = [
+      { ...a, review: reviewFor(a, 16, undefined, 1) },
+      { ...b, review: reviewFor(b, 20, undefined, 1) },
+      { ...c, review: reviewFor(c, 16) },
+      // Stored before the field existed at all: treated as version 1.
+      { ...c, id: 'no-version', review: { ...reviewFor(c, 16), version: undefined } as unknown as GameReview },
+    ];
+    expect(t.shallowReviewIds(games)).toEqual([a.id, b.id, 'no-version']);
+    expect(t.reviewOutdated(reviewFor(c, 16))).toBe(false);
+    expect(t.reviewOutdated(reviewFor(c, 16, undefined, 1))).toBe(true);
+  });
 });
 
 describe('engineWantedElsewhere', () => {
@@ -107,6 +124,29 @@ describe('batch review depth', () => {
     expect(t.findArchivedGame(a.id)?.review?.depth).toBe(16);
     expect(t.findArchivedGame(b.id)?.review?.depth).toBe(20);
     expect(mocks.queueGameUpload).toHaveBeenCalledWith(a.id);
+  });
+});
+
+describe('re-review of version 1 reviews', () => {
+  it('a depth-16 version 1 review is not skipped: the run redoes it and leaves a version 2 review', async () => {
+    const t = await boot();
+    const a = finished(['e2e4']);
+    const b = finished(['d2d4']);
+    t.archiveGames([{ ...a, review: reviewFor(a, 16, undefined, 1) }, { ...b, review: reviewFor(b, 16) }]);
+    location.hash = '#/games';
+    expect(t.startReReview()).toBe(true);
+    expect(t.useBatchReview.getState().ids).toEqual([a.id]);
+    await settle(t);
+    expect(t.useBatchReview.getState()).toMatchObject({ status: 'done', reviewed: 1, skipped: 0 });
+    expect(t.findArchivedGame(a.id)?.review?.version).toBe(2);
+    expect(t.shallowReviewIds(t.loadHistory())).toEqual([]);
+  });
+
+  it('the batch skip needs the current format as well as the depth', async () => {
+    const t = await boot();
+    const a = finished(['e2e4']);
+    expect(t.reviewedAtLeast({ ...a, review: reviewFor(a, 20, undefined, 1) }, 16)).toBe(false);
+    expect(t.reviewedAtLeast({ ...a, review: reviewFor(a, 20) }, 16)).toBe(true);
   });
 });
 

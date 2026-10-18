@@ -11,6 +11,7 @@ import type {
 import { evidenceHomeworkItem, isFocusBucket } from '../../../src/coach/insights';
 import type { GameRecord } from '../../../src/game/types';
 import { buildInsights, filterFacts, trendFor } from '../../../src/insights/aggregate';
+import { buildProfile } from '../../../src/insights/profile';
 import type { BucketId, GameFacts, LedgerBucket, Trend } from '../../../src/insights/types';
 import { requireUser } from '../auth/session';
 import type { Db } from '../db';
@@ -123,8 +124,11 @@ export async function insightRoutes(app: FastifyInstance, { db }: { db: Db }) {
         ? buckets.map((b) => trendFor(current, b.id)).filter((t) => t.shown)
         : [];
 
+    // The student's "Your recent games", built by the same pure code as their page; the coach Focus outranks.
+    const profile = buildProfile(insights, { focusId: focus?.bucketId ?? insights.focus?.id ?? null });
+
     const who: CoachUser = { id: student.id, username: student.username };
-    return reply.send({ student: who, insights, evidence, trends, focus } satisfies CoachInsightsResponse);
+    return reply.send({ student: who, insights, evidence, trends, focus, profile } satisfies CoachInsightsResponse);
   });
 
   app.put<{ Params: { studentId: string } }>('/coach/students/:studentId/focus', async (request, reply) => {

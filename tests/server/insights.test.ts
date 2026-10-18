@@ -8,6 +8,7 @@ import type {
   InsightsFactsResponse,
 } from '../../src/api/types';
 import { INSIGHTS } from '../../src/config/tunables';
+import { CLOSING_LINE } from '../../src/insights/profile';
 import type { GameRecord } from '../../src/game/types';
 import { backfillInsights } from '../../server/src/insights/store';
 import { makeGame } from '../fixtures/insights';
@@ -125,6 +126,8 @@ describe('insights', () => {
     const res = await facts(app, ana);
     expect(res.facts.map((f) => f.gameId)).toEqual(['game-000', 'game-001', 'game-002']);
     expect(res.facts.every((f) => f.factsVersion === INSIGHTS.factsVersion)).toBe(true);
+    // factsVersion 2: the three-way opponent split (a bot with no engine field is a Stockfish level).
+    expect(res.facts.map((f) => f.opponent)).toEqual(['stockfish', 'stockfish', 'stockfish']);
     const rows = await db.gameInsight.findMany({ where: { userId: ana.id } });
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.factsVersion === INSIGHTS.factsVersion)).toBe(true);
@@ -163,6 +166,8 @@ describe('insights', () => {
     expect(body.insights.coverage).toEqual({ total: 12, included: 12, excluded: {} });
     expect(body.trends).toEqual([]); // fewer than 40 games
     expect(body.focus).toBeNull();
+    // "Their recent games": below 20 games, only "n of 20".
+    expect(body.profile).toMatchObject({ status: 'locked', games: 12, needGames: 8, lines: [], waiting: [], closing: CLOSING_LINE });
 
     const row = body.insights.ledger.cells.find((c) => c.id === 'O:other')!;
     expect(row.shown).toBe(true);
@@ -198,6 +203,46 @@ describe('insights', () => {
     const trend = body.trends.find((t) => t.bucketId === 'O:other');
     expect(trend).toMatchObject({ games: INSIGHTS.minSample.trendGames, shown: true, direction: 'no-clear-change' });
     expect(body.trends.every((t) => t.shown)).toBe(true);
+  });
+
+  it('a coach sees the student’s profile (people and Maia only for converting); the public profile shows none of it', async () => {
+    const app = server.app();
+    const [ana, coach] = [await user(app, 'Ana'), await user(app, 'Rahim')];
+    // 20 wins against Maia bots from a clearly winning position (80% from ply 12 on), 3 against Stockfish levels.
+    const winning = (i: number, engine: 'maia' | 'stockfish') =>
+      makeGame({
+        id: `${engine}-${i}`,
+        wins: (k) => (k < 12 ? 50 : 80),
+        result: '1-0',
+        botEngine: engine,
+        reviewVersion: 2,
+        createdAt: new Date(Date.UTC(2026, 8, 1) + i * 3_600_000).toISOString(),
+      });
+    for (let i = 0; i < 20; i++) await save(app, ana, winning(i, 'maia'));
+    for (let i = 0; i < 3; i++) await save(app, ana, winning(20 + i, 'stockfish'));
+    await link(app, coach, ana);
+    expect((await call(app, coach, 'PUT', `/api/coach/students/${ana.id}/focus`, { bucketId: 'conversion' })).statusCode).toBe(200);
+
+    const body = (await call(app, coach, 'GET', `/api/coach/students/${ana.id}/insights`)).json<CoachInsightsResponse>();
+    const p = body.profile;
+    expect(p).toMatchObject({ status: 'open', games: 23, closing: CLOSING_LINE });
+    expect(p.window.opponents).toEqual({ human: 0, maia: 20, stockfish: 3 });
+    expect(p.groupNote).toBe('Mostly from games against bots (23 of 23).');
+    const conv = p.lines.find((l) => l.id === 'conversion')!;
+    expect(conv).toMatchObject({ group: 'human-like', n: 20, tone: 'strength', state: 'clear', isFocus: true });
+    expect(conv.note).toContain('3 clearly winning positions against Stockfish levels left out');
+    // The coach Focus outranks the ledger's pick, and the matching line says so.
+    expect(p.focus).toEqual({ id: 'conversion', lineId: 'conversion' });
+
+    // Nothing of it on the public profile, signed out or as the coach.
+    for (const who of [undefined, coach]) {
+      const pub = await call(app, who, 'GET', '/api/profile/Ana');
+      expect(pub.statusCode).toBe(200);
+      for (const word of [CLOSING_LINE, 'recent games', '"waiting"', '"groupNote"', '"lineId"', 'converted']) expect(pub.body).not.toContain(word);
+    }
+    // And no link, no profile.
+    const stranger = await user(app, 'Mallory');
+    expect((await call(app, stranger, 'GET', `/api/coach/students/${ana.id}/insights`)).statusCode).toBe(404);
   });
 
   it('a coach sets and clears the student’s Focus; the student reads it; unlinking removes it', async () => {

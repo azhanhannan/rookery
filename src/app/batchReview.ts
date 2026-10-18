@@ -11,6 +11,7 @@ import { useGameStore } from '../game/gameStore';
 import { findArchivedGame } from '../game/storage';
 import type { GameRecord } from '../game/types';
 import { runReview, type ReviewProgress } from '../review/reviewRunner';
+import { REVIEW_VERSION } from '../review/types';
 import { reviewFits } from '../review/reviewView';
 
 /** 'all' = the Import page's Review all; 'deepen' = the one-off re-review of shallow reviews. */
@@ -113,9 +114,12 @@ export const useBatchReview = create<BatchReviewState>((set, get) => ({
   },
 }));
 
-/** True when `record` already has a review for its moves at `depth` or deeper. */
+/**
+ * True when `record` already has a current review for its moves at `depth` or deeper. A review in an older
+ * format (version 1: no second engine line) doesn't count, so the re-review redoes it whatever its depth.
+ */
 export function reviewedAtLeast(record: GameRecord, depth: number): boolean {
-  return reviewFits(record, record.review) && record.review.depth >= depth;
+  return reviewFits(record, record.review) && record.review.depth >= depth && (record.review.version ?? 1) >= REVIEW_VERSION;
 }
 
 async function run(

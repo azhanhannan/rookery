@@ -1,6 +1,6 @@
 # Rookery roadmap (after the SPEC phases)
 
-Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 18 Oct 2026 (after wave 5, player profile slice 1).
+Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 18 Oct 2026 (after wave 5, player profile slices 1-3).
 
 ## Where the ideas came from
 
@@ -20,7 +20,7 @@ one "Review style" setting (Learner / Club / Analyst) instead of picking words v
 | 2 | 16 Oct | Account sync (`UserState` table, `GET/PUT /api/state`, `src/sync/`) · Opening trainer `#/openings` · Endgame drills `#/endgames` + Lichess tablebase (Analysis + Review) · Spar button, loss-streak cushion, accuracy wording, Timed puzzles, premoves · Rook mascot, figurines, `#/drills` (name the square), calculation mode, weekly training log | `7d7a616`..`cee87e3` |
 | 3 | 16 Oct | Opening explorer (Lichess masters + online games, token in Settings; Analysis, Review, rare-move note in the trainer) · Coach–student link `#/coach` (invite codes, coach view of games, comments per game/ply, puzzle homework, header badge) · Lessons `#/lessons` (7 lessons, checked positions) · Loose ends: sync delete markers, max/union merges, alternative moves in My mistakes, live theme picker, self-review style race, phone header with a More menu (`src/app/nav.ts`) | `5f75ea6`..`HEAD` |
 | 4 | 18 Oct | Insights `#/insights` from a second panel (BA, SA, coach SME, analytics SME; [`insights-2026-10/`](insights-2026-10/), decisions in `synthesis.md`): typed caption facts + extra motifs (back-rank, ignored threat, stalemate given away, lost on time while better) · `src/insights/` facts, stats, points-lost ledger, Focus with pre-registered re-test, conversion/saves, clock, after-loss line, openings, trend · page by Review style, synced `rookery.focus`, IndexedDB facts cache, Train-this deep links · server `GameInsight`/`CoachFocus` (migration `20261018120000_insights`), full-history facts, coach Insights tab · games record `endedAt`/`takebacks`; Review all at depth 16 + one-off re-review of shallower reviews | `b238823`..`1fae0eb` |
-| 5 | 18 Oct | Player profile from a third panel (coach SME, analytics SME, product + an Opus decision-maker; [`player-profile-2026-10/`](player-profile-2026-10/), ruling in `decision.md`): reviews keep the second engine line (review v2) → `MoveFact.critical`; opponents split human / maia / stockfish; factsVersion 2; re-review also offers v1 reviews · "Your recent games" under Focus on `#/insights` (`src/insights/profile.ts`): phase, threat-checking, converting & saving (people + Maia only), clock, openings incl. "not the problem"; habits not labels (banned-word test); opens at 20 games; Learner/Club/Analyst views; coach tab shows it; nothing on the public profile | `d426cd0` |
+| 5 | 18 Oct | Player profile from a third panel (coach SME, analytics SME, product + an Opus decision-maker; [`player-profile-2026-10/`](player-profile-2026-10/), ruling in `decision.md`): reviews keep the second engine line (review v2) → `MoveFact.critical`; opponents split human / maia / stockfish; factsVersion 2; re-review also offers v1 reviews · "Your recent games" under Focus on `#/insights` (`src/insights/profile.ts`): phase, threat-checking, converting & saving (people + Maia only), clock, openings incl. "not the problem"; habits not labels (banned-word test); opens at 20 games; Learner/Club/Analyst views; coach tab shows it; nothing on the public profile · slice 2: rushed critical moves (clock card + profile, critical move < 0.5× game median time) · slice 3: forcing vs quiet cost by type (people + Maia, 40 games at one speed, clustered interval, flip test; factsVersion 3) | `d426cd0`, `07134ff` |
 
 Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`20261016140000_coach`); the server applies migrations on start.
 
@@ -49,10 +49,10 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 **Panel ideas**: all built (wave 3).
 
 **Player profile (wave 5)**
-- Next slices per `player-profile-2026-10/decision.md`: rushed critical moves (needs re-reviewed v2 games), forcing vs
-  quiet cost by type, Maia fit by phase (after Phase 4). Never: archetype labels, "positional", one pooled "plays like ~X".
+- Next per `player-profile-2026-10/decision.md`: Maia fit by phase (after Phase 4). Open from slice 3: cost by type is not
+  a ledger bucket / Focus candidate; sacrifices count only with a provable threat; king-side pawn pushes not forcing. Never: archetype labels, "positional", one pooled "plays like ~X".
 - Untested by hand: coach tab rendering of the profile; real data (Hannan's games mostly Stockfish levels). The
-  factsVersion bump turns a Focus pinned before it into "Rules changed". Why one account had no clocks on 14 games: open.
+  factsVersion bump turns a Focus pinned before it into "Rules changed". The 14 clockless games were Phase 5 dev test data (`seed-*`, `loc-*`), not a bug.
 
 **Insights (wave 4), untried in a real browser**
 - IndexedDB facts cache across reloads; `rookery.focus` sync between two devices; the verdict / window-closed states

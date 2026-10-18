@@ -242,6 +242,78 @@ describe('profile: rushed critical moves (Slice 2)', () => {
   });
 });
 
+/** One forcing move losing `f` and one quiet move losing `q` (win-chance points). */
+const typed = (f: number, q: number): FakeMove[] => [
+  { phase: 'M', forcing: true, loss: f },
+  { phase: 'M', forcing: false, loss: q },
+];
+
+describe('profile: forcing and quiet moves (Slice 3)', () => {
+  const vsMaia = (n: number, moves: (i: number) => FakeMove[], opponent: GameFacts['opponent'] = 'maia') =>
+    middlegameLeaker(n, moves, () => ({ opponent }));
+
+  it('below 40 games at one speed vs people and Maia bots: waits with "n of 40"; Stockfish games counted in a note', () => {
+    const facts = [...vsMaia(25, () => typed(4, 1)), ...vsMaia(5, () => typed(4, 1), 'stockfish').map((f, i) => ({ ...f, gameId: `s${i}` }))];
+    const p = profileOf(facts);
+    const w = waiting(p, 'cost-by-type')!;
+    expect(w.need).toEqual({ have: 25, of: 40, what: 'rapid games vs people and Maia bots' });
+    expect(w.group).toBe('human-like');
+    expect(w.note).toBe('5 rapid games against Stockfish levels left out: their weaker levels give pieces away at random.');
+    expect(styleText(p)).toBe('Lines about how you play need 40 games at one speed against people and Maia bots: not enough yet (most so far: 25 rapid).');
+  });
+
+  it('forcing moves clearly cost more: a habit line with both rates, its n, the difference and its interval', () => {
+    const p = profileOf(vsMaia(42, (i) => typed(i % 2 ? 14 : 12, 2)));
+    const c = line(p, 'cost-by-type')!;
+    expect(c).toMatchObject({ trait: 'cost-by-type', tone: 'habit', state: 'clear', group: 'human-like', format: 'per100', reference: 0, games: 42, n: 84 });
+    expect(c.text).toBe(
+      'In 42 rapid games against people and Maia bots, your forcing moves (captures, checks, sacrifices) gave away 13.0 points of win chance per 100 moves, your quiet moves 2.0 (42 forcing, 42 quiet moves). Your forcing moves cost you more.',
+    );
+    expect(c.estimate.value).toBeCloseTo(11, 10);
+    expect(c.estimate.lo).toBeGreaterThan(0);
+    expect(c.evidence).toHaveLength(INSIGHTS.notableMoves);
+    expect(c).not.toHaveProperty('train');
+    expect(c.plain).toBeUndefined();
+    expect(styleText(p)).toBe('Lines about how you play are read from your 42 rapid games against people and Maia bots.');
+  });
+
+  it('quiet moves clearly cost more: says so; no clear difference: leaning, no comparison words', () => {
+    expect(line(profileOf(vsMaia(40, (i) => typed(1, i % 2 ? 4 : 3))), 'cost-by-type')!.text).toMatch(/Your quiet moves cost you more\.$/);
+    const even = line(profileOf(vsMaia(40, (i) => typed(i % 2 ? 4 : 0, i % 2 ? 0 : 4), 'human')), 'cost-by-type')!;
+    expect(even).toMatchObject({ state: 'leaning', tone: 'neutral' });
+    expect(even.text).toMatch(/; no clear difference yet\.$/);
+    expect(even.text).not.toMatch(/cost you more/);
+  });
+
+  it('fails the flip test: leaning, and the Analyst detail says why', () => {
+    const c = line(profileOf(vsMaia(40, (i) => (i < 34 ? typed(4, 1) : typed(0, 8)))), 'cost-by-type')!;
+    expect(c.state).toBe('leaning');
+    expect(c.estimate.lo).toBeGreaterThan(0);
+    expect(c.detail).toContain('flip test');
+  });
+
+  it('Learner sees nothing of it, even when clear', () => {
+    const p = profileOf(vsMaia(42, (i) => typed(i % 2 ? 4 : 3, 1)), { style: 'learner' });
+    expect(line(p, 'cost-by-type')!.state).toBe('clear');
+    const v = learnerView(p);
+    expect([v.strength?.id, v.reassurance?.id]).not.toContain('cost-by-type');
+    // Even a line that had a plain sentence would be held back: style traits never reach Learner.
+    const forced = { ...p, lines: p.lines.map((l) => (l.id === 'cost-by-type' ? { ...l, tone: 'strength' as const, plain: 'x' } : l)) };
+    expect(learnerView(forced).strength?.id).not.toBe('cost-by-type');
+  });
+
+  it('follows the speed filter, and a Stockfish-only filter leaves it waiting', () => {
+    const facts = [
+      ...vsMaia(40, () => typed(4, 1)),
+      ...vsMaia(25, () => typed(4, 1)).map((f, i) => ({ ...f, gameId: `b${i}`, speed: 'blitz' as const })),
+      ...vsMaia(25, () => typed(4, 1), 'stockfish').map((f, i) => ({ ...f, gameId: `s${i}` })),
+    ];
+    expect(line(profileOf(facts), 'cost-by-type')!.games).toBe(40);
+    expect(waiting(profileOf(facts, { style: 'club', speed: 'blitz' }), 'cost-by-type')!.need).toEqual({ have: 25, of: 40, what: 'blitz games vs people and Maia bots' });
+    expect(waiting(profileOf(facts, { style: 'club', opponent: 'stockfish' }), 'cost-by-type')!.need!.have).toBe(0);
+  });
+});
+
 describe('profile: the Focus', () => {
   const facts = middlegameLeaker(25, (i) => [{ oppThreat: true }, { oppThreat: true }, ...(i % 2 ? [{ oppThreat: true, loss: 30, motif: 'ignored-threat' as const }] : [])], () => ({
     opponent: 'human',
@@ -361,6 +433,11 @@ describe('profile: wording rules (decision §2, AC4)', () => {
       middlegameLeaker(25, (i) => clockedCritical([[2_000, 30], [2_000, 0], [15_000, i === 0 ? 30 : 0], [15_000, 0]])),
       middlegameLeaker(25, () => clockedCritical([[2_000, 0], [2_000, 0], [15_000, 30], [15_000, 0]])),
       middlegameLeaker(25, (i) => clockedCritical([[2_000, i % 4 ? 0 : 30], [15_000, i % 4 === 1 ? 30 : 0]])),
+      middlegameLeaker(25, () => typed(4, 1), () => ({ opponent: 'maia' })),
+      middlegameLeaker(42, (i) => typed(i % 2 ? 4 : 3, 1), (i) => ({ opponent: i % 2 ? 'maia' : 'human' })),
+      middlegameLeaker(40, (i) => typed(1, i % 2 ? 4 : 3), () => ({ opponent: 'maia' })),
+      middlegameLeaker(40, (i) => typed(i % 2 ? 4 : 0, i % 2 ? 0 : 4), () => ({ opponent: 'human' })),
+      middlegameLeaker(40, (i) => (i < 34 ? typed(4, 1) : typed(0, 8)), (i) => ({ opponent: i < 30 ? 'maia' : 'stockfish' })),
     ];
     let checked = 0;
     for (const facts of scenarios) {

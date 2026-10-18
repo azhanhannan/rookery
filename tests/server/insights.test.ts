@@ -236,6 +236,14 @@ describe('insights', () => {
     // Slice 2: no clocks here, so rushed critical moves wait (and the clock card has nothing to say about them).
     expect(p.waiting.find((l) => l.id === 'rushed-critical')?.need).toEqual({ have: 0, of: 15, what: 'clocked games reviewed with two engine lines' });
     expect(body.insights.clock).toBeNull();
+    // Slice 3: the server's facts (version 3) carry the forcing flag; cost by type waits for 40 games at one speed,
+    // people and Maia only, with the Stockfish-level games counted in a note.
+    expect(body.insights.costByType).toMatchObject({ speed: 'untimed', games: 20, stockfishGames: 3, state: 'not-enough' });
+    expect(body.insights.costByType.quiet.moves).toBeGreaterThan(0);
+    const cost = p.waiting.find((l) => l.id === 'cost-by-type')!;
+    expect(cost.need).toEqual({ have: 20, of: 40, what: 'untimed games vs people and Maia bots' });
+    expect(cost.note).toBe('3 untimed games against Stockfish levels left out: their weaker levels give pieces away at random.');
+    expect(p.style).toEqual({ have: 20, of: 40, speed: 'untimed' });
 
     // Nothing of it on the public profile, signed out or as the coach.
     for (const who of [undefined, coach]) {

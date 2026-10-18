@@ -192,3 +192,31 @@ export function medianOf(xs: number[]): number | null {
   const mid = s.length >> 1;
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
+
+/** One cluster (a game) for `clusteredRatioDiff`: sums and counts of two kinds of observation. */
+export type ClusterRow = { aSum: number; aN: number; bSum: number; bN: number };
+
+/**
+ * Difference of two pooled means, ΣaSum/ΣaN - ΣbSum/ΣbN, with a cluster-robust (by row) normal interval: the
+ * linearised ratio-estimator variance, covariance included, since both kinds come from the same games and moves
+ * within a game are correlated. Infinite interval below two rows or with an empty kind.
+ */
+export function clusteredRatioDiff(rows: ClusterRow[], z = INSIGHTS.z): Estimate {
+  const A = rows.reduce((s, r) => s + r.aSum, 0);
+  const An = rows.reduce((s, r) => s + r.aN, 0);
+  const B = rows.reduce((s, r) => s + r.bSum, 0);
+  const Bn = rows.reduce((s, r) => s + r.bN, 0);
+  if (An === 0 || Bn === 0) return { value: 0, lo: -Infinity, hi: Infinity };
+  const ra = A / An;
+  const rb = B / Bn;
+  const value = ra - rb;
+  const g = rows.length;
+  if (g < 2) return { value, lo: -Infinity, hi: Infinity };
+  let v = 0;
+  for (const r of rows) {
+    const d = (r.aSum - ra * r.aN) / An - (r.bSum - rb * r.bN) / Bn;
+    v += d * d;
+  }
+  const se = Math.sqrt((g / (g - 1)) * v);
+  return { value, lo: value - z * se, hi: value + z * se };
+}

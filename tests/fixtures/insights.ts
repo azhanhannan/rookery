@@ -175,6 +175,7 @@ export function fakeFacts(g: FakeGame): GameFacts {
       ...(m.clockMs !== undefined ? { clockMs: m.clockMs } : {}),
       ...(m.spentMs !== undefined ? { spentMs: m.spentMs } : {}),
       ...(m.critical !== undefined ? { critical: m.critical } : {}),
+      ...(m.forcing !== undefined ? { forcing: m.forcing } : {}),
     });
     ply += 2;
   };

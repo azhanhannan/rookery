@@ -4,6 +4,7 @@ import { INSIGHTS, REVIEW } from '../config/tunables';
 import { myColor } from '../game/myColor';
 import type { Color, GameRecord, PlayerInfo } from '../game/types';
 import { categoryFor } from '../rating/glicko';
+import { findMove, findSacrifice } from '../review/brilliant';
 import { captionFact, captionInputFor } from '../review/captions';
 import { scoreWin } from '../review/classify';
 import { reviewFits } from '../review/reviewView';
@@ -78,6 +79,23 @@ export function criticalAt(review: GameReview, pos: PositionReview, color: Color
   // Version 2 without a second line: one legal move, so nothing to choose.
   if (!pos.second) return false;
   return scoreWin(pos.score, color) - scoreWin(pos.second.score, color) >= REVIEW.greatGap;
+}
+
+/**
+ * Forcing (cost by type, decision Slice 3): a capture, a check, or a sacrifice. A sacrifice gives up at least
+ * INSIGHTS.forcingSacrifice net material (`findSacrifice`) *and* creates a threat a rule can show (a newly
+ * hanging enemy piece, or mate in 1): without the threat, a piece left en prise is a blunder, not a forcing
+ * move, and counting it would make forcing moves look costly by construction. The test never reads the
+ * engine's loss, so the forcing/quiet split is not chosen by the outcome it is compared on.
+ * Undefined when the move doesn't replay.
+ */
+export function isForcing(fenBefore: string, uci: string): boolean | undefined {
+  const move = findMove(fenBefore, uci);
+  if (!move) return undefined;
+  if (move.captured || /[+#]/.test(move.san)) return true;
+  const sacrifice = findSacrifice(fenBefore, move);
+  if (!sacrifice || sacrifice.net < INSIGHTS.forcingSacrifice) return false;
+  return newThreat(fenBefore, move.after, move.color === 'w' ? 'b' : 'w') !== null;
 }
 
 function scoreOf(result: GameRecord['result'], color: Color): number {
@@ -156,6 +174,8 @@ export function buildGameFacts(record: GameRecord, userColor?: Color | null): Ga
     };
     const critical = criticalAt(review, review.positions[i - 1], color);
     if (critical !== undefined) mf.critical = critical;
+    const forcing = isForcing(fens[i - 1], m.uci);
+    if (forcing !== undefined) mf.forcing = forcing;
     if (fact) mf.caption = fact.kind;
     if (motif) mf.motif = motif;
     const clock = record.moves[i - 1]?.clockMs;

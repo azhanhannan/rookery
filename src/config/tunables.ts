@@ -444,8 +444,9 @@ export const INSIGHTS = {
    * Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated.
    * 2 (player profile Step 0): `MoveFact.critical` from the stored second line, and opponents split into
    * human / maia / stockfish.
+   * 3 (player profile Slices 2-3): `MoveFact.forcing` (capture, check or sacrifice), for cost by type.
    */
-  factsVersion: 2,
+  factsVersion: 3,
   /** Reviews shallower than this are left out (REVIEW.depth.normal). */
   minReviewDepth: 16,
   /** Games where the player made fewer moves are left out (RATING.minMoves). */
@@ -475,6 +476,10 @@ export const INSIGHTS = {
    * share of the player's median time per move in that game (non-book moves with a clock reading).
    */
   rushedShare: 0.5,
+  /** Forcing: a capture, a check, or a sacrifice of at least this net material (findSacrifice) that creates a threat. */
+  forcingSacrifice: 1,
+  /** Style lines' flip test: copies added at each tail percentile of the per-game distribution. */
+  flipTest: { games: 10, lowPct: 0.05, highPct: 0.95 },
   minSample: {
     /** Page unlocks at this many qualifying reviewed games; "early read" below `earlyGames`. */
     pageGames: 10,

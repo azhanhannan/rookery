@@ -7,7 +7,7 @@ import { MascotSays } from '../components/RookMascot';
 import { loadProgress } from '../endgames/progress';
 import { loadHistory } from '../game/storage';
 import { buildInsights, focusStatus } from '../insights';
-import type { LedgerBucket, OpponentType, Speed } from '../insights/types';
+import type { LedgerBucket, OpponentFilter, Speed } from '../insights/types';
 import { loadLessonsProgress } from '../lessons/progress';
 import { harvestMistakes } from '../puzzles/harvest';
 import { loadSchedule } from '../puzzles/spacedRepetition';
@@ -45,7 +45,7 @@ export function InsightsPage() {
   const reviewedInBatch = useBatchReview((s) => s.reviewed);
   const [loaded, setLoaded] = useState<LoadedFacts | null>(null);
   const [speed, setSpeed] = useState<Speed | 'all'>('all');
-  const [opponent, setOpponent] = useState<OpponentType | 'all'>('all');
+  const [opponent, setOpponent] = useState<OpponentFilter>('all');
   const [stored, setStored] = useState<StoredFocus | null>(loadFocus);
   const [showAfterLoss, setShowAfterLoss] = useState(false);
   const [coachFocus, setCoachFocus] = useState<CoachFocusInfo | null>(null);
@@ -169,10 +169,12 @@ export function InsightsPage() {
           </label>
           <label className="flex items-center gap-1">
             <span className="text-muted">Opponents</span>
-            <select className="rounded bg-surface-2 px-2 py-1" value={opponent} onChange={(e) => setOpponent(e.target.value as OpponentType | 'all')} data-testid="filter-opponent">
+            <select className="rounded bg-surface-2 px-2 py-1" value={opponent} onChange={(e) => setOpponent(e.target.value as OpponentFilter)} data-testid="filter-opponent">
               <option value="all">People and bots</option>
               <option value="human">People</option>
-              <option value="bot">Bots</option>
+              <option value="bot">Bots (all)</option>
+              <option value="maia">Maia bots</option>
+              <option value="stockfish">Stockfish levels</option>
             </select>
           </label>
           {filtered && <span className="self-center text-xs text-muted">{plural(model.games, 'game')} match</span>}

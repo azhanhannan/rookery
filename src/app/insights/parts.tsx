@@ -256,7 +256,8 @@ export function EpisodesView({ conversion, saves }: { conversion: EpisodeCard; s
       <ul className="flex flex-col gap-1 text-sm">
         <EpisodeLine name="Winning positions, all" s={conversion.all} />
         <EpisodeLine name="… against people" s={conversion.human} />
-        <EpisodeLine name="… against bots" s={conversion.bot} />
+        <EpisodeLine name="… against Maia bots" s={conversion.maia} />
+        <EpisodeLine name="… against Stockfish levels (not comparable)" s={conversion.stockfish} />
         <EpisodeLine name="Losing positions saved, all" s={saves.all} />
       </ul>
       <a className="text-sm text-accent hover:underline" href={trainHref(conversion.train)}>

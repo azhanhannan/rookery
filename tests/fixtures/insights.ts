@@ -21,6 +21,10 @@ export type GameSpec = {
   user?: 'w' | 'b';
   /** 'bot': the other side is a bot; 'human': both people, record.userColor set. */
   opponent?: 'bot' | 'human';
+  /** The bot side's engine field (absent = a game saved before Maia: Stockfish). */
+  botEngine?: 'maia' | 'stockfish';
+  /** Review format version (default 1: no second lines). */
+  reviewVersion?: 1 | 2;
   opponentElo?: number;
   result?: GameResult;
   termination?: string;
@@ -35,7 +39,7 @@ export type GameSpec = {
   endedAt?: string;
   takebacks?: number;
   /** Per position index: engine data. */
-  engine?: Record<number, { bestMove?: string; bestLine?: string[]; score?: Score }>;
+  engine?: Record<number, { bestMove?: string; bestLine?: string[]; score?: Score; second?: { move: string; score: Score } }>;
   labels?: Record<number, MoveLabel>;
   reviewed?: boolean;
 };
@@ -61,7 +65,14 @@ export function makeGame(spec: GameSpec = {}): GameRecord & { endedAt?: string; 
   const fens = [startFen, ...moves.map((m) => m.fenAfter)];
   const positions: PositionReview[] = fens.map((fen, i) => {
     const e = spec.engine?.[i] ?? {};
-    return { fen, winWhite: win(i), bestLine: e.bestLine ?? (e.bestMove ? [e.bestMove] : []), ...(e.bestMove ? { bestMove: e.bestMove } : {}), ...(e.score ? { score: e.score } : {}) };
+    return {
+      fen,
+      winWhite: win(i),
+      bestLine: e.bestLine ?? (e.bestMove ? [e.bestMove] : []),
+      ...(e.bestMove ? { bestMove: e.bestMove } : {}),
+      ...(e.score ? { score: e.score } : {}),
+      ...(e.second ? { second: e.second } : {}),
+    };
   });
   const book = spec.bookPlies ?? 0;
   const reviewMoves: MoveReview[] = moves.map((m, i) => {
@@ -86,7 +97,7 @@ export function makeGame(spec: GameSpec = {}): GameRecord & { endedAt?: string; 
   });
   const summary = { accuracy: null, moves: 0, counts: {} as Record<MoveLabel, number> };
   const review: GameReview = {
-    version: 1,
+    version: spec.reviewVersion ?? 1,
     depth: spec.depth ?? 16,
     createdAt: '2026-10-01T00:00:00.000Z',
     positions,
@@ -97,7 +108,12 @@ export function makeGame(spec: GameSpec = {}): GameRecord & { endedAt?: string; 
   };
   const user = spec.user ?? 'w';
   const human = spec.opponent === 'human';
-  const opp = { name: 'Opp', isBot: !human, ...(spec.opponentElo !== undefined ? { elo: spec.opponentElo } : {}) };
+  const opp = {
+    name: 'Opp',
+    isBot: !human,
+    ...(spec.opponentElo !== undefined ? { elo: spec.opponentElo } : {}),
+    ...(!human && spec.botEngine ? { engine: spec.botEngine } : {}),
+  };
   const me = { name: 'Me', isBot: false };
   const record: GameRecord & { endedAt?: string; takebacks?: number } = {
     id: spec.id ?? 'g1',
@@ -129,7 +145,7 @@ export type FakeGame = {
   id: string;
   at?: string;
   score?: number;
-  opponent?: 'human' | 'bot';
+  opponent?: GameFacts['opponent'];
   opponentElo?: number;
   speed?: GameFacts['speed'];
   color?: 'w' | 'b';
@@ -171,7 +187,7 @@ export function fakeFacts(g: FakeGame): GameFacts {
     playedAt: g.at ?? day(0),
     createdAt: g.at ?? day(0),
     color: g.color ?? 'w',
-    opponent: g.opponent ?? 'bot',
+    opponent: g.opponent ?? 'stockfish',
     opponentName: 'Opp',
     ...(g.opponentElo !== undefined ? { opponentElo: g.opponentElo } : {}),
     speed: g.speed ?? 'rapid',

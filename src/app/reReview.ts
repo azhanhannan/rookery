@@ -1,12 +1,14 @@
-// One-off re-review of shallow reviews (insights decision 1, 18 Oct 2026): saved games whose review is
-// shallower than the normal review depth (e.g. the old depth-12 "Review all") are reviewed again at that depth,
-// once. It runs on the batch review runner as a low-priority run: it waits while the engine is wanted elsewhere,
+// One-off re-review of outdated reviews (insights decision 1, 18 Oct 2026; player profile Step 0): saved games
+// whose review is shallower than the normal review depth (e.g. the old depth-12 "Review all"), or older than the
+// current review format (version 1 kept no second engine line, so Insights can't tell critical moves), are
+// reviewed again at that depth, once. It runs on the batch review runner as a low-priority run: it waits while the engine is wanted elsewhere,
 // and a run that was started keeps going after a reload until it is done or cancelled.
 import { REVIEW } from '../config/tunables';
 import { useGameStore } from '../game/gameStore';
 import { botColor } from '../game/rules';
 import { loadHistory } from '../game/storage';
 import type { GameRecord } from '../game/types';
+import { REVIEW_VERSION, type GameReview } from '../review/types';
 import { reviewFits } from '../review/reviewView';
 import { NAV_ITEMS, isCurrent } from './nav';
 import { useBatchReview } from './batchReview';
@@ -17,10 +19,18 @@ const RESUME_KEY = 'rookery.reReview';
 /** The depth a re-review brings shallow reviews up to. */
 export const reReviewDepth = (): number => REVIEW.depth.normal;
 
-/** Ids (in saved order, newest first) of finished games whose fitting review is shallower than `depth`. */
+/** A review is outdated when it is shallower than `depth` or in an older format than REVIEW_VERSION. */
+export function reviewOutdated(review: GameReview, depth = reReviewDepth()): boolean {
+  return review.depth < depth || (review.version ?? 1) < REVIEW_VERSION;
+}
+
+/**
+ * Ids (in saved order, newest first) of finished games whose fitting review is outdated: shallower than `depth`,
+ * or a version 1 review (no second engine line), whatever its depth.
+ */
 export function shallowReviewIds(games: GameRecord[], depth = reReviewDepth()): string[] {
   return games
-    .filter((g) => g.result !== '*' && g.moves.length > 0 && reviewFits(g, g.review) && g.review.depth < depth)
+    .filter((g) => g.result !== '*' && g.moves.length > 0 && reviewFits(g, g.review) && reviewOutdated(g.review, depth))
     .map((g) => g.id);
 }
 
@@ -56,7 +66,7 @@ function resumePending(): boolean {
 }
 
 /**
- * Starts re-reviewing every shallow review on this device. Returns false (and starts nothing) when there is
+ * Starts re-reviewing every outdated review on this device. Returns false (and starts nothing) when there is
  * none or another batch run is going.
  */
 export function startReReview(): boolean {

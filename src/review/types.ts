@@ -40,6 +40,12 @@ export type PositionReview = {
   bestLine: string[];
   /** Search depth of this position when it differs from the review's (after "Analyse deeper here"). */
   depth?: number;
+  /**
+   * The engine's second-best line (first move, UCI, and score, White's point of view). Review version 2 on:
+   * absent there means the side to move had only one legal move (or none). Version 1 reviews never stored it,
+   * so in those its absence says nothing.
+   */
+  second?: { move: string; score: Score };
 };
 
 export type MoveReview = {
@@ -71,8 +77,14 @@ export type PlayerSummary = {
   counts: Record<MoveLabel, number>;
 };
 
+/**
+ * Review format version. 1: best line only. 2: also each position's second-best line (`PositionReview.second`).
+ * Old reviews keep their version until they are reviewed again.
+ */
+export const REVIEW_VERSION = 2 as const;
+
 export type GameReview = {
-  version: 1;
+  version: 1 | 2;
   depth: number;
   createdAt: string;
   positions: PositionReview[];

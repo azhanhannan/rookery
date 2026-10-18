@@ -1,14 +1,15 @@
 // Per-game facts for Insights (pure): one small record per reviewed game, built from the stored review plus
 // chess.js. No engine, no network. Rebuilt whenever INSIGHTS.factsVersion changes.
-import { INSIGHTS } from '../config/tunables';
+import { INSIGHTS, REVIEW } from '../config/tunables';
 import { myColor } from '../game/myColor';
-import type { Color, GameRecord } from '../game/types';
+import type { Color, GameRecord, PlayerInfo } from '../game/types';
 import { categoryFor } from '../rating/glicko';
 import { captionFact, captionInputFor } from '../review/captions';
+import { scoreWin } from '../review/classify';
 import { reviewFits } from '../review/reviewView';
-import type { GameReview } from '../review/types';
+import type { GameReview, PositionReview } from '../review/types';
 import { motifFor, newThreat } from './motifs';
-import type { Coverage, Episode, ExclusionReason, GameFacts, HistoryEntry, MoveFact, NotableMove, Phase } from './types';
+import type { Coverage, Episode, ExclusionReason, GameFacts, HistoryEntry, MoveFact, NotableMove, OpponentType, Phase } from './types';
 
 /** Fields another branch adds to GameRecord; read through a narrow type so this module doesn't depend on it. */
 type WithMeta = GameRecord & { endedAt?: string; takebacks?: number };
@@ -60,6 +61,24 @@ function parseTimeControl(tc: string | undefined): [number, number] | null {
 
 const isTimeLoss = (termination?: string) => !!termination && /time|forfeit|flag/i.test(termination) && !/insufficient/i.test(termination);
 const isAbandon = (termination?: string) => !!termination && /abandon/i.test(termination);
+
+/** Person, Maia bot, or Stockfish level. A bot side with no engine field is Stockfish (saved before Maia). */
+export function opponentTypeOf(p: PlayerInfo): OpponentType {
+  if (!p.isBot) return 'human';
+  return p.engine === 'maia' ? 'maia' : 'stockfish';
+}
+
+/**
+ * Whether the move from `pos` was critical (only one move holds), from the stored second line. Undefined for a
+ * version 1 review, which never kept that line: absent there must not read as "only one legal move".
+ */
+export function criticalAt(review: GameReview, pos: PositionReview, color: Color): boolean | undefined {
+  if ((review.version ?? 1) < 2) return undefined;
+  if (!pos.bestMove || !pos.score) return undefined;
+  // Version 2 without a second line: one legal move, so nothing to choose.
+  if (!pos.second) return false;
+  return scoreWin(pos.score, color) - scoreWin(pos.second.score, color) >= REVIEW.greatGap;
+}
 
 function scoreOf(result: GameRecord['result'], color: Color): number {
   if (result === '1/2-1/2') return 0.5;
@@ -135,6 +154,8 @@ export function buildGameFacts(record: GameRecord, userColor?: Color | null): Ga
       inBook,
       oppThreat: threat !== null,
     };
+    const critical = criticalAt(review, review.positions[i - 1], color);
+    if (critical !== undefined) mf.critical = critical;
     if (fact) mf.caption = fact.kind;
     if (motif) mf.motif = motif;
     const clock = record.moves[i - 1]?.clockMs;
@@ -173,7 +194,7 @@ export function buildGameFacts(record: GameRecord, userColor?: Color | null): Ga
     playedAt: meta.endedAt ?? record.createdAt,
     createdAt: record.createdAt,
     color,
-    opponent: opponentInfo.isBot ? 'bot' : 'human',
+    opponent: opponentTypeOf(opponentInfo),
     opponentName: opponentInfo.name,
     speed: categoryFor(record.timeControl) ?? 'untimed',
     result,

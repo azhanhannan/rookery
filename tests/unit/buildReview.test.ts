@@ -54,7 +54,13 @@ describe('buildReview: 2...Qh4?? 3.Nc3??', () => {
       winWhite: winChance({ cp: 900 }),
       bestMove: 'f3h4',
       bestLine: ['f3h4', 'g8f6'],
+      second: { move: 'b1c3', score: { cp: 60 } },
     });
+  });
+
+  it('is a version 2 review: each position keeps the second line (move and score), not only the best', () => {
+    expect(review.version).toBe(2);
+    expect(review.positions.map((p) => p.second?.move)).toEqual(['g8f6', 'b1c3', 'h4d8']);
   });
 
   it('measures Black\'s loss from Black\'s side', () => {
@@ -93,7 +99,7 @@ describe('buildReview: 2...Qh4?? 3.Nc3??', () => {
 
   it('has no opening without book plies or a name', () => {
     expect(review.opening).toBeUndefined();
-    expect(review.version).toBe(1);
+    expect(review.version).toBe(2);
     expect(review.depth).toBe(16);
   });
 });
@@ -171,5 +177,13 @@ describe('buildReview: book, mate and the only move', () => {
     const input = game(START, ['e2e4'], [[['e2e4', { cp: 30 }]], [['e7e5', { cp: 30 }]]]);
     input.analyses.pop();
     expect(() => buildReview(input)).toThrow(/expected 2 analyses/);
+  });
+});
+
+describe('buildReview: the second line', () => {
+  it('one legal move (a single engine line): no second line is stored', () => {
+    const review = buildReview(game(START, ['e2e4'], [[['e2e4', { cp: 30 }]], [['e7e5', { cp: 30 }]]]));
+    expect(review.version).toBe(2);
+    expect(review.positions[0].second).toBeUndefined();
   });
 });

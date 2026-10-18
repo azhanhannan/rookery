@@ -42,6 +42,24 @@ describe('Analyse deeper here', () => {
     });
   });
 
+  it('a version 2 position with a stored second line reads back as two lines', () => {
+    const pos = { fen: START, winWhite: 50, score: { cp: 30 }, bestMove: 'e2e4', bestLine: ['e2e4', 'e7e5'], second: { move: 'd2d4', score: { cp: 25 } } };
+    expect(storedAnalysis(pos, 16).lines).toEqual([
+      { rank: 1, move: 'e2e4', score: { cp: 30 }, pv: ['e2e4', 'e7e5'], depth: 16 },
+      { rank: 2, move: 'd2d4', score: { cp: 25 }, pv: ['d2d4'], depth: 16 },
+    ]);
+  });
+
+  it('a fresh analysis stores its second line; a version 1 review keeps its version', () => {
+    const review = { ...buildReview(smallGame()), version: 1 as const };
+    review.positions = review.positions.map(({ second: _s, ...p }) => p);
+    const fresh = analysis(review.positions[1].fen, 'c7c5', { cp: 30 }, 24, ['e7e5', { cp: 40 }]);
+    const next = applyDeepAnalysis(review, new Map([[1, fresh]]));
+    expect(next.version).toBe(1);
+    expect(next.positions[1].second).toEqual({ move: 'e7e5', score: { cp: 40 } });
+    expect(next.positions[0].second).toBeUndefined();
+  });
+
   it('a deeper look that finds 1...e5 lost re-labels it, the next move, and the summaries', () => {
     const input = smallGame();
     const review = buildReview(input);

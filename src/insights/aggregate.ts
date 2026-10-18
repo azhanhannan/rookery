@@ -6,6 +6,7 @@ import { bucketGames, CELL_IDS, OVERLAY_IDS, priorsOf, qualifies, summariseBucke
 import { bayesSlope, diffOfMeans, medianOf, poissonRate, rateRatio, shrink, wilson } from './stats';
 import { CONVERSION_TARGET, OPENINGS_TARGET, trainForPhase } from './train';
 import {
+  HUMAN_LIKE,
   PHASES,
   type AfterLossLine,
   type BucketId,
@@ -19,6 +20,8 @@ import {
   type Ledger,
   type LedgerBucket,
   type OpeningRow,
+  type OpponentFilter,
+  type OpponentType,
   type PhaseRate,
   type Trend,
 } from './types';
@@ -26,13 +29,20 @@ import {
 const byPlayed = (a: GameFacts, b: GameFacts) => a.playedAt.localeCompare(b.playedAt) || a.gameId.localeCompare(b.gameId);
 const rank = (a: LedgerBucket, b: LedgerBucket) => b.lowerBound - a.lowerBound || b.pointsPerGame.value - a.pointsPerGame.value;
 
+/** Whether a game against `type` passes the opponent filter ('bot' = Maia and Stockfish bots). */
+export function opponentMatches(type: OpponentType, filter: OpponentFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'bot') return type !== 'human';
+  return type === filter;
+}
+
 /** The facts the filters keep, oldest first. */
 export function filterFacts(facts: GameFacts[], options: Pick<InsightsOptions, 'speed' | 'opponent'>): GameFacts[] {
   const speed = options.speed ?? 'all';
   const opponent = options.opponent ?? 'all';
   return facts
     .filter((f) => f.factsVersion === INSIGHTS.factsVersion)
-    .filter((f) => (speed === 'all' || f.speed === speed) && (opponent === 'all' || f.opponent === opponent))
+    .filter((f) => (speed === 'all' || f.speed === speed) && opponentMatches(f.opponent, opponent))
     .sort(byPlayed);
 }
 
@@ -140,7 +150,9 @@ function episodeCard(facts: GameFacts[], pick: (f: GameFacts) => boolean, withSt
   const card: EpisodeCard = {
     all: episodeStat(games, overall),
     human: episodeStat(games.filter((f) => f.opponent === 'human'), overall),
-    bot: episodeStat(games.filter((f) => f.opponent === 'bot'), overall),
+    maia: episodeStat(games.filter((f) => f.opponent === 'maia'), overall),
+    stockfish: episodeStat(games.filter((f) => f.opponent === 'stockfish'), overall),
+    humanLike: episodeStat(games.filter((f) => HUMAN_LIKE.includes(f.opponent)), overall),
     train: CONVERSION_TARGET,
   };
   if (withStrong) card.strong = episodeStat(chess.filter(withStrong), overall);

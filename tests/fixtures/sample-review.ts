@@ -108,7 +108,7 @@ function build(): { record: GameRecord; review: GameReview } {
   positions.push({ fen: chess.fen(), winWhite: 0, bestLine: [] });
 
   const review: GameReview = {
-    version: 1,
+    version: 2,
     depth: 16,
     createdAt: '2026-10-13T09:00:00.000Z',
     positions,

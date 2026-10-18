@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INSIGHTS } from '../../src/config/tunables';
 import { myColor } from '../../src/game/myColor';
-import { buildAllFacts, buildGameFacts, exclusionReason, historyOf, phasesOf } from '../../src/insights/facts';
+import { buildAllFacts, buildGameFacts, criticalAt, exclusionReason, historyOf, opponentTypeOf, phasesOf } from '../../src/insights/facts';
 import {
   allowedBackRankMate,
   gaveAwayStalemate,
@@ -50,7 +50,7 @@ describe('insights facts: one game', () => {
     )!;
     expect(f.color).toBe('b');
     expect(f.score).toBe(1);
-    expect(f.opponent).toBe('bot');
+    expect(f.opponent).toBe('stockfish');
     expect(f.opponentElo).toBe(1200);
     expect(f.playedAt).toBe('2026-10-01T10:20:00.000Z');
     expect(f.speed).toBe('untimed');
@@ -229,5 +229,47 @@ describe('insights facts: history', () => {
       { gameId: 'a', playedAt: '2026-10-01T00:00:00.000Z', score: 0 },
       { gameId: 'b', playedAt: '2026-10-02T00:00:00.000Z', score: 1 },
     ]);
+  });
+});
+
+describe('insights facts: opponent type (factsVersion 2)', () => {
+  it('person, Maia bot, Stockfish level; a bot with no engine field is Stockfish', () => {
+    expect(buildGameFacts(makeGame({ opponent: 'human' }))!.opponent).toBe('human');
+    expect(buildGameFacts(makeGame({ botEngine: 'maia' }))!.opponent).toBe('maia');
+    expect(buildGameFacts(makeGame({ botEngine: 'stockfish' }))!.opponent).toBe('stockfish');
+    expect(buildGameFacts(makeGame())!.opponent).toBe('stockfish');
+    expect(opponentTypeOf({ name: 'x', isBot: false, engine: 'maia' })).toBe('human');
+  });
+});
+
+describe('insights facts: critical moves from the second line', () => {
+  // White to move at even position indices; ply 3 (White) is played from position 2.
+  const engine = {
+    // Only one move holds: best +3.00, second -1.00 (a big win-chance gap).
+    2: { bestMove: 'g1f3', score: { cp: 300 }, second: { move: 'b1c3', score: { cp: -100 } } },
+    // Two moves about as good.
+    4: { bestMove: 'f3g1', score: { cp: 20 }, second: { move: 'b1c3', score: { cp: 10 } } },
+    // Version 2 and no second line: only one legal move.
+    6: { bestMove: 'g1f3', score: { cp: 20 } },
+  };
+
+  it('version 2: critical when the best line beats the second by REVIEW.greatGap; one legal move is not critical', () => {
+    const f = buildGameFacts(makeGame({ reviewVersion: 2, engine }))!;
+    expect(f.moves.find((m) => m.ply === 3)!.critical).toBe(true);
+    expect(f.moves.find((m) => m.ply === 5)!.critical).toBe(false);
+    expect(f.moves.find((m) => m.ply === 7)!.critical).toBe(false);
+  });
+
+  it('version 1 reviews load, and a missing second line is not read as "only one legal move"', () => {
+    const f = buildGameFacts(makeGame({ reviewVersion: 1, engine }))!;
+    expect(f).not.toBeNull();
+    expect(f.moves.every((m) => m.critical === undefined)).toBe(true);
+    const v1 = makeGame({ engine }).review!;
+    expect(criticalAt(v1, v1.positions[6], 'w')).toBeUndefined();
+  });
+
+  it('from the mover’s side: the same gap counts for Black', () => {
+    const g = makeGame({ reviewVersion: 2, user: 'b', engine: { 3: { bestMove: 'g8f6', score: { cp: -300 }, second: { move: 'b8c6', score: { cp: 100 } } } } });
+    expect(buildGameFacts(g)!.moves.find((m) => m.ply === 4)!.critical).toBe(true);
   });
 });

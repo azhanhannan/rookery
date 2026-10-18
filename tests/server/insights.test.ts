@@ -125,6 +125,8 @@ describe('insights', () => {
     const res = await facts(app, ana);
     expect(res.facts.map((f) => f.gameId)).toEqual(['game-000', 'game-001', 'game-002']);
     expect(res.facts.every((f) => f.factsVersion === INSIGHTS.factsVersion)).toBe(true);
+    // factsVersion 2: the three-way opponent split (a bot with no engine field is a Stockfish level).
+    expect(res.facts.map((f) => f.opponent)).toEqual(['stockfish', 'stockfish', 'stockfish']);
     const rows = await db.gameInsight.findMany({ where: { userId: ana.id } });
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.factsVersion === INSIGHTS.factsVersion)).toBe(true);

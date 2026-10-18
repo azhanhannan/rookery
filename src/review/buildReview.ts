@@ -13,11 +13,15 @@ import {
   type PlayerSummary,
   type PositionReview,
   type ReviewInput,
+  REVIEW_VERSION,
 } from './types';
 
+/** A stored position from its analysis: the best line in full, and the second line's move and score (review v2). */
 export function toPosition(fen: string, analysis: AnalysisResult, winWhite: number): PositionReview {
-  const best = analysis.lines[0];
-  return { fen, score: best?.score, winWhite, bestMove: best?.move.toLowerCase(), bestLine: best?.pv ?? [] };
+  const [best, second] = analysis.lines;
+  const pos: PositionReview = { fen, score: best?.score, winWhite, bestMove: best?.move.toLowerCase(), bestLine: best?.pv ?? [] };
+  if (best && second) pos.second = { move: second.move.toLowerCase(), score: second.score };
+  return pos;
 }
 
 /** SAN of an engine move; undefined if the engine sent something illegal. */
@@ -113,7 +117,7 @@ export function buildReview(input: ReviewInput): GameReview {
   }
 
   return {
-    version: 1,
+    version: REVIEW_VERSION,
     depth: input.depth,
     createdAt: new Date().toISOString(),
     positions,

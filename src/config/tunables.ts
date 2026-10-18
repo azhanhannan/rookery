@@ -440,8 +440,12 @@ export const LESSONS = {
  * player's side; losses are win chance given away (points lost per game = loss / 100).
  */
 export const INSIGHTS = {
-  /** Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated. */
-  factsVersion: 1,
+  /**
+   * Bump whenever a phase, motif or episode rule changes: cached facts are rebuilt, never migrated.
+   * 2 (player profile Step 0): `MoveFact.critical` from the stored second line, and opponents split into
+   * human / maia / stockfish.
+   */
+  factsVersion: 2,
   /** Reviews shallower than this are left out (REVIEW.depth.normal). */
   minReviewDepth: 16,
   /** Games where the player made fewer moves are left out (RATING.minMoves). */

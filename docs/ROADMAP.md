@@ -1,6 +1,17 @@
 # Rookery roadmap (after the SPEC phases)
 
-Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 18 Oct 2026 (after wave 5, player profile slices 1-3).
+Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 19 Oct 2026 (after wave 5, player profile slices 1-3, and the dev-data cleanup).
+
+## Status at close (19 Oct 2026)
+
+- Waves 1-5 built and merged; all checks green on `master` (tsc, 984 unit, 82 server, build, 88 e2e).
+- Local dev DB: `man_9486` merged into `breakfastmilo` (18 Oct); the 14 Phase 5 fixture games (`seed-*`, `loc-*`)
+  deleted and ratings replayed on 19 Oct: rapid 694 (11 games), blitz 759 (7), bullet removed, puzzle 1361.
+  Backups and the one-off scripts (merge, cleanup) are in `.data/backups/2026-10/` (gitignored, local only).
+- **Next for Hannan**: in the browser, signed in as breakfastmilo, run the re-review / Review all (depth 16, v2)
+  so Insights and the profile fill in; then click through the untried lists below.
+- **Next to build**: Phase 4 Lichess calibration (unblocks Maia fit by phase, rating-band comparison, style rating);
+  then online play / server-side review (from SPEC).
 
 ## Where the ideas came from
 
@@ -52,15 +63,14 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 - Next per `player-profile-2026-10/decision.md`: Maia fit by phase (after Phase 4). Open from slice 3: cost by type is not
   a ledger bucket / Focus candidate; sacrifices count only with a provable threat; king-side pawn pushes not forcing. Never: archetype labels, "positional", one pooled "plays like ~X".
 - Untested by hand: coach tab rendering of the profile; real data (Hannan's games mostly Stockfish levels). The
-  factsVersion bump turns a Focus pinned before it into "Rules changed". The 14 clockless games were Phase 5 dev test data (`seed-*`, `loc-*`), not a bug.
+  factsVersion bump turns a Focus pinned before it into "Rules changed". (`critical` and rushed critical moves came with review v2 in wave 5.)
 
 **Insights (wave 4), untried in a real browser**
 - IndexedDB facts cache across reloads; `rookery.focus` sync between two devices; the verdict / window-closed states
   (need 15 games + 2 weeks); Swap and End; the page against the real server endpoints (e2e mocks them).
 - Server backfill on the real dev DB; coach cards with real named motifs; re-review pausing during a bot game; the
   re-review offer at phone width. Learner/state wording in `src/app/insights/wording.ts` is the agent's own — review it.
-- Not built: tablebase-wrong motif (reviews store no tablebase result), `critical` / rushed critical moves (reviews keep
-  no second line), rating-band comparison (waits for Phase 4 calibration). Time trouble has no drill, so it is never the
+- Not built: tablebase-wrong motif (reviews store no tablebase result), rating-band comparison (waits for Phase 4 calibration). Time trouble has no drill, so it is never the
   ledger's Focus (a coach may still set it).
 - Known: startup backfill can overwrite a row re-uploaded at the same moment (next save fixes it); Chess.com
   `EndDate`/`EndTime` assumed UTC; re-review replaces "Analyse deeper" positions.

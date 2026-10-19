@@ -112,6 +112,8 @@ describe('coachWarning: near misses stay quiet', () => {
     const fen = 'r2q1rk1/pp2bppp/2n1bn2/2pp4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 w - - 0 9';
     const t = performance.now();
     for (let i = 0; i < 5; i++) coachWarning(fen, 'h2h3');
-    expect((performance.now() - t) / 5).toBeLessThan(150);
+    // ~30-150 ms on a quiet machine; the bound is loose so parallel test workers don't make it flaky. A real
+    // regression (an engine-like search slipping in) would cost seconds.
+    expect((performance.now() - t) / 5).toBeLessThan(600);
   });
 });

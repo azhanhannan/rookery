@@ -7,8 +7,11 @@
 //     facts, never blamed for the evaluation drop: the UI shows them under "What changed", not "Why it's bad".
 // This file is the shared contract; `explainMove` combines both for the UI.
 import type { Color } from '../game/types';
+import { captionForMove } from './captions';
+import { lineStory } from './lineStory';
+import { positionChanges } from './positionChanges';
 import type { ReviewStyle } from './reviewStyle';
-import type { GameReview } from './types';
+import type { GameReview, MoveLabel } from './types';
 
 /** One sentence of an explanation, with the UCI moves it talks about (the UI can play them on the board). */
 export type WhySentence = {
@@ -57,9 +60,60 @@ export type MoveExplanation = {
   changes: ChangeFact[];
 };
 
-/** Builds the full "Why?" for review.moves[ply - 1]. Implemented once lineStory/positionChanges exist. */
+/** Labels whose moves get a "Why?" button in every style; Analyst offers it on any move. */
+export const WHY_LABELS: ReadonlySet<MoveLabel> = new Set(['Inaccuracy', 'Mistake', 'Blunder', 'Miss']);
+
+export function offersWhy(label: MoveLabel, style: ReviewStyle): boolean {
+  return style === 'analyst' || WHY_LABELS.has(label);
+}
+
+const empty = (ply: number): MoveExplanation => ({ ply, story: { played: [], better: [] }, changes: [] });
+/** Text compared loosely: case, spacing and the closing full stop don't make two sentences different. */
+const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!]+$/, '');
+
+/** Builds the full "Why?" for review.moves[ply - 1]: the line story, then the position changes that don't repeat it. */
 export function explainMove(review: GameReview, ply: number, style: ReviewStyle): MoveExplanation {
-  void style;
-  void review;
-  return { ply, story: { played: [], better: [] }, changes: [] };
+  const move = review.moves[ply - 1];
+  const before = review.positions[ply - 1];
+  const after = review.positions[ply];
+  if (!Number.isInteger(ply) || ply < 1 || !move || !before || !after) return empty(ply);
+  const story = lineStory(
+    {
+      fenBefore: before.fen,
+      played: move.uci,
+      mover: move.color,
+      lineAfter: after.bestLine,
+      lineBefore: before.bestLine,
+      winBefore: move.winBefore,
+      winAfter: move.winAfter,
+    },
+    style,
+  );
+  // A change fact that says what the story (or the move's caption) already says is dropped.
+  const told = [...story.played, ...story.better];
+  const kinds = new Set(told.map((s) => s.kind));
+  const texts = new Set(told.map((s) => norm(s.text)));
+  const caption = captionForMove(review, ply);
+  if (caption) texts.add(norm(caption));
+  const changes = positionChanges(before.fen, after.fen, move.color, ply, style)
+    .filter((c) => !kinds.has(c.kind) && !texts.has(norm(c.text)))
+    .sort((a, b) => b.weight - a.weight);
+  return { ply, story, changes };
+}
+
+/** Pieces, side to move, castling and en passant: the part of a FEN that decides which moves are legal. */
+const boardKey = (fen: string) => fen.split(' ').slice(0, 4).join(' ');
+
+/**
+ * The game position (positions index) a sentence's line can be played from on the review board: the position
+ * before or after the move, when `fromFen` is one of them. Null when the line starts anywhere else (no "Show").
+ */
+export function lineBaseFor(review: GameReview, ply: number, s: WhySentence): number | null {
+  if (!s.line?.length || !s.fromFen) return null;
+  const key = boardKey(s.fromFen);
+  for (const base of [ply - 1, ply]) {
+    const pos = review.positions[base];
+    if (pos && boardKey(pos.fen) === key) return base;
+  }
+  return null;
 }

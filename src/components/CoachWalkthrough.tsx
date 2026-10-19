@@ -1,7 +1,8 @@
 // The coach walkthrough panel: Rookie reads the steps of `coachScript` one at a time, with Back / Next,
-// "Find the better move" (Retry on that one move), "Show me" (the engine line) and "Train this" at the end.
+// "Find the better move" (Retry on that one move), "Show me" (the engine line), "Why?" on a weak key move
+// (src/components/WhyPanel.tsx, drawn by the review screen) and "Train this" at the end.
 // While it is open, ← / → move between steps and Escape closes it, ahead of the review screen's own keys.
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { trainHref } from '../app/deepLinks';
 import { trainLabel } from '../app/insights/wording';
 import type { CoachStep } from '../review/coachScript';
@@ -18,6 +19,7 @@ export function CoachWalkthrough({
   onExit,
   onRetry,
   onShowLine,
+  why,
 }: {
   steps: CoachStep[];
   index: number;
@@ -27,6 +29,8 @@ export function CoachWalkthrough({
   onRetry: (retryIndex: number) => void;
   /** Play the engine line from this position. */
   onShowLine: (base: number) => void;
+  /** The "Why?" button and panel for this step's move, when it offers one. */
+  why?: ReactNode;
 }) {
   const step = steps[index];
   const first = index === 0;
@@ -90,6 +94,7 @@ export function CoachWalkthrough({
           )}
         </div>
       )}
+      {step.kind === 'moment' && why}
       <div className="grid grid-cols-2 gap-2">
         <button className={btn} disabled={first} onClick={() => onIndex(index - 1)} title="Back (←)">
           Back

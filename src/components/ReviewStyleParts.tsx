@@ -255,6 +255,10 @@ export function ReviewSettingsSection({ className }: { className: string }) {
         <input type="checkbox" checked={prefs.coachMascot} onChange={(e) => saveReviewPrefs({ coachMascot: e.target.checked })} data-testid="coach-mascot" />
         <span>Rookie the rook says the coach lines in Review (only lines the board proves; never during a game)</span>
       </label>
+      <label className="mt-1 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={prefs.coachAutoOpen} onChange={(e) => saveReviewPrefs({ coachAutoOpen: e.target.checked })} data-testid="coach-auto-open" />
+        <span>Learner style: start the coach walkthrough when a review opens</span>
+      </label>
     </section>
   );
 }

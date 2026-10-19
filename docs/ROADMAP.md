@@ -80,10 +80,19 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
   Keep both, and the clashing move is cued with the repertoire's name. Untried by hand. Not built from the papers:
   load-balanced spread, half cap for 7 days after Resume, the 7-day forecast simulation (a 3-days-of-backlog gate
   stands in), time-boxed sessions.
-- `coach-practice.spec` "hung bishop" fails on this machine tonight with or without the P1 change (checked by
-  stashing); it passed in the run before. Look at it next time.
-- **P2**: Hint; Learn flow (idea first, ungraded first pass, end-of-session try, play from here); mixed colours; "why"
-  prompts; size/trim suggestion; recall-rate check.
+- Built 19 Oct, **P2**: Hint (lights the piece to move; a due card then holds its step, not a miss, not a climb);
+  Learn shows the line's idea first (its first plan comment), the from-memory pass right after watching no longer
+  counts misses (new card due tomorrow either way), ends on "Let this settle" / "Play from here" (practice game vs the
+  gentlest bot from the line's last position) / "Another line" (only when today's budget allows), and picks lines
+  breadth first; "Why this move?" asks for the plan after an answer from memory; "Today's reviews, all repertoires"
+  runs due lines across repertoires, White and Black in turn; Progress shows a size check in a coach's voice
+  (`suggestedMoves` 45, `suggestedDepth` 8; advice only) and "Waiting: N" instead of "N due"; first-time recall is
+  logged per day (`rookery.openings.recall`) and shown only in the Analyst style (under 80% over 30 days: consider
+  `missDrop` 2). Untried by hand.
+- Not built from the papers: "Tricky spots" on the last 5 attempts only, re-teach offer after 3 hints, time-boxed
+  sessions, half cap after Resume, load-balanced spread, a rest reminder after 14 days.
+- `coach-practice.spec` "hung bishop" and `practice.spec` "hanging piece glows" are flaky on this machine (fail with
+  or without the trainer changes, checked by stashing; pass on other runs): bot-move timing. Look at them next time.
 
 **Why? (wave 7), untried by hand**
 - "What happens next" says who wins material in side names (White/Black), so on your own mistake it can read

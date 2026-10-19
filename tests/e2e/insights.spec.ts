@@ -33,13 +33,17 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/puzzles/puzzles.json', (route) => route.fulfill({ json: set }));
 });
 
-test('below 10 reviewed games: the gate, with Review all', async ({ page }) => {
-  await seed(page, hangingGames(4), 'club');
+test('below 10 reviewed games: the gate, and an offer to review the unreviewed ones here', async ({ page }) => {
+  const [noReview, ...rest] = hangingGames(5);
+  await seed(page, [{ ...noReview, review: undefined }, ...rest], 'club');
   await open(page, '#/insights');
   const gate = page.getByTestId('insights-gate');
   await expect(gate).toContainText('Review 6 more games');
-  await expect(gate.getByTestId('gate-review-all')).toHaveAttribute('href', '#/import');
-  await expect(page.getByTestId('insights-coverage')).toContainText('4 of 4 saved games');
+  await expect(gate.getByTestId('gate-import')).toHaveAttribute('href', '#/import');
+  const offer = page.getByTestId('unreviewed-offer');
+  await expect(offer).toContainText('1 saved game has no review yet');
+  await expect(offer.getByRole('button', { name: 'Review it in the background' })).toBeVisible();
+  await expect(page.getByTestId('insights-coverage')).toContainText('4 of 5 saved games');
   await expect(page.getByTestId('focus-card')).toHaveCount(0);
 });
 

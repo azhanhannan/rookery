@@ -15,6 +15,8 @@ import { effectiveStyle, STYLE_NAME, type ReviewStyle } from '../review/reviewSt
 import { useReviewPrefs } from '../settings/reviewPrefs';
 import { loadTrainingLog } from '../training/trainingLog';
 import { useBatchReview } from './batchReview';
+import { BatchReviewPanel } from '../components/BatchReviewPanel';
+import { ReReviewOffer } from '../components/ReReviewOffer';
 import { ActiveFocus, FocusProposal } from './insights/FocusCard';
 import { activeFocus, beginFocus, finishFocus, loadFocus, type StoredFocus } from './insights/focusStore';
 import { loadInsightFacts, type LoadedFacts } from './insights/loadFacts';
@@ -171,6 +173,9 @@ export function InsightsPage() {
         )}
       </div>
 
+      <ReReviewOffer />
+      <BatchReviewPanel />
+
       {loaded.facts.length > 0 && style !== 'learner' && (
         <div className="flex flex-wrap gap-2 text-sm" data-testid="insights-filters">
           <label className="flex items-center gap-1">
@@ -226,8 +231,8 @@ export function InsightsPage() {
               : `Review ${model.needGames} more game${model.needGames === 1 ? '' : 's'} and I’ll show you where your games are decided.`}
           </MascotSays>
           <div className="flex flex-wrap gap-3 text-sm">
-            <a className="font-semibold text-accent hover:underline" href="#/import" data-testid="gate-review-all">
-              Review all
+            <a className="font-semibold text-accent hover:underline" href="#/import" data-testid="gate-import">
+              Import games
             </a>
             <a className="text-accent hover:underline" href="#/review/games">
               Review one game

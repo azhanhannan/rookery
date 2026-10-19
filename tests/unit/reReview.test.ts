@@ -74,6 +74,20 @@ describe('shallowReviewIds', () => {
     expect(t.reReviewDepth()).toBe(16);
   });
 
+  it('unreviewedIds lists finished games with no fitting review, which shallowReviewIds leaves out', async () => {
+    const t = await boot();
+    const a = finished(['e2e4']);
+    const c = finished(['c2c4']);
+    const d = finished(['g1f3']);
+    const games = [
+      { ...a, review: reviewFor(a, 12) },
+      c,
+      { ...d, review: reviewFor(finished(['e2e4', 'e7e5']), 12) },
+      play(['d2d4']), // unfinished
+    ];
+    expect(t.unreviewedIds(games)).toEqual([c.id, d.id]);
+  });
+
   it('also lists version 1 reviews (no second engine line) at any depth', async () => {
     const t = await boot();
     const a = finished(['e2e4']);

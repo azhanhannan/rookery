@@ -34,6 +34,14 @@ export function shallowReviewIds(games: GameRecord[], depth = reReviewDepth()): 
     .map((g) => g.id);
 }
 
+/**
+ * Ids (in saved order, newest first) of finished games with no review that fits their moves: never reviewed, or
+ * reviewed before the moves changed. Not the re-review's job; the "Review them" offer reviews these.
+ */
+export function unreviewedIds(games: GameRecord[]): string[] {
+  return games.filter((g) => g.result !== '*' && g.moves.length > 0 && !reviewFits(g, g.review)).map((g) => g.id);
+}
+
 /** Pages that use the engine for themselves (Play is handled apart: only a game in progress counts). */
 const ENGINE_PAGES = ['#/analysis', '#/review', '#/endgames', '#/puzzles'];
 
@@ -83,6 +91,22 @@ export function startReReview(): boolean {
     yieldWhile: () => engineWantedElsewhere(location.hash, useGameStore.getState().record),
     // Done, cancelled or stopped: don't come back on the next load (the offer stays for games still shallow).
     onEnd: () => setResume(false),
+  });
+  return true;
+}
+
+/**
+ * Reviews every finished game on this device that has no review yet, at the normal depth, as an ordinary
+ * "Review all" run that waits while the engine is wanted elsewhere. A reload stops it; the offer then shows
+ * what is left. Returns false when there is none or another batch run is going.
+ */
+export function startReviewUnreviewed(): boolean {
+  const batch = useBatchReview.getState();
+  if (batch.status === 'running') return false;
+  const ids = unreviewedIds(loadHistory());
+  if (ids.length === 0) return false;
+  batch.start(ids, reReviewDepth(), {
+    yieldWhile: () => engineWantedElsewhere(location.hash, useGameStore.getState().record),
   });
   return true;
 }

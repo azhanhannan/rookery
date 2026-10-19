@@ -1,10 +1,10 @@
 # Rookery roadmap (after the SPEC phases)
 
-Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 19 Oct 2026 (after wave 5, player profile slices 1-3, and the dev-data cleanup).
+Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 19 Oct 2026 (after wave 6, the rule-based system coach).
 
 ## Status at close (19 Oct 2026)
 
-- Waves 1-5 built and merged; all checks green on `master` (tsc, 984 unit, 82 server, build, 88 e2e).
+- Waves 1-6 built and merged; all checks green on `master` (tsc, 1047 unit, 82 server, build, 93 e2e).
 - Local dev DB: `man_9486` merged into `breakfastmilo` (18 Oct); the 14 Phase 5 fixture games (`seed-*`, `loc-*`)
   deleted and ratings replayed on 19 Oct: rapid 694 (11 games), blitz 759 (7), bullet removed, puzzle 1361.
   Backups and the one-off scripts (merge, cleanup) are in `.data/backups/2026-10/` (gitignored, local only).
@@ -32,6 +32,7 @@ one "Review style" setting (Learner / Club / Analyst) instead of picking words v
 | 3 | 16 Oct | Opening explorer (Lichess masters + online games, token in Settings; Analysis, Review, rare-move note in the trainer) · Coach–student link `#/coach` (invite codes, coach view of games, comments per game/ply, puzzle homework, header badge) · Lessons `#/lessons` (7 lessons, checked positions) · Loose ends: sync delete markers, max/union merges, alternative moves in My mistakes, live theme picker, self-review style race, phone header with a More menu (`src/app/nav.ts`) | `5f75ea6`..`HEAD` |
 | 4 | 18 Oct | Insights `#/insights` from a second panel (BA, SA, coach SME, analytics SME; [`insights-2026-10/`](insights-2026-10/), decisions in `synthesis.md`): typed caption facts + extra motifs (back-rank, ignored threat, stalemate given away, lost on time while better) · `src/insights/` facts, stats, points-lost ledger, Focus with pre-registered re-test, conversion/saves, clock, after-loss line, openings, trend · page by Review style, synced `rookery.focus`, IndexedDB facts cache, Train-this deep links · server `GameInsight`/`CoachFocus` (migration `20261018120000_insights`), full-history facts, coach Insights tab · games record `endedAt`/`takebacks`; Review all at depth 16 + one-off re-review of shallower reviews | `b238823`..`1fae0eb` |
 | 5 | 18 Oct | Player profile from a third panel (coach SME, analytics SME, product + an Opus decision-maker; [`player-profile-2026-10/`](player-profile-2026-10/), ruling in `decision.md`): reviews keep the second engine line (review v2) → `MoveFact.critical`; opponents split human / maia / stockfish; factsVersion 2; re-review also offers v1 reviews · "Your recent games" under Focus on `#/insights` (`src/insights/profile.ts`): phase, threat-checking, converting & saving (people + Maia only), clock, openings incl. "not the problem"; habits not labels (banned-word test); opens at 20 games; Learner/Club/Analyst views; coach tab shows it; nothing on the public profile · slice 2: rushed critical moves (clock card + profile, critical move < 0.5× game median time) · slice 3: forcing vs quiet cost by type (people + Maia, 40 games at one speed, clustered interval, flip test; factsVersion 3) | `d426cd0`, `07134ff` |
+| 6 | 19 Oct | System coach, rule-based (no AI; every line provable from the review): **Coach walkthrough** in Review (`src/review/coachScript.ts`, `CoachWalkthrough.tsx`; key moments one by one, stakes in words/%/numbers by style, Find the better move / Show me, closing take-away + Train this; ←/→/Esc; auto-opens on Learner, pref `coachAutoOpen`) · **Practice Coach** (`src/game/coachWatch.ts`, `useCoachWatch`, `CoachWarning.tsx`; Practice only: warns after a move that drops ≥ 2 pawns or allows mate in 1, Take it back / Keep playing, bot held + clock paused while open; quiet on checks, even trades, pawn drops, unavoidable losses; synced `rookery.practiceCoach`) · **Tactic captions** (`src/review/tactics.ts`: pin, skewer, discovered attack, trapped piece, promotion, lost in exchange, missed fork; allowed + missed; engine line as witness; factsVersion 4, Insights motifs pin/skewer/discovered-attack → lessons). Own mistakes explained on the dev DB: 35% → 44% · also: arrow keys on the self-review question; Insights offers to review never-reviewed games | `b645bba`, `59f14ee`, `d18e1c6` |
 
 Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`20261016140000_coach`); the server applies migrations on start.
 
@@ -60,6 +61,16 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 ## Left to do
 
 **Panel ideas**: all built (wave 3).
+
+**System coach (wave 6), untried by hand**
+- Walkthrough: Rookie shows even with the `coachMascot` pref off (that pref only covers move-panel captions); Escape
+  closes the walkthrough, not a line/retry under it; the opening phase can run to ~move 17, so "Train this" may
+  point at the opening trainer. Learner wording for the new motifs is the agent's own.
+- Practice Coach: never warns on a checking move (Qxf7+?? Kxf7 is missed); losses two moves deep aren't seen;
+  a reload with a warning open leaves the bot's clock paused until it moves.
+- Tactic captions: missed-* kinds never fired on the dev games (unit tests only); removing the defender /
+  overloaded defender not built (not provable cleanly). Next options: AI "Explain more" grounded in engine facts
+  (needs a pay-as-you-go API key), more motifs.
 
 **Player profile (wave 5)**
 - Next per `player-profile-2026-10/decision.md`: Maia fit by phase (after Phase 4). Open from slice 3: cost by type is not

@@ -38,6 +38,7 @@ export const SYNC_KEYS: Readonly<Record<string, SyncKind>> = {
   'rookery.reviewPrefs': 'pref',
   'rookery.gameMode': 'pref',
   'rookery.hangingGlow': 'pref',
+  'rookery.practiceCoach': 'pref',
   'rookery.analysis.engine': 'pref',
   'rookery.evalBar': 'pref',
   'rookery.botElo': 'pref',

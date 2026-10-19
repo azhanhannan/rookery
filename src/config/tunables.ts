@@ -534,3 +534,12 @@ export const INSIGHTS = {
   /** Bayesian trend: prior sd of the slope, points lost per game per game played. */
   trendPriorSd: 0.05,
 };
+
+/** Practice games: the opt-in Coach that warns, right after your move, when a rule proves it lost material or allowed mate (src/game/coachWatch.ts). */
+export const COACH_PRACTICE = {
+  /** Coach on for a viewer who never toggled it (Practice games only; never in Rated games). */
+  defaultOn: true,
+  /** Warn when your move loses at least this many pawns of material (3-ply count: their capture, your best reply)
+   * more than your best other move would have. 2 = a piece for a pawn or worse; pawn drops stay quiet. */
+  minLoss: 2,
+};

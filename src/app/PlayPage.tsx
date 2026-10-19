@@ -24,6 +24,8 @@ import { useFlipKey } from '../components/boardKeys';
 import { SparButton } from '../components/SparButton';
 import { LossCushion } from '../components/LossCushion';
 import { usePremove } from './usePremove';
+import { useCoachWatch } from './useCoachWatch';
+import { CoachWarning } from '../components/CoachWarning';
 
 const MUTE_KEY = 'rookery.muted';
 
@@ -125,6 +127,7 @@ export function PlayPage() {
   const liveEval = useLiveEval(record, viewPly, evalOn);
   const practiceAids = usePracticeAids(record, viewPly);
   const premove = usePremove(record, viewPly);
+  const coach = useCoachWatch(record);
   const boardStyles = useMemo(
     () => ({ ...practiceAids.squareStyles, ...premove.squareStyles }),
     [practiceAids.squareStyles, premove.squareStyles],
@@ -216,7 +219,9 @@ export function PlayPage() {
 
         <LossCushion />
 
-        <PracticePanel aids={practiceAids} />
+        <CoachWarning coach={coach} onTakeBack={practiceAids.takeBack} />
+
+        <PracticePanel aids={practiceAids} coach={coach} />
 
         <MoveList />
 

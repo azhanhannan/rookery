@@ -543,3 +543,14 @@ export const COACH_PRACTICE = {
    * more than your best other move would have. 2 = a piece for a pawn or worse; pawn drops stay quiet. */
   minLoss: 2,
 };
+
+/** Coach walkthrough in Review (src/review/coachScript.ts): Rookie walks through the key moments. */
+export const COACH_WALKTHROUGH = {
+  /** Most key moments the walkthrough visits (the moments themselves come from REVIEW_STYLE.keyMoments). */
+  maxMoments: 5,
+  /**
+   * Win chance (mover's view, 0-100) to plain words: at least `winning` = winning, at least `better` = better,
+   * above `worse` = about even, above `losing` = worse, else losing.
+   */
+  bands: { winning: 85, better: 60, worse: 40, losing: 15 },
+};

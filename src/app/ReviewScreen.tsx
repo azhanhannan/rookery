@@ -38,12 +38,15 @@ import { biggestMistake, keyMoments, shouldSelfReview, threatArrowFor } from '..
 import { retryColors } from '../review/reviewView';
 import { saveReviewPrefs } from '../settings/reviewPrefs';
 import { useDeepen, useReviewStyle } from './useReviewStyle';
+import { coachScript } from '../review/coachScript';
+import { CoachWalkthrough } from '../components/CoachWalkthrough';
 
 type Mode =
   | { kind: 'game' }
   /** Engine line from positions[base]; step 0 = that position, step k = after k line moves. */
   | { kind: 'line'; base: number; step: number; playing: boolean }
-  | { kind: 'retry'; index: number; status: 'try' | 'wrong' | 'correct' | 'shown'; tried?: string };
+  /** `single`: one move only (from the coach walkthrough); finishing goes back to the game. */
+  | { kind: 'retry'; index: number; status: 'try' | 'wrong' | 'correct' | 'shown'; tried?: string; single?: boolean };
 
 const BEST_ARROW = 'rgba(79, 154, 44, 0.85)';
 const THREAT_ARROW = 'rgba(199, 54, 43, 0.85)';
@@ -124,6 +127,24 @@ export function ReviewScreen({
   // undefined = not answered yet, null = skipped.
   const [guess, setGuess] = useState<number | null | undefined>(undefined);
   const biggest = useMemo(() => biggestMistake(review, retryColors(record)), [review, record]);
+  // Coach walkthrough: the open step, or null. Learner opens it once, after the self-review question.
+  const [coach, setCoach] = useState<number | null>(null);
+  const [coachDecided, setCoachDecided] = useState(false);
+  if (!coachDecided && askFirst !== null && !(askFirst && guess === undefined)) {
+    setCoachDecided(true);
+    if (style === 'learner' && prefs.coachAutoOpen && initialPly === undefined) setCoach(0);
+  }
+  const coachSteps = useMemo(
+    () =>
+      coachScript({
+        record,
+        review,
+        style,
+        accuracyNotes:
+          style === 'analyst' ? undefined : accuracyNotesFor(record, { w: review.white.accuracy, b: review.black.accuracy }, rating),
+      }),
+    [record, review, style, rating],
+  );
   const moments = useMemo(() => keyMoments(review), [review]);
   const deepen = useDeepen(review, (next) => {
     setDeeper(next);
@@ -243,13 +264,21 @@ export function ReviewScreen({
     return false;
   }
 
+  function showCoachStep(i: number) {
+    const s = coachSteps[i];
+    if (!s) return;
+    setCoach(i);
+    setMode({ kind: 'game' });
+    if (s.ply !== undefined) goTo(s.ply);
+  }
+
   function startRetry() {
     if (candidates.length) setMode({ kind: 'retry', index: 0, status: 'try' });
   }
 
   function nextRetry() {
     if (mode.kind !== 'retry') return;
-    if (mode.index + 1 < candidates.length) {
+    if (!mode.single && mode.index + 1 < candidates.length) {
       setMode({ kind: 'retry', index: mode.index + 1, status: 'try' });
     } else {
       // Finished: back to the game, on the last move practised.
@@ -340,6 +369,21 @@ export function ReviewScreen({
         {header}
 
         <StyleSwitch style={style} />
+
+        {coach !== null && coachSteps.length > 0 ? (
+          <CoachWalkthrough
+            steps={coachSteps}
+            index={Math.min(coach, coachSteps.length - 1)}
+            onIndex={showCoachStep}
+            onExit={() => setCoach(null)}
+            onRetry={(i) => setMode({ kind: 'retry', index: i, status: 'try', single: true })}
+            onShowLine={(base) => setMode({ kind: 'line', base, step: 0, playing: true })}
+          />
+        ) : (
+          <button className={`${btn} self-start`} onClick={() => showCoachStep(0)} data-testid="coach-open">
+            Coach walkthrough
+          </button>
+        )}
 
         {guess !== undefined && guess !== null && (
           <div className="flex flex-col gap-1 rounded-lg bg-surface p-3 text-sm" data-testid="self-review-result">
@@ -461,7 +505,7 @@ export function ReviewScreen({
           <div className="flex flex-col gap-2 rounded-lg bg-surface p-3" data-testid="retry-panel" aria-live="polite">
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="font-semibold">
-                Retry {mode.index + 1} of {candidates.length}
+                {mode.single ? 'Find the better move' : `Retry ${mode.index + 1} of ${candidates.length}`}
               </span>
               <button className="text-muted hover:text-ink" onClick={() => setMode({ kind: 'game' })}>Exit retry</button>
             </div>
@@ -491,7 +535,7 @@ export function ReviewScreen({
                 <button className={btn} onClick={() => setMode({ ...mode, status: 'shown' })}>Show answer</button>
               )}
               <button className={primary} onClick={nextRetry}>
-                {mode.index + 1 < candidates.length ? 'Next' : 'Finish'}
+                {mode.single ? 'Done' : mode.index + 1 < candidates.length ? 'Next' : 'Finish'}
               </button>
             </div>
           </div>

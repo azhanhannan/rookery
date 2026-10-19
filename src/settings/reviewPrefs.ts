@@ -18,6 +18,8 @@ export type ReviewPrefs = {
   analystCaptions: boolean;
   /** Rookie the rook says the proven captions in a speech bubble (off by default). */
   coachMascot: boolean;
+  /** Learner: the coach walkthrough opens by itself when a review opens (Club and Analyst get a button). */
+  coachAutoOpen: boolean;
 };
 
 export const DEFAULT_REVIEW_PREFS: ReviewPrefs = {
@@ -29,6 +31,7 @@ export const DEFAULT_REVIEW_PREFS: ReviewPrefs = {
   learnerDetails: false,
   analystCaptions: false,
   coachMascot: false,
+  coachAutoOpen: true,
 };
 
 const KEY = 'rookery.reviewPrefs';
@@ -55,6 +58,7 @@ export function parseReviewPrefs(raw: string | null): ReviewPrefs {
     learnerDetails: bool('learnerDetails'),
     analystCaptions: bool('analystCaptions'),
     coachMascot: bool('coachMascot'),
+    coachAutoOpen: bool('coachAutoOpen'),
   };
 }
 

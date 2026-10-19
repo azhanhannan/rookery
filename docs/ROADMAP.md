@@ -1,10 +1,10 @@
 # Rookery roadmap (after the SPEC phases)
 
-Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 19 Oct 2026 (after wave 6, the rule-based system coach).
+Where the post-SPEC feature work stands, so a new session can pick it up. Last updated 19 Oct 2026 (after wave 7, Why? from logic and engine analysis).
 
 ## Status at close (19 Oct 2026)
 
-- Waves 1-6 built and merged; all checks green on `master` (tsc, 1047 unit, 82 server, build, 93 e2e).
+- Waves 1-7 built and merged; all checks green on `master` (tsc, 1108 unit, 82 server, build, 97 e2e; `settings.spec` piece-image check flaked once under load, passes alone).
 - Local dev DB: `man_9486` merged into `breakfastmilo` (18 Oct); the 14 Phase 5 fixture games (`seed-*`, `loc-*`)
   deleted and ratings replayed on 19 Oct: rapid 694 (11 games), blitz 759 (7), bullet removed, puzzle 1361.
   Backups and the one-off scripts (merge, cleanup) are in `.data/backups/2026-10/` (gitignored, local only).
@@ -33,6 +33,7 @@ one "Review style" setting (Learner / Club / Analyst) instead of picking words v
 | 4 | 18 Oct | Insights `#/insights` from a second panel (BA, SA, coach SME, analytics SME; [`insights-2026-10/`](insights-2026-10/), decisions in `synthesis.md`): typed caption facts + extra motifs (back-rank, ignored threat, stalemate given away, lost on time while better) · `src/insights/` facts, stats, points-lost ledger, Focus with pre-registered re-test, conversion/saves, clock, after-loss line, openings, trend · page by Review style, synced `rookery.focus`, IndexedDB facts cache, Train-this deep links · server `GameInsight`/`CoachFocus` (migration `20261018120000_insights`), full-history facts, coach Insights tab · games record `endedAt`/`takebacks`; Review all at depth 16 + one-off re-review of shallower reviews | `b238823`..`1fae0eb` |
 | 5 | 18 Oct | Player profile from a third panel (coach SME, analytics SME, product + an Opus decision-maker; [`player-profile-2026-10/`](player-profile-2026-10/), ruling in `decision.md`): reviews keep the second engine line (review v2) → `MoveFact.critical`; opponents split human / maia / stockfish; factsVersion 2; re-review also offers v1 reviews · "Your recent games" under Focus on `#/insights` (`src/insights/profile.ts`): phase, threat-checking, converting & saving (people + Maia only), clock, openings incl. "not the problem"; habits not labels (banned-word test); opens at 20 games; Learner/Club/Analyst views; coach tab shows it; nothing on the public profile · slice 2: rushed critical moves (clock card + profile, critical move < 0.5× game median time) · slice 3: forcing vs quiet cost by type (people + Maia, 40 games at one speed, clustered interval, flip test; factsVersion 3) | `d426cd0`, `07134ff` |
 | 6 | 19 Oct | System coach, rule-based (no AI; every line provable from the review): **Coach walkthrough** in Review (`src/review/coachScript.ts`, `CoachWalkthrough.tsx`; key moments one by one, stakes in words/%/numbers by style, Find the better move / Show me, closing take-away + Train this; ←/→/Esc; auto-opens on Learner, pref `coachAutoOpen`) · **Practice Coach** (`src/game/coachWatch.ts`, `useCoachWatch`, `CoachWarning.tsx`; Practice only: warns after a move that drops ≥ 2 pawns or allows mate in 1, Take it back / Keep playing, bot held + clock paused while open; quiet on checks, even trades, pawn drops, unavoidable losses; synced `rookery.practiceCoach`) · **Tactic captions** (`src/review/tactics.ts`: pin, skewer, discovered attack, trapped piece, promotion, lost in exchange, missed fork; allowed + missed; engine line as witness; factsVersion 4, Insights motifs pin/skewer/discovered-attack → lessons). Own mistakes explained on the dev DB: 35% → 44% · also: arrow keys on the self-review question; Insights offers to review never-reviewed games | `b645bba`, `59f14ee`, `d18e1c6` |
+| 7 | 19 Oct | **Why?** for a move in Review and in each coach-walkthrough moment (logic + stored engine analysis, no AI; contract `src/review/why.ts`, `WhyPanel.tsx`, key W): *What happens next* / *What the engine wanted* (`lineStory.ts`: plays the stored line ≤ 6 plies; material once captures settle, confirmed against the rest of the line; mate, promotion, repeated checks, double attack that can't be met) and *What changed* (`positionChanges.ts`: king shelter, line opened to the king, castling rights, passed/doubled/isolated pawns, late development, piece activity, bishop pair; facts, not blamed). A material claim shows only when the engine's verdict agrees (`WHY_STORY.agreeWin` 55). ▶ Show plays a sentence's line. Own Mistake/Blunder/Miss with any explanation on the dev DB: 43% (captions) → 69% | `4ba8a4a`, `2df5130`, `54a03c4` |
 
 Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`20261016140000_coach`); the server applies migrations on start.
 
@@ -61,6 +62,12 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 ## Left to do
 
 **Panel ideas**: all built (wave 3).
+
+**Why? (wave 7), untried by hand**
+- "What happens next" says who wins material in side names (White/Black), so on your own mistake it can read
+  "White wins a pawn" when White was the one who sacrificed earlier; facts good for the mover (your own passed pawn)
+  can show on a mistake. Backward pawns and removing-the-defender not built. attacks-two and hangs-at-end rarely
+  fire on real games. Learner wording of both modules is the agents' own.
 
 **System coach (wave 6), untried by hand**
 - Walkthrough: Rookie shows even with the `coachMascot` pref off (that pref only covers move-panel captions); Escape

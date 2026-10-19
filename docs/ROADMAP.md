@@ -63,6 +63,12 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 
 **Panel ideas**: all built (wave 3).
 
+**Opening trainer, gentler (agreed 19 Oct, not built)** — Hannan had 70 moves due at once (42 from the Ruy Lopez,
+learned in one sitting) and three 1.e4 e5 White repertoires that mark each other's moves wrong. Done: due reminder
+on Play (card, "Not today") + count beside Openings in the header. To build: pause a repertoire; daily caps
+(~15 reviews, ~6 new); a move from another same-colour repertoire is named, not a miss; kinder miss wording + Hint;
+Learn teaches one line per session.
+
 **Why? (wave 7), untried by hand**
 - "What happens next" says who wins material in side names (White/Black), so on your own mistake it can read
   "White wins a pawn" when White was the one who sacrificed earlier; facts good for the mover (your own passed pawn)

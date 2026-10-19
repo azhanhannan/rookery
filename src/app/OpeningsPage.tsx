@@ -15,6 +15,7 @@ import { seedRows, type SeedRow } from '../openings/fromGames';
 import { loadOpenings, lookupBook, openingAt } from '../openings/openings';
 import { lineText, repertoireProgress, seedFromGames, userCards, type DrillMode, type Repertoire } from '../openings/repertoire';
 import { useRepertoireStore } from '../openings/repertoireStore';
+import { readSelected, writeSelected } from '../openings/selected';
 import { reviewFits } from '../review/reviewView';
 import { todayKey } from '../puzzles/days';
 
@@ -23,27 +24,9 @@ const btn =
 const primary = 'rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-accent-ink hover:opacity-90 disabled:opacity-40';
 const panel = 'flex flex-col gap-2 rounded-lg bg-surface p-3';
 const ARROW = 'rgba(21, 120, 27, 0.8)';
-const SELECTED_KEY = 'rookery.openings.selected';
 
 const colorName = (c: Color) => (c === 'w' ? 'White' : 'Black');
 const dateText = (key: string) => new Date(`${key}T12:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-
-function readSelected(): string | null {
-  try {
-    return localStorage.getItem(SELECTED_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeSelected(id: string | null): void {
-  try {
-    if (id) localStorage.setItem(SELECTED_KEY, id);
-    else localStorage.removeItem(SELECTED_KEY);
-  } catch {
-    // ignore: the choice just won't survive a reload
-  }
-}
 
 /** The deepest named opening on the way to the last FEN of `fens`; needs the dataset loaded. */
 function openingName(fens: string[], ready: boolean): string | null {

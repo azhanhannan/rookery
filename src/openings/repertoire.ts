@@ -187,6 +187,21 @@ export function isCardDue(c: CardRecord | undefined, today: string): boolean {
   return seen(c) && isDue(c, today);
 }
 
+/** A repertoire with moves to review today (the Play page and the header remind the user). */
+export type DueRepertoire = { id: string; name: string; color: Color; due: number };
+
+/** The repertoires with at least one card due on `today`, in the user's order. */
+export function dueToday(data: Pick<RepertoireData, 'repertoires' | 'cards'>, today: string): DueRepertoire[] {
+  const out: DueRepertoire[] = [];
+  for (const rep of data.repertoires) {
+    const cards = data.cards[rep.id] ?? {};
+    let due = 0;
+    for (const key of userCards(rep).keys()) if (isCardDue(cards[key], today)) due++;
+    if (due > 0) out.push({ id: rep.id, name: rep.name, color: rep.color, due });
+  }
+  return out;
+}
+
 export type DrillMode = 'due' | 'learn' | 'practice' | 'weak';
 
 /**

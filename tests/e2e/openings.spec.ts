@@ -90,3 +90,61 @@ test('add a repertoire from the library and start learning it', async ({ page })
   await page.getByRole('button', { name: /Learn new lines/ }).click();
   await expect(page.getByTestId('drill-feedback')).toContainText('New move: play e4');
 });
+
+test('Play reminds about opening moves due today and links to that repertoire', async ({ page }) => {
+  await page.goto('/#/openings');
+  await page.getByRole('button', { name: 'New repertoire' }).click();
+  await page.getByLabel('Name').fill('Queen pawn');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByLabel('Repertoire PGN').fill('1. d4 d5 2. c4 *');
+  await page.getByRole('button', { name: 'Add PGN' }).click();
+  await page.getByRole('button', { name: /Learn new lines/ }).click();
+  await expect(page.getByTestId('drill-feedback')).toContainText('New move: play d4');
+  await clickMove(page, 'd2d4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('New move: play c4');
+  await clickMove(page, 'c2c4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+  await expect(square(page, 'd2').locator('[data-piece]')).toHaveCount(1);
+  await clickMove(page, 'd2d4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('d4 is right');
+  await expect(square(page, 'd5').locator('[data-piece]')).toHaveCount(1);
+  await clickMove(page, 'c2c4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('all 2 right');
+  await page.getByRole('button', { name: 'Back to repertoire' }).click();
+
+  // A second repertoire becomes the selected one; nothing is due on it.
+  await page.getByRole('button', { name: 'New repertoire' }).click();
+  await page.getByLabel('Name').fill('Spare');
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  // Nothing is due until tomorrow.
+  await page.goto('/#/play');
+  await expect(page.getByTestId('status')).toBeVisible();
+  await expect(page.getByTestId('openings-due')).toHaveCount(0);
+
+  // Move the answered cards' dates into the past.
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem('rookery.repertoires')!);
+    for (const cards of Object.values(data.cards) as Record<string, { due: string }>[]) for (const c of Object.values(cards)) c.due = '2000-01-01';
+    localStorage.setItem('rookery.repertoires', JSON.stringify(data));
+  });
+  await page.reload();
+  const card = page.getByTestId('openings-due');
+  await expect(card).toContainText('Queen pawn');
+  await expect(card).toContainText('2 moves');
+  await expect(card).not.toContainText('Spare');
+  await expect(page.getByTestId('openings-due-dot')).toBeVisible();
+
+  await card.getByRole('link', { name: /Queen pawn/ }).click();
+  await expect(page.getByTestId('repertoire-header')).toContainText('Queen pawn');
+  await expect(page.getByRole('button', { name: /Due now \(2\)/ })).toBeEnabled();
+
+  // "Not today" hides the card until tomorrow; the header count stays.
+  await page.goto('/#/play');
+  await page.getByTestId('openings-due').getByRole('button', { name: 'Not today' }).click();
+  await expect(page.getByTestId('openings-due')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('status')).toBeVisible();
+  await expect(page.getByTestId('openings-due')).toHaveCount(0);
+  await expect(page.getByTestId('openings-due-dot')).toBeVisible();
+});

@@ -9,6 +9,7 @@ import { toEpd } from '../../src/openings/openings';
 import {
   answerCard,
   chooseLine,
+  dueToday,
   isCardDue,
   lineCards,
   lineText,
@@ -231,6 +232,25 @@ describe('cards and scheduling', () => {
     expect(p.weakest.map((w) => w.key)).toEqual([k('e4', 'e5'), k('e4', 'c5')]);
     expect(lineText(tree, p.weakest[0].nodeId)).toBe('1. e4 e5');
     expect(Object.keys(pruneCards(r, cards))).not.toContain('gone');
+  });
+});
+
+describe('dueToday', () => {
+  it('lists only repertoires with moves due today, with the count', () => {
+    const tree = parsePgnTree(PGN);
+    const k = (...sans: string[]) => toEpd(tree.nodes[nodeBySans(tree, ...sans)].fen);
+    const card = (due: string, reps = 1): CardRecord => ({ stage: 1, due, retired: false, reps, fails: 0 });
+    const repertoires = [
+      { id: 'a', name: 'Italian', color: 'w' as const, tree },
+      { id: 'b', name: 'Later', color: 'w' as const, tree },
+      { id: 'c', name: 'Never practised', color: 'w' as const, tree },
+    ];
+    const cards = {
+      a: { [toEpd(START_FEN)]: card('2026-10-15'), [k('e4', 'e5')]: card(TODAY), [k('e4', 'c5')]: card('2026-10-20'), gone: card(TODAY) },
+      b: { [toEpd(START_FEN)]: card('2026-10-20') },
+      c: { [toEpd(START_FEN)]: card(TODAY, 0) },
+    };
+    expect(dueToday({ repertoires, cards } as never, TODAY)).toEqual([{ id: 'a', name: 'Italian', color: 'w', due: 2 }]);
   });
 });
 

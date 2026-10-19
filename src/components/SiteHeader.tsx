@@ -4,6 +4,7 @@ import { useEffect, useRef, type MouseEvent } from 'react';
 import { APP_NAME } from '../config/tunables';
 import { isCurrent, NAV_ITEMS } from '../app/nav';
 import { AccountNav } from './AccountNav';
+import { OpeningsDueBadge } from './OpeningsDue';
 
 const link = (on: boolean) => `text-sm whitespace-nowrap ${on ? 'text-ink' : 'text-muted'} hover:text-ink`;
 
@@ -49,6 +50,7 @@ export function SiteHeader({ hash }: { hash: string }) {
             aria-current={isCurrent(item, hash) ? 'page' : undefined}
           >
             {item.label}
+            {item.href === '#/openings' && <OpeningsDueBadge />}
           </a>
         ))}
         <details ref={menu} className="relative 2xl:hidden">
@@ -60,6 +62,7 @@ export function SiteHeader({ hash }: { hash: string }) {
               <Bars />
             </span>
             <span className="hidden sm:inline">{moreCurrent ? moreCurrent.label : 'More'} ▾</span>
+            <OpeningsDueBadge dot />
           </summary>
           <div className="absolute right-0 z-30 mt-2 flex min-w-[9rem] flex-col gap-3 rounded-lg bg-surface p-3 shadow-lg ring-1 ring-surface-2">
             {more.map((item) => (
@@ -71,6 +74,7 @@ export function SiteHeader({ hash }: { hash: string }) {
                 onClick={close}
               >
                 {item.label}
+                {item.href === '#/openings' && <OpeningsDueBadge />}
               </a>
             ))}
           </div>

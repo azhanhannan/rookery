@@ -21,6 +21,7 @@ import { usePracticeAids } from './usePracticeAids';
 import { EndScreen } from '../components/EndScreen';
 import { KeyboardShortcuts } from '../components/KeyboardShortcuts';
 import { useFlipKey } from '../components/boardKeys';
+import { OpeningsDueCard } from '../components/OpeningsDue';
 import { SparButton } from '../components/SparButton';
 import { LossCushion } from '../components/LossCushion';
 import { usePremove } from './usePremove';
@@ -218,6 +219,8 @@ export function PlayPage() {
         )}
 
         <LossCushion />
+
+        {(ended || record.moves.length === 0) && <OpeningsDueCard />}
 
         <CoachWarning coach={coach} onTakeBack={practiceAids.takeBack} />
 

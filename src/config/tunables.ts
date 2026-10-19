@@ -567,3 +567,27 @@ export const COACH_MOTIFS = {
   /** How far into the engine's line (plies, the motif's first move included) the win must happen. */
   witnessPlies: 5,
 };
+
+/**
+ * "Why?" line story (src/review/lineStory.ts): what the stored engine line provably does after the move played,
+ * and after the engine's better move. Logic only, no new search.
+ */
+export const WHY_STORY = {
+  /** Plies of the line walked, the move itself (played or better) included. Nothing past this is claimed. */
+  horizon: 6,
+  /**
+   * Plies of the stored line read past the horizon, never narrated: a material claim stays silent when the line
+   * gives some of it back by its last quiet point within these.
+   */
+  confirmPlies: 24,
+  /** Material (pawns) a side must be up, at the last quiet point within the horizon, to say it "wins" it. */
+  minMaterial: 1,
+  /** A piece (not a pawn) the line ends with en prise counts when the opponent wins at least this much taking it. */
+  hangMin: 2,
+  /** Consecutive checks by one side in the line that make a "keeps checking" sentence. */
+  minChecks: 2,
+  /** Sentences per section (played / better), by review style. */
+  maxSentences: { learner: 1, club: 2, analyst: 3 },
+  /** Longest move sequence a sentence spells out, by style (plies); longer ones are told without the moves. */
+  maxMoves: { learner: 2, club: 4, analyst: 99 },
+};

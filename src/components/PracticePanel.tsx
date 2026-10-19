@@ -14,7 +14,7 @@ export function PracticeTag({ className = '' }: { className?: string }) {
 }
 
 /** Practice-only helpers next to the board: takeback, threat, hint, hanging-piece glow. Renders nothing in other games. */
-export function PracticePanel({ aids }: { aids: PracticeAids }) {
+export function PracticePanel({ aids, coach }: { aids: PracticeAids; coach?: { on: boolean; setOn(on: boolean): void } }) {
   if (!aids.practice) return null;
   const btn =
     'rounded-lg bg-surface-2 px-3 py-2 text-center text-sm font-medium hover:outline-1 hover:outline-accent disabled:opacity-40';
@@ -57,6 +57,17 @@ export function PracticePanel({ aids }: { aids: PracticeAids }) {
         >
           {aids.glowOn ? 'Hanging glow on' : 'Hanging glow off'}
         </button>
+        {coach && (
+          <button
+            className={`${btn} col-span-2`}
+            onClick={() => coach.setOn(!coach.on)}
+            aria-pressed={coach.on}
+            title="Rookie warns you right after a move that loses material or allows mate, so you can take it back"
+            data-testid="coach-toggle"
+          >
+            {coach.on ? 'Coach on' : 'Coach off'}
+          </button>
+        )}
       </div>
       {aid?.state === 'done' && (
         <p className="text-xs text-muted" role="status">

@@ -31,6 +31,8 @@ let job: Job | null = null;
 let engine: Engine | null = null;
 let failedKey: string | null = null;
 let unsubscribe: (() => void) | null = null;
+/** Practice Coach: the bot waits while a warning about the player's last move is open. */
+let held = false;
 
 /** The key of the live position when a bot is to move in a game still in progress, else null. */
 export function botTurnKey(record: GameRecord): string | null {
@@ -108,6 +110,10 @@ function fail(key: string, detail: string): void {
 
 /** Starts or cancels the bot's move to match the live game. Runs on every store change. */
 function sync(): void {
+  if (held) {
+    cancel();
+    return;
+  }
   const { record } = useGameStore.getState();
   const key = botTurnKey(record);
   if (job && job.key === key) return;
@@ -138,6 +144,17 @@ function stopBotTurns(): void {
   unsubscribe?.();
   unsubscribe = null;
   cancel();
+}
+
+/**
+ * Holds the bot (true) or lets it play again (false). Held, it neither starts nor keeps a move; released, it
+ * starts afresh from the live position, so a hold never shortens or weakens its search.
+ */
+export function holdBot(on: boolean): void {
+  if (held === on) return;
+  held = on;
+  if (on) cancel();
+  else if (unsubscribe) sync();
 }
 
 /** Tries the bot's move again after an error. */

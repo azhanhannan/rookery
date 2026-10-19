@@ -13,8 +13,10 @@ export const PHASES: readonly Phase[] = ['O', 'M', 'E'];
 
 /**
  * What a weak move is filed under. Each is proven on the board, or the move goes to 'other':
- * - hanging: the reply wins a piece (left undefended, lost for free, lost to a cheaper piece)
- * - fork, missed-free-piece, missed-mate (in 1-2), allowed-mate (in 1-2): the caption rules
+ * - hanging: the reply wins a piece (left undefended, lost for free, lost to a cheaper piece, not defended enough)
+ * - fork, missed-free-piece, missed-mate (in 1-2), allowed-mate (in 1-2): the caption rules (fork: allowed or missed)
+ * - pin, skewer, discovered-attack: the caption rules, allowed or missed (factsVersion 4). Trapped pieces and
+ *   promotions get a caption but are filed under 'other' (no drill to send the player to).
  * - back-rank: an allowed mate that lands on the king's home rank, behind its own pieces
  * - ignored-threat: the opponent's last move attacked a piece (or threatened mate in 1) and this move left it
  * - stalemate: this move stalemated the opponent from a winning position
@@ -28,9 +30,13 @@ export type Motif =
   | 'back-rank'
   | 'ignored-threat'
   | 'stalemate'
+  | 'pin'
+  | 'skewer'
+  | 'discovered-attack'
   | 'other';
 export const MOTIFS: readonly Motif[] = [
-  'hanging', 'fork', 'missed-free-piece', 'missed-mate', 'allowed-mate', 'back-rank', 'ignored-threat', 'stalemate', 'other',
+  'hanging', 'fork', 'missed-free-piece', 'missed-mate', 'allowed-mate', 'back-rank', 'ignored-threat', 'stalemate',
+  'pin', 'skewer', 'discovered-attack', 'other',
 ];
 
 /**

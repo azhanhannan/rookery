@@ -11,6 +11,9 @@ const MOTIF_TARGET: Record<Motif, TrainTarget | null> = {
   'back-rank': { kind: 'lesson', href: '#/lessons', lessonId: 'back-rank' },
   'ignored-threat': { kind: 'mistakes', href: '#/puzzles', motif: 'ignored-threat' },
   stalemate: { kind: 'endgames', href: '#/endgames', drillId: 'kqk' },
+  pin: { kind: 'lesson', href: '#/lessons', lessonId: 'pins' },
+  skewer: { kind: 'lesson', href: '#/lessons', lessonId: 'skewers' },
+  'discovered-attack': { kind: 'lesson', href: '#/lessons', lessonId: 'discovered-attacks' },
   other: null,
 };
 

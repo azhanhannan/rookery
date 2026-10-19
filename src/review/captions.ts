@@ -2,9 +2,11 @@
 // (chess.js) with the engine's line as the witness. When no rule proves anything, there is no caption:
 // a wrong caption is worse than none.
 import { Chess, type Move, type PieceSymbol, type Square } from 'chess.js';
+import { COACH_MOTIFS } from '../config/tunables';
 import type { Score } from '../engine/types';
 import type { Color } from '../game/types';
 import { findMove, other, PIECE_VALUE, see } from './brilliant';
+import { discoveredWin, forkWin, material, pinWin, playLine, settledLoss, skewerWin, staysWon, trappedWin } from './tactics';
 import type { GameReview, MoveLabel } from './types';
 
 const PIECE_NAME: Record<PieceSymbol, string> = {
@@ -21,8 +23,9 @@ export type CaptionInput = {
   fenBefore: string;
   /** Played move, UCI. */
   uci: string;
-  /** Engine's best move before the played move (UCI), and the score there (White's view). */
+  /** Engine's best move before the played move (UCI), its line, and the score there (White's view). */
   bestBefore?: string;
+  lineBefore?: string[];
   scoreBefore?: Score;
   /** Engine's best reply after the played move, its line, and the score there (White's view). */
   bestAfter?: string;
@@ -43,13 +46,38 @@ export type CaptionFact =
   | { kind: 'lost-to-cheaper'; piece: PieceSymbol; square: Square; san: string; by: PieceSymbol }
   /** `piece` on `square` attacks `targets` (king first). */
   | { kind: 'fork'; piece: PieceSymbol; square: Square; san: string; targets: PieceSymbol[] }
-  | { kind: 'missed-free-piece'; piece: PieceSymbol; square: Square; san: string };
+  | { kind: 'missed-free-piece'; piece: PieceSymbol; square: Square; san: string }
+  /** Defended, but not well enough: the reply wins material anyway (static exchange, confirmed by the line). */
+  | { kind: 'lost-in-exchange'; piece: PieceSymbol; square: Square; san: string }
+  /**
+   * A new pin of your `piece` on `square` to your king or queen (`behind`) by the `by` on `from`, and the line
+   * wins the pinned piece. `san`: the reply, when the reply is the pinning move.
+   */
+  | { kind: 'pin'; piece: PieceSymbol; square: Square; by: PieceSymbol; from: Square; behind: 'k' | 'q'; san?: string }
+  /** Your best move `san` pinned their `piece` on `square` to their king or queen, and the line won it. */
+  | { kind: 'missed-pin'; piece: PieceSymbol; square: Square; by: PieceSymbol; from: Square; behind: 'k' | 'q'; san: string }
+  /** The reply `san` attacks your `piece` on `square`; it steps away and the `behind` piece on `behindSquare` falls. */
+  | { kind: 'skewer'; piece: PieceSymbol; square: Square; behind: PieceSymbol; behindSquare: Square; san: string }
+  | { kind: 'missed-skewer'; piece: PieceSymbol; square: Square; behind: PieceSymbol; behindSquare: Square; san: string }
+  /** The reply `san` uncovers the `by` on `from` onto your `piece` on `square` (the king: a discovered check). */
+  | { kind: 'discovered-attack'; piece: PieceSymbol; square: Square; by: PieceSymbol; from: Square; san: string }
+  | { kind: 'missed-discovered-attack'; piece: PieceSymbol; square: Square; by: PieceSymbol; from: Square; san: string }
+  /** After the reply `san` your `piece` on `square` has no safe square, and the line wins it. */
+  | { kind: 'trapped-piece'; piece: PieceSymbol; square: Square; san: string }
+  | { kind: 'missed-trap'; piece: PieceSymbol; square: Square; san: string }
+  /** The reply `san` promotes on `square` to `piece`, and it can't be won back at once. */
+  | { kind: 'allowed-promotion'; piece: PieceSymbol; square: Square; san: string }
+  | { kind: 'missed-promotion'; piece: PieceSymbol; square: Square; san: string }
+  /** Your best move `san` forked `targets` from `square` and the line won one of them. */
+  | { kind: 'missed-fork'; piece: PieceSymbol; square: Square; san: string; targets: PieceSymbol[] };
 
 export type CaptionKind = CaptionFact['kind'];
 
 export const CAPTION_KINDS: readonly CaptionKind[] = [
   'missed-mate-1', 'missed-mate-2', 'allowed-mate-1', 'allowed-mate-2',
   'left-undefended', 'lost-for-free', 'lost-to-cheaper', 'fork', 'missed-free-piece',
+  'lost-in-exchange', 'pin', 'missed-pin', 'skewer', 'missed-skewer', 'discovered-attack', 'missed-discovered-attack',
+  'trapped-piece', 'missed-trap', 'allowed-promotion', 'missed-promotion', 'missed-fork',
 ];
 
 function mateFor(score: Score | undefined, color: Color): number | null {
@@ -82,12 +110,6 @@ function listPieces(pieces: PieceSymbol[]): string {
   const names = pieces.map((p) => PIECE_NAME[p]);
   if (names.length <= 1) return names.join('');
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-function material(chess: Chess, color: Color): number {
-  let sum = 0;
-  for (const row of chess.board()) for (const p of row) if (p) sum += (p.color === color ? 1 : -1) * PIECE_VALUE[p.type];
-  return sum;
 }
 
 /** Mate rules. Returns a fact, `null` for "no mate story", or `'unprovable'` to silence every other rule. */
@@ -124,6 +146,19 @@ function mateFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null 
   return null;
 }
 
+/** The engine's line after the move, when it starts with the stored best reply. */
+function replyLine(i: CaptionInput, played: Move): Move[] {
+  if (!i.bestAfter || i.lineAfter?.[0]?.toLowerCase() !== i.bestAfter.toLowerCase()) return [];
+  return playLine(played.after, i.lineAfter);
+}
+
+/** The engine's line before the move, when it starts with the stored best move and that isn't the move played. */
+function bestLine(i: CaptionInput, played: Move): Move[] {
+  if (!i.bestBefore || i.lineBefore?.[0]?.toLowerCase() !== i.bestBefore.toLowerCase()) return [];
+  const line = playLine(i.fenBefore, i.lineBefore);
+  return line[0] && line[0].lan !== played.lan ? line : [];
+}
+
 /**
  * The engine's reply takes one of your pieces and you can't get the material back: "This left your knight
  * on f6 undefended — Bxf6 wins it." The net material over the move, the reply and any recapture (static
@@ -154,6 +189,8 @@ function hangingFact(i: CaptionInput, played: Move, me: Color): CaptionFact | nu
   if (PIECE_VALUE[attacker] < PIECE_VALUE[piece] && see(new Chess(played.after), square, other(me)) === PIECE_VALUE[piece] - PIECE_VALUE[attacker]) {
     return { kind: 'lost-to-cheaper', piece, square, san: reply.san, by: attacker };
   }
+  // Defended, but not enough: taking back still leaves you down, and the engine's line agrees.
+  if (piece !== 'p' && staysWon(i.fenBefore, replyLine(i, played), me)) return { kind: 'lost-in-exchange', piece, square, san: reply.san };
   return null;
 }
 
@@ -163,37 +200,54 @@ function hangingFact(i: CaptionInput, played: Move, me: Color): CaptionFact | nu
  * one of them. "This allowed a fork on e7 — Ne7+ attacks your king and rook."
  */
 function forkFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null {
-  const line = i.lineAfter ?? [];
-  if (!i.bestAfter || line.length < 3 || line[0].toLowerCase() !== i.bestAfter.toLowerCase()) return null;
-  const fork = findMove(played.after, i.bestAfter);
-  if (!fork) return null;
-  const pos = new Chess(fork.after);
-  const from = fork.to as Square;
-  const forker = fork.piece;
-  // You can simply take the forking piece.
-  if (pos.moves({ verbose: true }).some((m) => m.to === from)) return null;
+  const line = replyLine(i, played);
+  if (line.length < 3) return null;
+  const f = forkWin(i.fenBefore, line, me, false);
+  return f ? { kind: 'fork', piece: f.piece, square: f.square, san: line[0].san, targets: f.targets } : null;
+}
 
-  const targets: { square: Square; type: PieceSymbol }[] = [];
-  for (const row of pos.board()) {
-    for (const p of row) {
-      if (!p || p.color !== me || p.type === 'p') continue;
-      if (!pos.attackers(p.square, other(me)).includes(from)) continue;
-      const valuable = p.type === 'k' || PIECE_VALUE[p.type] > PIECE_VALUE[forker] || pos.attackers(p.square, me).length === 0;
-      if (valuable) targets.push({ square: p.square, type: p.type });
-    }
+/**
+ * Tactics the engine's reply plays against you (pin, skewer, discovered attack, trapped piece, promotion),
+ * each proven on the board and won in the engine's line (`src/review/tactics.ts`).
+ */
+function allowedTacticFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null {
+  const line = replyLine(i, played);
+  const reply = line[0];
+  if (!reply) return null;
+  const pin = pinWin(i.fenBefore, line, me, false);
+  if (pin) return { kind: 'pin', ...pin, ...(pin.from === reply.to ? { san: reply.san } : {}) };
+  const skewer = skewerWin(i.fenBefore, line, me);
+  if (skewer) return { kind: 'skewer', ...skewer, san: reply.san };
+  const disc = discoveredWin(i.fenBefore, line, me);
+  if (disc) return { kind: 'discovered-attack', ...disc, san: reply.san };
+  const trapped = trappedWin(i.fenBefore, line, me);
+  if (trapped) return { kind: 'trapped-piece', ...trapped, san: reply.san };
+  if (reply.promotion && settledLoss(i.fenBefore, reply, me) >= COACH_MOTIFS.minLoss) {
+    return { kind: 'allowed-promotion', piece: reply.promotion, square: reply.to as Square, san: reply.san };
   }
-  if (targets.length < 2) return null;
+  return null;
+}
 
-  // The witness: after your best answer the forking piece takes one of the forked pieces.
-  const answer = findMove(fork.after, line[1]);
-  if (!answer) return null;
-  const take = findMove(answer.after, line[2]);
-  if (!take?.captured || take.from !== from || take.captured === 'p') return null;
-  if (!targets.some((t) => t.square === take.to && t.type === take.captured)) return null;
-
-  const order: PieceSymbol[] = ['k', 'q', 'r', 'b', 'n'];
-  const names = targets.map((t) => t.type).sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  return { kind: 'fork', piece: forker, square: from, san: fork.san, targets: names };
+/** The same tactics for you, missed: the engine's best move played one and its line won material. */
+function missedTacticFact(i: CaptionInput, played: Move, me: Color): CaptionFact | null {
+  const line = bestLine(i, played);
+  const best = line[0];
+  if (!best) return null;
+  const them = other(me);
+  if (best.promotion && !played.promotion && settledLoss(i.fenBefore, best, them) >= COACH_MOTIFS.minLoss) {
+    return { kind: 'missed-promotion', piece: best.promotion, square: best.to as Square, san: best.san };
+  }
+  const fork = forkWin(i.fenBefore, line, them, true);
+  if (fork) return { kind: 'missed-fork', ...fork, san: best.san };
+  const pin = pinWin(i.fenBefore, line, them, true);
+  if (pin) return { kind: 'missed-pin', ...pin, san: best.san };
+  const skewer = skewerWin(i.fenBefore, line, them);
+  if (skewer) return { kind: 'missed-skewer', ...skewer, san: best.san };
+  const disc = discoveredWin(i.fenBefore, line, them);
+  if (disc) return { kind: 'missed-discovered-attack', ...disc, san: best.san };
+  const trapped = trappedWin(i.fenBefore, line, them);
+  if (trapped) return { kind: 'missed-trap', ...trapped, san: best.san };
+  return null;
 }
 
 /** The engine's best move took a piece nobody could take back: "You missed a free rook on a8 (Bxa8)." */
@@ -216,7 +270,13 @@ export function captionFact(i: CaptionInput): CaptionFact | null {
   const mate = mateFact(i, played, me);
   if (mate === 'unprovable') return null;
   if (mate) return mate;
-  return hangingFact(i, played, me) ?? forkFact(i, played, me) ?? missedFreeFact(i, played);
+  return (
+    hangingFact(i, played, me) ??
+    forkFact(i, played, me) ??
+    allowedTacticFact(i, played, me) ??
+    missedFreeFact(i, played) ??
+    missedTacticFact(i, played, me)
+  );
 }
 
 /** The Review screen's sentence for a fact. */
@@ -240,6 +300,36 @@ export function captionText(f: CaptionFact): string {
       return `This allowed a fork on ${f.square} — ${f.san} attacks your ${listPieces(f.targets)}.`;
     case 'missed-free-piece':
       return `You missed a free ${PIECE_NAME[f.piece]} on ${f.square} (${f.san}).`;
+    case 'lost-in-exchange':
+      return `${f.san} wins material — your ${PIECE_NAME[f.piece]} on ${f.square} is not defended well enough.`;
+    case 'pin':
+      return f.san
+        ? `This walked into a pin — ${f.san} pins your ${PIECE_NAME[f.piece]} on ${f.square} to your ${PIECE_NAME[f.behind]}.`
+        : `This walked into a pin — the ${PIECE_NAME[f.by]} on ${f.from} pins your ${PIECE_NAME[f.piece]} on ${f.square} to your ${PIECE_NAME[f.behind]}.`;
+    case 'missed-pin':
+      return `You missed a pin — ${f.san} pins the ${PIECE_NAME[f.piece]} on ${f.square} to the ${PIECE_NAME[f.behind]}.`;
+    case 'skewer':
+      return `This allowed a skewer — ${f.san} attacks your ${PIECE_NAME[f.piece]} and wins the ${PIECE_NAME[f.behind]} on ${f.behindSquare} behind it.`;
+    case 'missed-skewer':
+      return `You missed a skewer — ${f.san} attacks the ${PIECE_NAME[f.piece]} and wins the ${PIECE_NAME[f.behind]} on ${f.behindSquare} behind it.`;
+    case 'discovered-attack':
+      return f.piece === 'k'
+        ? `This allowed a discovered check — ${f.san} opens the ${PIECE_NAME[f.by]} on ${f.from} onto your king.`
+        : `This allowed a discovered attack — ${f.san} opens the ${PIECE_NAME[f.by]} on ${f.from} onto your ${PIECE_NAME[f.piece]} on ${f.square}.`;
+    case 'missed-discovered-attack':
+      return f.piece === 'k'
+        ? `You missed a discovered check — ${f.san} opens your ${PIECE_NAME[f.by]} on ${f.from} onto the king.`
+        : `You missed a discovered attack — ${f.san} opens your ${PIECE_NAME[f.by]} on ${f.from} onto the ${PIECE_NAME[f.piece]} on ${f.square}.`;
+    case 'trapped-piece':
+      return `This let your ${PIECE_NAME[f.piece]} on ${f.square} get trapped — after ${f.san} it has no safe square.`;
+    case 'missed-trap':
+      return `You missed trapping the ${PIECE_NAME[f.piece]} on ${f.square} — after ${f.san} it has no safe square.`;
+    case 'allowed-promotion':
+      return `This let a pawn promote — ${f.san} makes a new ${PIECE_NAME[f.piece]}.`;
+    case 'missed-promotion':
+      return `You missed promoting your pawn (${f.san}).`;
+    case 'missed-fork':
+      return `You missed a fork — ${f.san} attacks the ${listPieces(f.targets)}.`;
   }
 }
 
@@ -260,6 +350,7 @@ export function captionInputFor(review: GameReview, ply: number): CaptionInput |
     fenBefore: before.fen,
     uci: move.uci,
     bestBefore: before.bestMove,
+    lineBefore: before.bestLine,
     scoreBefore: before.score,
     bestAfter: after.bestMove,
     lineAfter: after.bestLine,

@@ -445,8 +445,10 @@ export const INSIGHTS = {
    * 2 (player profile Step 0): `MoveFact.critical` from the stored second line, and opponents split into
    * human / maia / stockfish.
    * 3 (player profile Slices 2-3): `MoveFact.forcing` (capture, check or sacrifice), for cost by type.
+   * 4 (coach motifs): more caption kinds (pins, skewers, discovered attacks, missed forks, trapped pieces,
+   * promotions, pieces not defended enough) and the motifs pin / skewer / discovered-attack.
    */
-  factsVersion: 3,
+  factsVersion: 4,
   /** Reviews shallower than this are left out (REVIEW.depth.normal). */
   minReviewDepth: 16,
   /** Games where the player made fewer moves are left out (RATING.minMoves). */
@@ -533,4 +535,15 @@ export const INSIGHTS = {
   },
   /** Bayesian trend: prior sd of the slope, points lost per game per game played. */
   trendPriorSd: 0.05,
+};
+
+/**
+ * Proven captions for tactics (`src/review/tactics.ts`): pins, skewers, discovered attacks, trapped pieces,
+ * promotions, pieces short of defenders, missed forks. The engine's stored line is the witness; no search.
+ */
+export const COACH_MOTIFS = {
+  /** Material (pawns) the line must win, after the recapture on the last square settles, to count as "wins". */
+  minLoss: 2,
+  /** How far into the engine's line (plies, the motif's first move included) the win must happen. */
+  witnessPlies: 5,
 };

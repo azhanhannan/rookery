@@ -50,13 +50,16 @@ export function homeworkFromEvidence(evidence: CoachEvidence[]): HomeworkItem[] 
 const PHASE_NAME: Record<Phase, string> = { O: 'Opening', M: 'Middlegame', E: 'Endgame' };
 const MOTIF_NAME: Record<Motif, string> = {
   hanging: 'pieces left hanging',
-  fork: 'forks allowed',
+  fork: 'forks allowed or missed',
   'missed-free-piece': 'free pieces missed',
   'missed-mate': 'mates missed',
   'allowed-mate': 'mates allowed',
   'back-rank': 'back-rank mates',
   'ignored-threat': 'threats ignored',
   stalemate: 'stalemate given away',
+  pin: 'pins allowed or missed',
+  skewer: 'skewers allowed or missed',
+  'discovered-attack': 'discovered attacks allowed or missed',
   other: 'other losses',
 };
 

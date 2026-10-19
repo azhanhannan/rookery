@@ -46,7 +46,7 @@ const COMMON: [string, string][] = [
 
 export function shortcutsFor(page: ShortcutPage): [string, string][] {
   if (page === 'puzzles') return COMMON;
-  if (page === 'review') return [...MOVES, ['Esc', 'Leave the best line'], ['← → Esc', 'Coach walkthrough: back / next / close'], ...COMMON];
+  if (page === 'review') return [...MOVES, ['Esc', 'Leave the best line'], ['W', 'Why? for the move (weak moves; any move in Analyst)'], ['← → Esc', 'Coach walkthrough: back / next / close'], ...COMMON];
   return [...MOVES, ...COMMON];
 }
 

@@ -40,11 +40,13 @@ import { saveReviewPrefs } from '../settings/reviewPrefs';
 import { useDeepen, useReviewStyle } from './useReviewStyle';
 import { coachScript } from '../review/coachScript';
 import { CoachWalkthrough } from '../components/CoachWalkthrough';
+import { WhySection } from '../components/WhyPanel';
+import { offersWhy } from '../review/why';
 
 type Mode =
   | { kind: 'game' }
   /** Engine line from positions[base]; step 0 = that position, step k = after k line moves. */
-  | { kind: 'line'; base: number; step: number; playing: boolean }
+  | { kind: 'line'; base: number; step: number; playing: boolean; why?: { movePly: number; moves: string[] } }
   /** `single`: one move only (from the coach walkthrough); finishing goes back to the game. */
   | { kind: 'retry'; index: number; status: 'try' | 'wrong' | 'correct' | 'shown'; tried?: string; single?: boolean };
 
@@ -158,12 +160,25 @@ export function ReviewScreen({
   // "Show best line" starts from the position before the selected move (or the start position).
   const lineBase = Math.max(0, ply - 1);
   const line = useMemo(
-    () => (mode.kind === 'line' ? lineSteps(review.positions[mode.base].fen, review.positions[mode.base].bestLine) : []),
+    () => (mode.kind === 'line' ? lineSteps(review.positions[mode.base].fen, mode.why?.moves ?? review.positions[mode.base].bestLine) : []),
     [mode, review],
   );
   const lineAvailable = review.positions[lineBase].bestLine.length > 0;
+  // "Why?": the move (ply) whose panel is open, in the move panel and in the coach walkthrough's moment step.
+  const [whyPly, setWhyPly] = useState<number | null>(null);
+  const [coachWhy, setCoachWhy] = useState<number | null>(null);
+  const coachStep = coach !== null ? coachSteps[Math.min(coach, coachSteps.length - 1)] : undefined;
+  const coachMove = coachStep?.kind === 'moment' && coachStep.movePly ? review.moves[coachStep.movePly - 1] : undefined;
+  const coachWhyPly = coachMove && offersWhy(coachMove.label, style) ? coachMove.ply : undefined;
+  const showWhyLine = (base: number, moves: string[], movePly: number) =>
+    setMode({ kind: 'line', base, step: 0, playing: true, why: { movePly, moves } });
+  function toggleWhy() {
+    if (coachWhyPly !== undefined) setCoachWhy(coachWhy === coachWhyPly ? null : coachWhyPly);
+    else if (selected && offersWhy(selected.label, style)) setWhyPly(whyPly === ply ? null : ply);
+  }
 
   function goTo(p: number) {
+    setWhyPly(null);
     setPly(Math.max(0, Math.min(last, p)));
   }
 
@@ -176,6 +191,11 @@ export function ReviewScreen({
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement;
       if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || mode.kind === 'retry') return;
+      if ((e.key === 'w' || e.key === 'W') && mode.kind === 'game' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleWhy();
+        return;
+      }
       const actions: Record<string, () => void> =
         mode.kind === 'line'
           ? {
@@ -190,6 +210,7 @@ export function ReviewScreen({
               ArrowRight: () => goTo(ply + 1),
               Home: () => goTo(0),
               End: () => goTo(last),
+              ...(whyPly === ply ? { Escape: () => setWhyPly(null) } : {}),
             };
       const act = actions[e.key];
       if (act) {
@@ -268,6 +289,7 @@ export function ReviewScreen({
     const s = coachSteps[i];
     if (!s) return;
     setCoach(i);
+    setCoachWhy(null);
     setMode({ kind: 'game' });
     if (s.ply !== undefined) goTo(s.ply);
   }
@@ -378,6 +400,18 @@ export function ReviewScreen({
             onExit={() => setCoach(null)}
             onRetry={(i) => setMode({ kind: 'retry', index: i, status: 'try', single: true })}
             onShowLine={(base) => setMode({ kind: 'line', base, step: 0, playing: true })}
+            why={
+              coachWhyPly !== undefined && (
+                <WhySection
+                  review={review}
+                  ply={coachWhyPly}
+                  style={style}
+                  open={coachWhy === coachWhyPly}
+                  onToggle={() => setCoachWhy(coachWhy === coachWhyPly ? null : coachWhyPly)}
+                  onShowLine={showWhyLine}
+                />
+              )
+            }
           />
         ) : (
           <button className={`${btn} self-start`} onClick={() => showCoachStep(0)} data-testid="coach-open">
@@ -433,6 +467,16 @@ export function ReviewScreen({
             ) : (
               <p className="text-sm text-muted">Start position. Step through the moves, or click the graph.</p>
             )}
+            {selected && offersWhy(selected.label, style) && (
+              <WhySection
+                review={review}
+                ply={ply}
+                style={style}
+                open={whyPly === ply}
+                onToggle={() => setWhyPly(whyPly === ply ? null : ply)}
+                onShowLine={showWhyLine}
+              />
+            )}
             <div className="grid grid-cols-2 gap-2">
               <button
                 className={btn}
@@ -473,7 +517,9 @@ export function ReviewScreen({
         {mode.kind === 'line' && (
           <div className="flex flex-col gap-2 rounded-lg bg-surface p-3" data-testid="line-panel">
             <div className="text-sm font-semibold">
-              Best line {mode.base === 0 ? 'from the start' : `instead of ${moveTitle(review.moves[mode.base])}`}
+              {mode.why
+                ? `Line from ${mode.base === mode.why.movePly ? 'after' : 'before'} ${moveTitle(review.moves[mode.why.movePly - 1])}`
+                : `Best line ${mode.base === 0 ? 'from the start' : `instead of ${moveTitle(review.moves[mode.base])}`}`}
             </div>
             <ol className="flex flex-wrap gap-1 font-mono text-sm">
               {line.map((s, i) => {

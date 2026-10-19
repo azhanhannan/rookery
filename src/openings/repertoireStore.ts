@@ -1,6 +1,8 @@
 // The user's opening repertoires and their spaced-repetition cards, kept per device in one localStorage key
 // (`rookery.repertoires`, a single JSON value with an `updatedAt`, so account sync can carry it as is).
 import { create } from 'zustand';
+import { OPENING_TRAINER } from '../config/tunables';
+import { addDays } from '../puzzles/days';
 import { mergeTombstones } from '../sync/merge';
 import type { Color } from '../game/types';
 import { createTree, type VariationTree } from '../game/variationTree';
@@ -12,6 +14,7 @@ import {
   parseRepertoireData,
   pruneCards,
   resumeCards,
+  spreadDays,
   type CardRecord,
   type Repertoire,
   type RepertoireData,
@@ -84,6 +87,16 @@ export type RepertoireState = {
   countReview(today: string): void;
   countNew(today: string): void;
   countNewLine(today: string): void;
+  /**
+   * A due card answered after a Hint: it holds its step (neither climbs nor counts as a miss) and comes back after
+   * that step's interval.
+   */
+  hold(id: string, key: string, today: string): CardRecord;
+  /**
+   * A new card answered in Learn's from-memory pass (seconds after being shown): due tomorrow either way, a step
+   * up when right, and a miss there is not counted as one (it mostly tests short-term memory).
+   */
+  learnCard(id: string, key: string, clean: boolean, today: string): CardRecord;
   /** Records an answer on a card and returns the card's new state. */
   answer(id: string, key: string, clean: boolean, today: string): CardRecord;
   /** Re-reads storage (another tab, or account sync, changed it). */
@@ -113,6 +126,18 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
       repertoires: repertoires.map((r) => (r.id === id ? updated : r)),
       cards: { ...cards, [id]: pruneCards(updated, cards[id] ?? {}) },
     });
+  };
+  /** Stores a card's new state; the same position with the same moves in another awake repertoire of this colour is the same card. */
+  const setCard = (id: string, key: string, card: CardRecord): CardRecord => {
+    const { repertoires, cards } = get().data;
+    const rep = repertoires.find((r) => r.id === id);
+    const next = { ...cards, [id]: { ...(cards[id] ?? {}), [key]: card } };
+    const moves = rep ? cardMoves(rep).get(key) : undefined;
+    if (rep && moves !== undefined)
+      for (const r of repertoires)
+        if (r.id !== id && !r.restedOn && r.color === rep.color && cardMoves(r).get(key) === moves) next[r.id] = { ...(cards[r.id] ?? {}), [key]: card };
+    commit({ repertoires, cards: next });
+    return card;
   };
   const bump = (today: string, field: 'reviews' | 'newMoves' | 'newLines') => {
     const d = get().daily;
@@ -173,18 +198,19 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
       bump(today, 'newLines');
     },
     answer(id, key, clean, today) {
-      const { repertoires, cards } = get().data;
-      const rep = repertoires.find((r) => r.id === id);
-      const book = cards[id] ?? {};
-      const card = answerCard(book[key], clean, today, { seed: key });
-      const next = { ...cards, [id]: { ...book, [key]: card } };
-      // The same position with the same moves in another repertoire of this colour is the same card: answered once.
-      const moves = rep ? cardMoves(rep).get(key) : undefined;
-      if (rep && moves !== undefined)
-        for (const r of repertoires)
-          if (r.id !== id && !r.restedOn && r.color === rep.color && cardMoves(r).get(key) === moves) next[r.id] = { ...(cards[r.id] ?? {}), [key]: card };
-      commit({ repertoires, cards: next });
-      return card;
+      return setCard(id, key, answerCard(get().data.cards[id]?.[key], clean, today, { seed: key }));
+    },
+    hold(id, key, today) {
+      const prev = get().data.cards[id]?.[key];
+      const stage = prev?.stage ?? 0;
+      const gap = stage === 0 ? (OPENING_TRAINER.intervals[0] ?? 1) : OPENING_TRAINER.intervals[Math.min(stage, OPENING_TRAINER.intervals.length) - 1];
+      const due = addDays(today, spreadDays(gap, key, today, OPENING_TRAINER.spread, OPENING_TRAINER.spreadFrom));
+      return setCard(id, key, { stage, due, retired: false, reps: (prev?.reps ?? 0) + 1, fails: prev?.fails ?? 0, last: today });
+    },
+    learnCard(id, key, clean, today) {
+      const prev = get().data.cards[id]?.[key];
+      const due = addDays(today, OPENING_TRAINER.intervals[0] ?? 1);
+      return setCard(id, key, { stage: clean ? 1 : 0, due, retired: false, reps: (prev?.reps ?? 0) + 1, fails: prev?.fails ?? 0, last: today });
     },
     reload() {
       set({ data: read(), daily: readDaily() });

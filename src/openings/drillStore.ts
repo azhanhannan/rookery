@@ -10,7 +10,9 @@ import { recordTrainedDay } from '../puzzles/streak';
 import { logTraining, startTraining } from '../training/trainingLog';
 import { drillSteps, judgeMove, type DrillStep } from './drill';
 import { countMixup } from './conflictPrompt';
-import { chooseLine, conflictKeys, dueTotal, newMovesLeft, otherRepertoireWith, reviewsLeft, shouldRecord, trimToNew, type DrillMode } from './repertoire';
+import { recordRecall } from './recall';
+import { chooseLine, conflictKeys, dueToday, dueTotal, lineIdea, newMovesLeft, otherRepertoireWith, reviewsLeft, shouldRecord, trimToNew, type DrillMode } from './repertoire';
+import type { Color } from '../game/types';
 import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from './repertoireStore';
 
 /** 'capped': today's share is done (Due now: OPENING_TRAINER.dailyReviews; Learn: the new-move budget). */
@@ -36,6 +38,17 @@ type DrillData = {
   cue: string[];
   /** New moves recorded in this line. */
   fresh: number;
+  /** Cards answered with a Hint in this run (they hold their step), and the square the Hint lights up. */
+  hinted: string[];
+  hintSquare: string | null;
+  /** Answers given with a Hint (not counted as from memory, nor as misses). */
+  helped: number;
+  /** Learn: the line's idea, shown before its moves. */
+  idea: string;
+  /** The last move's plan waits behind "Why this move?" (asked, not told, after an answer from memory). */
+  planHidden: boolean;
+  /** Today's reviews across all awake repertoires, alternating colours ("Next line" picks the next repertoire). */
+  mixed: boolean;
   fen: string;
   lastMove: { from: string; to: string } | null;
   /** The move shown with an arrow (a new move being taught, or the right move after a wrong one). */
@@ -57,7 +70,13 @@ type DrillData = {
 
 export type DrillState = DrillData & {
   /** Starts the next line of `repId` for `mode` (avoiding the line just played). False when there is none. */
-  start(repId: string, mode: DrillMode): boolean;
+  start(repId: string, mode: DrillMode, opts?: { mixed?: boolean }): boolean;
+  /** Today's reviews across all awake repertoires: the next line from a repertoire of the other colour when it can. */
+  startMixed(): boolean;
+  /** Lights up the piece to move (not where it goes). The card then holds its step. */
+  hint(): void;
+  /** Shows the plan kept behind "Why this move?". */
+  revealPlan(): void;
   move(input: MoveInput): boolean;
   stop(): void;
 };
@@ -73,6 +92,12 @@ const idle: DrillData = {
   repName: '',
   cue: [],
   fresh: 0,
+  hinted: [],
+  hintSquare: null,
+  helped: 0,
+  idea: '',
+  planHidden: false,
+  mixed: false,
   fen: new Chess().fen(),
   lastMove: null,
   arrow: null,
@@ -105,6 +130,17 @@ function sound(fen: string, uci: string) {
 }
 
 const moveOf = (uci: string) => ({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
+
+/** The end-of-line line: what went right first, never a percentage. */
+export function summary(answered: number, clean: number, helped: number): string {
+  if (answered === 0) return 'Line complete';
+  const missed = answered - clean - helped;
+  if (missed === 0 && helped === 0) return `Line complete: all ${answered} from memory`;
+  const parts = [`${clean} of ${answered} from memory`];
+  if (helped) parts.push(`${helped} with a hint`);
+  const tail = missed ? `, and you fixed ${missed === 1 ? 'the other one' : `the other ${missed}`}` : '';
+  return `Line complete: ${parts.join(', ')}${tail}`;
+}
 
 export const useDrillStore = create<DrillState>((set, get) => {
   /** Plays opponent moves (after a pause) until it is the user's turn or the line ends. */
@@ -185,19 +221,40 @@ export const useDrillStore = create<DrillState>((set, get) => {
       recordTrainedDay();
       logTraining('opening');
     }
-    const missed = s.answered - s.clean;
-    const text =
-      s.answered === 0
-        ? 'Line complete'
-        : missed === 0
-          ? `Line complete: all ${s.answered} from memory`
-          : `Line complete: ${s.clean} of ${s.answered} from memory, and you fixed ${missed === 1 ? 'the other one' : `the other ${missed}`}`;
-    set({ phase: 'done', pass: 'quiz', recap: [], arrow: null, feedback: { kind: 'good', text } });
+    set({ phase: 'done', pass: 'quiz', recap: [], arrow: null, hintSquare: null, feedback: { kind: 'good', text: summary(s.answered, s.clean, s.helped) } });
   };
 
   return {
     ...idle,
-    start(repId, mode) {
+    startMixed() {
+      const repStore = useRepertoireStore.getState();
+      const today = todayKey();
+      const prev = get();
+      const lastColor: Color | undefined = repStore.data.repertoires.find((r) => r.id === prev.repId)?.color;
+      const due = dueToday(repStore.data, today);
+      const pick = due.find((r) => r.color !== lastColor) ?? due[0];
+      if (!pick || reviewsLeft(reviewsDone(repStore.daily, today)) === 0) {
+        clearTimer();
+        const repId = prev.repId ?? pick?.id ?? null;
+        set({ ...idle, repId, mode: 'due', mixed: true, phase: pick ? 'capped' : 'empty' });
+        return false;
+      }
+      return get().start(pick.id, 'due', { mixed: true });
+    },
+    hint() {
+      const s = get();
+      const step = s.steps[s.index];
+      if (!step?.user || s.phase !== 'user' || s.shown || s.pass === 'show') return;
+      set({
+        hintSquare: step.uci.slice(0, 2),
+        hinted: s.hinted.includes(step.key) ? s.hinted : [...s.hinted, step.key],
+        feedback: { kind: 'info', text: 'The piece to move is lit up' },
+      });
+    },
+    revealPlan() {
+      set({ planHidden: false });
+    },
+    start(repId, mode, opts) {
       clearTimer();
       startTraining('opening');
       const repStore = useRepertoireStore.getState();
@@ -209,7 +266,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         return false;
       }
       const prev = get();
-      const same = prev.repId === repId && prev.mode === mode;
+      const same = prev.repId === repId && prev.mode === mode && prev.mixed === !!opts?.mixed;
       const played = same ? prev.played : prev.repId === repId && prev.path.length ? [prev.path[prev.path.length - 1]] : [];
       const repCards = repStore.data.cards[repId] ?? {};
       const chosen = rep ? chooseLine(rep, repCards, mode, today, played) : null;
@@ -225,8 +282,10 @@ export const useDrillStore = create<DrillState>((set, get) => {
         ...idle,
         repId,
         mode,
+        mixed: !!opts?.mixed,
         path,
         steps,
+        idea: mode === 'learn' ? lineIdea(rep.tree, path) : '',
         repName: rep.name,
         cue: [...conflictKeys(rep, repStore.data.repertoires)],
         pass: mode === 'learn' ? 'show' : 'quiz',
@@ -285,8 +344,9 @@ export const useDrillStore = create<DrillState>((set, get) => {
         return false;
       }
       // Correct.
-      let { answered, clean, fresh } = s;
+      let { answered, clean, fresh, helped } = s;
       const firstTime = !s.failed.includes(step.key);
+      const withHint = firstTime && s.hinted.includes(step.key);
       if (s.pass === 'quiz' && !s.shown) {
         const today = todayKey();
         const prevCard = cardOf(s.repId, step.key);
@@ -294,15 +354,22 @@ export const useDrillStore = create<DrillState>((set, get) => {
         // moves a due line merely passes through don't count against it.
         if ((s.mode === 'due' || s.mode === 'learn') && shouldRecord(prevCard, today)) {
           const store = useRepertoireStore.getState();
-          store.answer(s.repId, step.key, firstTime, today);
-          if (prevCard && prevCard.reps > 0) store.countReview(today);
-          else {
+          if (prevCard && prevCard.reps > 0) {
+            // A review: a Hint holds the card's step; otherwise right climbs and a miss drops a step.
+            if (withHint) store.hold(s.repId, step.key, today);
+            else store.answer(s.repId, step.key, firstTime, today);
+            store.countReview(today);
+            recordRecall(today, firstTime && !withHint);
+          } else {
+            // New, in Learn's from-memory pass: due tomorrow either way, and a miss here isn't counted as one.
+            store.learnCard(s.repId, step.key, firstTime && !withHint, today);
             store.countNew(today);
             fresh++;
           }
         }
         answered++;
-        if (firstTime) clean++;
+        if (withHint) helped++;
+        else if (firstTime) clean++;
       }
       sound(step.fenBefore, step.uci);
       set({
@@ -314,7 +381,11 @@ export const useDrillStore = create<DrillState>((set, get) => {
         answered,
         clean,
         fresh,
-        feedback: s.shown || !firstTime ? { kind: 'info', text: `${step.san}` } : { kind: 'good', text: `${step.san} is right` },
+        helped,
+        hintSquare: null,
+        // After an answer from memory the plan is asked for ("Why this move?"), not told.
+        planHidden: !!step.plan && s.pass === 'quiz' && !s.shown && firstTime && !withHint,
+        feedback: s.shown || !firstTime || withHint ? { kind: 'info', text: `${step.san}` } : { kind: 'good', text: `${step.san} is right` },
       });
       run();
       return true;

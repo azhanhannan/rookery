@@ -322,6 +322,11 @@ export const OPENING_TRAINER = {
   newLinesPerDay: 1,
   /** No new moves while more than this many days of reviews are waiting (keeps a backlog from growing). */
   maxBacklogDays: 3,
+  /** Size check (advice only): own moves across awake repertoires, and own moves per line, past which it suggests resting/trimming. */
+  suggestedMoves: 45,
+  suggestedDepth: 8,
+  /** Days of first-time recall kept (the Analyst-only recall line uses the last 30). */
+  recallDays: 60,
 };
 
 /** Small play helpers: the Spar button, the losing-streak cushion and premoves. */

@@ -12,6 +12,9 @@ import {
   chooseLine,
   conflictKeys,
   dueToday,
+  lineIdea,
+  repertoireSize,
+  sizeAdvice,
   dueTotal,
   newMovesLeft,
   repertoireConflicts,
@@ -350,6 +353,37 @@ describe('shared positions, conflicts and the new-move budget', () => {
     expect(newMovesLeft(0, 1, 0, t)).toBe(0);
     expect(newMovesLeft(0, 0, 36, t)).toBe(6);
     expect(newMovesLeft(0, 0, 37, t)).toBe(0);
+  });
+});
+
+describe('size check and learning order', () => {
+  it('counts own moves per colour once and suggests resting past the comfortable size', () => {
+    const mk = (id: string, color: 'w' | 'b', pgn: string, extra: object = {}) => ({ id, name: id, color, tree: parsePgnTree(pgn), createdAt: '', updatedAt: '', ...extra });
+    const a = mk('a', 'w', '1. e4 e5 2. Nf3 Nc6 3. Bc4 *');
+    const b = mk('b', 'w', '1. e4 e5 2. Nf3 Nc6 3. Bb5 *');
+    const size = repertoireSize([a, b, mk('c', 'b', '1. e4 c6 2. d4 d5 *'), mk('d', 'w', '1. d4 *', { restedOn: TODAY })]);
+    // e4 and Nf3 shared; Bc4 and Bb5 are different answers to one position.
+    expect(size).toEqual({ white: 4, black: 2, total: 6, longLines: 0 });
+    expect(sizeAdvice(size)).toBeNull();
+    const advice = sizeAdvice({ white: 50, black: 20, total: 70, longLines: 2 })!;
+    expect(advice).toContain('70 of your own moves');
+    expect(advice).toContain('2 lines go past your 8th move');
+  });
+
+  it('takes the line idea from the first plan comment', () => {
+    const tree = parsePgnTree('1. e4 e5 2. Nf3 {Hit e5} Nc6 3. Bc4 {Aim at f7} *');
+    expect(lineIdea(tree, linesOf(tree)[0])).toBe('Hit e5');
+    expect(lineIdea(parsePgnTree('1. e4 *'), linesOf(parsePgnTree('1. e4 *'))[0])).toBe('');
+  });
+
+  it('learns breadth first: the line whose first new move is earliest', () => {
+    const tree = parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 (3. d4) *');
+    const r = { tree, color: 'w' as const };
+    const k = (...sans: string[]) => toEpd(tree.nodes[nodeBySans(tree, ...sans)].fen);
+    const done: CardRecord = { stage: 1, due: '2026-10-20', retired: false, reps: 1, fails: 0 };
+    // Main line learned to move 2; both lines' first new move is move 3: tree order.
+    const line = chooseLine(r, { [toEpd(START_FEN)]: done, [k('e4', 'e5')]: done }, 'learn', TODAY)!;
+    expect(tree.nodes[line.at(-1)!].san).toBe('Bc4');
   });
 });
 

@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Board, type BoardArrow } from '../components/Board';
 import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { RareInMasters } from '../components/ExplorerPanel';
 import { OpeningLibraryPanel, type LibraryPreview } from './OpeningLibraryPanel';
 import { VariationMoveList } from '../components/VariationMoveList';
-import { OPENING_TRAINER } from '../config/tunables';
+import { BOT_LEVELS, OPENING_TRAINER } from '../config/tunables';
+import { useGameStore } from '../game/gameStore';
+import { recallRate, readRecall } from '../openings/recall';
+import { useReviewPrefs } from '../settings/reviewPrefs';
 import { parsePgnTree } from '../game/pgnTree';
 import type { MoveInput } from '../game/rules';
 import { loadHistory } from '../game/storage';
@@ -14,7 +17,7 @@ import { useDrillStore } from '../openings/drillStore';
 import { seedRows, type SeedRow } from '../openings/fromGames';
 import { loadOpenings, lookupBook, openingAt } from '../openings/openings';
 import { markAsked, shouldAsk } from '../openings/conflictPrompt';
-import { catchUpDays, dueTotal, lineText, newMovesLeft, repertoireConflicts, repertoireProgress, reviewsLeft, seedFromGames, userCards, type DrillMode, type Repertoire, type RepertoireConflict } from '../openings/repertoire';
+import { catchUpDays, dueTotal, lineText, newMovesLeft, repertoireConflicts, repertoireProgress, repertoireSize, reviewsLeft, seedFromGames, sizeAdvice, userCards, type DrillMode, type Repertoire, type RepertoireConflict } from '../openings/repertoire';
 import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from '../openings/repertoireStore';
 import { addDays } from '../puzzles/days';
 import { readSelected, writeSelected } from '../openings/selected';
@@ -55,7 +58,9 @@ export function OpeningsPage() {
   const [library, setLibrary] = useState(false);
   const [preview, setPreview] = useState<LibraryPreview | null>(null);
 
-  const rep = data.repertoires.find((r) => r.id === selectedId) ?? data.repertoires[0] ?? null;
+  // Today's reviews across repertoires show whichever repertoire the drill is on.
+  const activeId = drill.mixed && drill.phase !== 'idle' && drill.repId ? drill.repId : selectedId;
+  const rep = data.repertoires.find((r) => r.id === activeId) ?? data.repertoires[0] ?? null;
   const today = todayKey();
   const progress = useMemo(() => (rep ? repertoireProgress(rep, data.cards[rep.id] ?? {}, today) : null), [rep, data.cards, today]);
 
@@ -89,6 +94,7 @@ export function OpeningsPage() {
   let fen: string;
   let lastMove: { from: string; to: string } | null = null;
   let arrows: BoardArrow[] = [];
+  let squareStyles: Record<string, CSSProperties> | undefined;
   let fens: string[] = [];
   let movable = false;
   let onMove: ((m: MoveInput) => boolean) | undefined;
@@ -99,6 +105,7 @@ export function OpeningsPage() {
     fen = drill.fen;
     lastMove = drill.lastMove;
     if (drill.arrow) arrows = [{ startSquare: drill.arrow.slice(0, 2), endSquare: drill.arrow.slice(2, 4), color: ARROW }];
+    if (drill.hintSquare) squareStyles = { [drill.hintSquare]: { boxShadow: 'inset 0 0 0 4px rgba(21, 120, 27, 0.85)' } };
     fens = [drill.steps[0]?.fenBefore ?? drill.fen, ...drill.steps.slice(0, drill.index).map((s) => s.fenAfter)];
     movable = drill.phase === 'user' || drill.phase === 'wrong';
     onMove = drill.move;
@@ -146,6 +153,7 @@ export function OpeningsPage() {
             orientation={(library && preview ? preview.color : rep?.color) === 'b' ? 'black' : 'white'}
             lastMove={lastMove}
             arrows={arrows}
+            squareStyles={squareStyles}
             movable={movable}
             onMove={onMove}
             positionKey={library && preview ? `library:${preview.fen}` : drilling ? `drill:${drill.index}:${drill.pass}` : `browse:${browseId}`}
@@ -196,9 +204,16 @@ export function OpeningsPage() {
             </div>
           )
         ) : drilling ? (
-          <DrillPanel opening={opening} onStop={() => useDrillStore.getState().stop()} onNext={() => startDrill(drill.mode)} nextDue={progress?.nextDue ?? null} />
+          <DrillPanel
+            opening={opening}
+            color={rep.color}
+            onStop={() => useDrillStore.getState().stop()}
+            onNext={() => (drill.mixed ? useDrillStore.getState().startMixed() : startDrill(drill.mode))}
+            nextDue={progress?.nextDue ?? null}
+          />
         ) : (
           <>
+            <TodaysReviews />
             <ConflictPrompt rep={rep} reps={data.repertoires} />
             <RepertoireHeader rep={rep} progress={progress!} onDrill={startDrill} onDelete={() => {
               if (!window.confirm(`Delete the repertoire "${rep.name}" and its progress?`)) return;
@@ -231,6 +246,20 @@ export function OpeningsPage() {
         )}
       </aside>
     </div>
+  );
+}
+
+/** Today's reviews across every awake repertoire in one go, White and Black taking turns. */
+function TodaysReviews() {
+  const data = useRepertoireStore((s) => s.data);
+  const daily = useRepertoireStore((s) => s.daily);
+  const today = todayKey();
+  const n = Math.min(reviewsLeft(reviewsDone(daily, today)), dueTotal(data, today));
+  if (!n || data.repertoires.filter((r) => !r.restedOn).length < 2) return null;
+  return (
+    <button className={primary} onClick={() => useDrillStore.getState().startMixed()} data-testid="todays-reviews">
+      Today's reviews, all repertoires ({n})
+    </button>
   );
 }
 
@@ -441,15 +470,29 @@ function drillTitle(mode: DrillMode, pass: 'show' | 'quiz' | 'recap'): string {
   return pass === 'show' ? 'Learn: watch and play' : 'Learn: from memory';
 }
 
-function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | null; onStop: () => void; onNext: () => void; nextDue: string | null }) {
+/** Plays the drill's final position against the gentlest bot, as practice (unrated, takebacks): the line in a game. */
+function playFromHere(fen: string, side: Color) {
+  const { record } = useGameStore.getState();
+  if (record.result === '*' && record.moves.length > 0 && !window.confirm('Leave the game in progress on the Play page?')) return;
+  useGameStore.getState().newGame({ side, timeControlId: 'unlimited', opponent: 'bot', botElo: BOT_LEVELS[0].elo, practice: true, startFen: fen });
+  location.hash = '#/play';
+}
+
+function DrillPanel({ opening, color, onStop, onNext, nextDue }: { opening: string | null; color: Color; onStop: () => void; onNext: () => void; nextDue: string | null }) {
   const d = useDrillStore();
+  const daily = useRepertoireStore((s) => s.daily);
+  const data = useRepertoireStore((s) => s.data);
+  const today = todayKey();
+  const moreToLearn = newMovesLeft(newMovesDone(daily, today), newLinesDone(daily, today), dueTotal(data, today)) > 0;
+  const learnDone = d.mode === 'learn' && d.phase === 'done';
+  const canHint = d.phase === 'user' && !d.shown && d.pass !== 'show' && !d.hintSquare;
   const userSteps = d.steps.filter((s) => s.user).length;
   const doneUser = d.steps.slice(0, d.index).filter((s) => s.user).length;
   const tone = d.feedback?.kind === 'good' ? 'text-accent' : d.feedback?.kind === 'bad' ? 'text-danger' : '';
   return (
     <div className={panel} data-testid="drill-panel">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-semibold">{drillTitle(d.mode, d.pass)}</span>
+        <span className="font-semibold">{d.mixed && d.pass !== 'recap' ? `Today's reviews: ${d.repName}` : drillTitle(d.mode, d.pass)}</span>
         {d.phase !== 'empty' && d.phase !== 'capped' && d.pass !== 'recap' && <span className="text-xs text-muted">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
       </div>
       {opening && <p className="text-sm text-muted" data-testid="opening-name">{opening}</p>}
@@ -476,26 +519,65 @@ function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | nu
         </p>
       ) : (
         <>
+          {d.idea && d.pass === 'show' && (
+            <p className="rounded bg-surface-2 p-2 text-sm" data-testid="drill-idea">
+              <span className="font-semibold">The idea: </span>
+              {d.idea}
+            </p>
+          )}
           {d.feedback && (
             <p className={`text-sm font-medium ${tone}`} role="status" data-testid="drill-feedback">
               {d.feedback.text}
             </p>
           )}
-          {d.plan && (
+          {d.plan && d.planHidden && (
+            <button className="self-start text-sm text-accent hover:underline" onClick={() => useDrillStore.getState().revealPlan()} data-testid="drill-why">
+              Why this move? (think first, then tap)
+            </button>
+          )}
+          {d.plan && !d.planHidden && (
             <p className="rounded bg-surface-2 p-2 text-sm" data-testid="drill-plan">
               <span className="font-semibold">Plan: </span>
               {d.plan}
             </p>
           )}
+          {learnDone && (
+            <p className="text-xs text-muted" data-testid="drill-settle">
+              New moves stick best after a break: they come back tomorrow. Playing them in a game helps too.
+            </p>
+          )}
         </>
       )}
       <div className="flex flex-wrap gap-2">
-        {d.phase === 'done' && (
-          <button className={primary} onClick={onNext}>
-            Next line
+        {canHint && (
+          <button className={btn} onClick={() => useDrillStore.getState().hint()} data-testid="drill-hint">
+            Hint
           </button>
         )}
-        <button className={btn} onClick={onStop}>{d.phase === 'done' || d.phase === 'empty' || d.phase === 'capped' ? 'Back to repertoire' : 'Stop'}</button>
+        {learnDone ? (
+          <>
+            <button className={primary} onClick={onStop}>
+              Let this settle
+            </button>
+            <button className={btn} onClick={() => playFromHere(d.fen, color)} data-testid="drill-play-from-here">
+              Play from here
+            </button>
+            {moreToLearn && (
+              <button className={btn} onClick={onNext}>
+                Another line
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            {d.phase === 'done' && (
+              <button className={primary} onClick={onNext}>
+                Next line
+              </button>
+            )}
+            <button className={btn} onClick={onStop}>{d.phase === 'done' || d.phase === 'empty' || d.phase === 'capped' ? 'Back to repertoire' : 'Stop'}</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -668,6 +750,33 @@ function AddLinesPanel({ rep, onAdded }: { rep: Repertoire; onAdded: () => void 
   );
 }
 
+/** Advice in a coach's voice when the awake repertoires ask a lot (never enforced). */
+function SizeCheck() {
+  const reps = useRepertoireStore((s) => s.data.repertoires);
+  const size = repertoireSize(reps);
+  const advice = sizeAdvice(size);
+  return (
+    <p className="rounded bg-surface-2 p-2 text-sm" data-testid="size-check">
+      <span className="font-semibold">Size check: </span>
+      {advice ?? `${size.total} of your own moves across the repertoires you're practising. A comfortable size.`}
+    </p>
+  );
+}
+
+/** Analyst only: how often due moves came back first time over 30 days (the check on the gentle rules). */
+function RecallLine() {
+  const style = useReviewPrefs().style;
+  if (style !== 'analyst') return null;
+  const r = recallRate(readRecall(), todayKey());
+  if (!r) return null;
+  return (
+    <p className="text-xs text-muted" data-testid="recall-line">
+      Remembered first time, last 30 days: {Math.round(r.share * 100)}% of {r.reviews} reviews
+      {r.share < 0.8 && r.reviews >= 30 ? ' (under 80%: a miss could cost two steps; OPENING_TRAINER.missDrop)' : ''}
+    </p>
+  );
+}
+
 function ProgressPanel({ rep, progress, onShow }: { rep: Repertoire; progress: ReturnType<typeof repertoireProgress>; onShow: (nodeId: string) => void }) {
   const pct = progress.total ? Math.round((progress.learned / progress.total) * 100) : 0;
   return (
@@ -680,9 +789,11 @@ function ProgressPanel({ rep, progress, onShow }: { rep: Repertoire; progress: R
         <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
       </div>
       <p className="text-sm">
-        {progress.due} due now · {progress.fresh} never practised
+        Waiting: {progress.due} · {progress.fresh} never practised
         {progress.nextDue && progress.due === 0 && ` · next review ${dateText(progress.nextDue)}`}
       </p>
+      <SizeCheck />
+      <RecallLine />
       <div className="mt-1 text-sm font-semibold">Weakest positions</div>
       {progress.weakest.length === 0 ? (
         <p className="text-sm text-muted">No misses yet.</p>

@@ -85,7 +85,8 @@ describe('opening drill', () => {
     const cards = reps.getState().data.cards[id];
     expect(cards[toEpd(START_FEN)]).toMatchObject({ stage: 1, due: '2026-10-17', fails: 0 });
     const afterE5 = Object.entries(cards).find(([k]) => k !== toEpd(START_FEN))![1];
-    expect(afterE5).toMatchObject({ stage: 0, fails: 1, due: '2026-10-17' });
+    // Missed seconds after being shown: back tomorrow at the first step, but not counted as a miss.
+    expect(afterE5).toMatchObject({ stage: 0, fails: 0, due: '2026-10-17' });
     expect(drill.getState().feedback?.text).toBe('Line complete: 1 of 2 from memory, and you fixed the other one');
   });
 
@@ -241,5 +242,66 @@ describe('opening drill', () => {
     // The clash at move 3 is named before the move.
     expect(drill.getState().start(b, 'learn')).toBe(true);
     expect(drill.getState().cue).toHaveLength(1);
+  });
+
+  it('a Hint lights the piece; the due card then holds its step and the summary says so', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 {Bishop out before e3} *'));
+    const s = reps.getState();
+    s.answer(id, toEpd(START_FEN), true, '2026-10-12');
+    s.answer(id, toEpd(START_FEN), true, '2026-10-13');
+    const before = reps.getState().data.cards[id][toEpd(START_FEN)];
+    expect(before.stage).toBe(2);
+    expect(drill.getState().start(id, 'due')).toBe(true);
+    drill.getState().hint();
+    expect(drill.getState().hintSquare).toBe('d2');
+    expect(drill.getState().move(mv('d2d4'))).toBe(true);
+    const held = reps.getState().data.cards[id][toEpd(START_FEN)];
+    expect(held).toMatchObject({ stage: 2, fails: 0, reps: 3, last: '2026-10-16', due: '2026-10-19' });
+    vi.runOnlyPendingTimers();
+    drill.getState().move(mv('c1f4'));
+    expect(drill.getState().phase).toBe('done');
+    expect(drill.getState().feedback?.text).toBe('Line complete: 0 of 1 from memory, 1 with a hint');
+  });
+
+  it('after a move answered from memory its plan is asked for, then shown', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 {Take the centre} d5 *'));
+    reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-14');
+    drill.getState().start(id, 'due');
+    drill.getState().move(mv('d2d4'));
+    expect(drill.getState()).toMatchObject({ plan: 'Take the centre', planHidden: true });
+    drill.getState().revealPlan();
+    expect(drill.getState().planHidden).toBe(false);
+  });
+
+  it('Learn shows the line\'s idea first', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('Italian', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 {Aim at f7} *'));
+    drill.getState().start(id, 'learn');
+    expect(drill.getState()).toMatchObject({ pass: 'show', idea: 'Aim at f7' });
+  });
+
+  it("today's reviews across repertoires take turns between White and Black", async () => {
+    const { reps, drill } = await fresh();
+    const w = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
+    const b = reps.getState().create('Caro', 'b', parsePgnTree('1. e4 c6 2. d4 d5 *'));
+    const w2 = reps.getState().create('Other white', 'w', parsePgnTree('1. c4 e5 2. g3 *'));
+    for (const id of [w, w2]) reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-14');
+    const e4 = parsePgnTree('1. e4 *');
+    const caroKey = toEpd(e4.nodes[e4.nodes[e4.rootId].children[0]].fen);
+    reps.getState().answer(b, caroKey, true, '2026-10-14');
+    expect(drill.getState().startMixed()).toBe(true);
+    const first = drill.getState().repId;
+    expect(drill.getState().mixed).toBe(true);
+    // Finish the line, then the next one comes from the other colour.
+    while (drill.getState().phase !== 'done') {
+      if (drill.getState().phase === 'user') drill.getState().move(mv(drill.getState().steps[drill.getState().index].uci));
+      else vi.runOnlyPendingTimers();
+    }
+    drill.getState().startMixed();
+    const second = drill.getState().repId;
+    const color = (id: string | null) => reps.getState().data.repertoires.find((r) => r.id === id)!.color;
+    expect(color(second)).not.toBe(color(first));
   });
 });

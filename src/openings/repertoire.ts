@@ -5,7 +5,7 @@ import { Chess } from 'chess.js';
 import { OPENING_TRAINER } from '../config/tunables';
 import type { Color } from '../game/types';
 import { START_FEN } from '../game/rules';
-import { addMove, createTree, getNode, pathTo, type VariationTree } from '../game/variationTree';
+import { addMove, createTree, getNode, pathTo, splitComment, type VariationTree } from '../game/variationTree';
 import { addDays, daysBetween, isDayKey } from '../puzzles/days';
 import { isDue, type CardState } from '../puzzles/spacedRepetition';
 import { toEpd } from './openings';
@@ -239,7 +239,8 @@ export type DrillMode = 'due' | 'learn' | 'practice' | 'weak';
  * The next line to drill, or null when there is nothing for the mode.
  * 'due': lines with due cards; the longest overdue first, then the one whose first due move comes earliest in the game,
  *   then the most due cards, then the least practised.
- * 'learn': lines with never-answered cards, in tree order (main line first).
+ * 'learn': lines with never-answered cards, the one whose first new move comes earliest first (breadth before depth),
+ *   then tree order.
  * 'practice': extra practice off the schedule; lines with a learned position, in tree order.
  * 'weak': lines through a position missed before, the worst miss rate first.
  * `skip` (leaf ids of lines already played this session, last one last) is avoided while another line qualifies;
@@ -252,7 +253,7 @@ export function chooseLine(
   today: string,
   skip?: string | string[],
 ): string[] | null {
-  type Cand = { path: string[]; due: number; oldest: string; first: number; reps: number; fresh: number; seen: number; weak: number; i: number };
+  type Cand = { path: string[]; due: number; oldest: string; first: number; firstFresh: number; reps: number; fresh: number; seen: number; weak: number; i: number };
   const cands: Cand[] = linesOf(rep.tree).map((path, i) => {
     const keys = lineCards(rep.tree, rep.color, path);
     const dueKeys = keys.filter((k) => isCardDue(cards[k], today));
@@ -262,6 +263,7 @@ export function chooseLine(
       due: dueKeys.length,
       oldest: dueKeys.map((k) => cards[k].due).sort()[0] ?? '9999-99-99',
       first: keys.findIndex((k) => isCardDue(cards[k], today)),
+      firstFresh: keys.findIndex((k) => !seen(cards[k])),
       reps: keys.reduce((s, k) => s + (cards[k]?.reps ?? 0), 0),
       fresh: keys.filter((k) => !seen(cards[k])).length,
       seen: keys.filter((k) => seen(cards[k])).length,
@@ -279,6 +281,8 @@ export function chooseLine(
   }
   if (!pool.length) return null;
   if (mode === 'due') pool.sort((a, b) => a.oldest.localeCompare(b.oldest) || a.first - b.first || b.due - a.due || a.reps - b.reps || a.i - b.i);
+  // Breadth before depth: the line whose first new move comes earliest (the first moves of every main line first).
+  if (mode === 'learn') pool.sort((a, b) => a.firstFresh - b.firstFresh || a.i - b.i);
   if (mode === 'weak') pool.sort((a, b) => b.weak - a.weak || a.i - b.i);
   return pool[0].path;
 }
@@ -463,6 +467,45 @@ export function newMovesLeft(
 ): number {
   if (waiting > t.maxBacklogDays * t.dailyReviews || linesDone >= t.newLinesPerDay) return 0;
   return Math.max(0, t.newMovesPerDay - movesDone);
+}
+
+/** The line's idea: its first plan comment (PGN comment without [%...] commands) along `path`; '' when none. */
+export function lineIdea(tree: VariationTree, path: string[]): string {
+  for (const id of path) {
+    const text = splitComment(tree.nodes[id]?.comment).text.trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+/** How much the awake repertoires ask of the user: own moves per colour (shared positions once) and long lines. */
+export type RepertoireSize = { white: number; black: number; total: number; longLines: number };
+
+export function repertoireSize(reps: Repertoire[], maxDepth: number = OPENING_TRAINER.suggestedDepth): RepertoireSize {
+  const keys = { w: new Set<string>(), b: new Set<string>() };
+  let longLines = 0;
+  for (const r of reps) {
+    if (r.restedOn) continue;
+    for (const [key, moves] of cardMoves(r)) keys[r.color].add(`${key}|${moves}`);
+    for (const path of linesOf(r.tree)) if (lineCards(r.tree, r.color, path).length > maxDepth) longLines++;
+  }
+  return { white: keys.w.size, black: keys.b.size, total: keys.w.size + keys.b.size, longLines };
+}
+
+/** A coach's one or two sentences about the size, or null when it's comfortable. Advice only: nothing is enforced. */
+export function sizeAdvice(size: RepertoireSize, t: Pick<typeof OPENING_TRAINER, 'suggestedMoves' | 'suggestedDepth'> = OPENING_TRAINER): string | null {
+  const parts: string[] = [];
+  if (size.total > t.suggestedMoves)
+    parts.push(
+      `You're carrying ${size.total} of your own moves. For now about ${t.suggestedMoves - 15}-${t.suggestedMoves} is plenty: one White ` +
+        'opening, one answer to 1.e4 and a short setup against 1.d4. Resting the rest keeps each day small, and nothing is lost.',
+    );
+  if (size.longLines > 0)
+    parts.push(
+      `${size.longLines} ${size.longLines === 1 ? 'line goes' : 'lines go'} past your ${t.suggestedDepth}th move. At this stage the ` +
+        'first moves and their ideas matter most; the deep ones can wait.',
+    );
+  return parts.length ? parts.join(' ') : null;
 }
 
 /** Review moves still to ask today, given how many were answered (`done`) on `today`. */

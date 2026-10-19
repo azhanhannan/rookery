@@ -19,13 +19,15 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
   await expect(page.getByTestId('repertoire-counts')).toContainText('2 new');
 
   await page.getByRole('button', { name: /Learn new lines/ }).click();
+  // The line's idea comes before its moves.
+  await expect(page.getByTestId('drill-idea')).toContainText('Develop and attack e5');
   await expect(page.getByTestId('drill-feedback')).toContainText('New move: play e4');
   await clickMove(page, 'e2e4');
   await expect(page.getByTestId('drill-feedback')).toContainText('New move: play Nf3');
   await clickMove(page, 'g1f3');
   await expect(page.getByTestId('drill-plan')).toContainText('Develop and attack e5');
 
-  // From memory: a wrong move shows the right one and counts as a miss.
+  // From memory: a wrong move shows the right one (seconds after learning, it isn't counted as a miss).
   await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
   // The board jumps back to the start for the quiz: wait for it before clicking (slow under a full parallel run).
   await expect(square(page, 'e2').locator('[data-piece]')).toHaveCount(1);
@@ -42,17 +44,18 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
   await clickMove(page, 'g1f3');
   await expect(page.getByTestId('drill-feedback')).toContainText('1 of 2 from memory, and you fixed the other one');
 
-  await page.getByRole('button', { name: 'Back to repertoire' }).click();
+  // After learning: let it settle (the default), or play it out.
+  await expect(page.getByTestId('drill-settle')).toBeVisible();
+  await expect(page.getByTestId('drill-play-from-here')).toBeVisible();
+  await page.getByRole('button', { name: 'Let this settle' }).click();
   await expect(page.getByTestId('repertoire-counts')).toContainText('1 learned');
   await page.getByRole('tab', { name: 'Progress' }).click();
-  await expect(page.getByTestId('weak-spot')).toHaveCount(1);
-  await expect(page.getByTestId('weak-spot')).toContainText('1. e4 e5');
+  await expect(page.getByTestId('weak-spot')).toHaveCount(0);
+  await expect(page.getByTestId('size-check')).toContainText('A comfortable size');
 
   // Extra practice off the schedule: any time, and the counts don't move for right answers.
-  await page.getByRole('button', { name: 'Drill weakest' }).click();
-  await expect(page.getByTestId('drill-off-schedule')).toBeVisible();
-  await page.getByRole('button', { name: 'Stop' }).click();
   await page.getByRole('button', { name: 'Practise anyway' }).click();
+  await expect(page.getByTestId('drill-off-schedule')).toBeVisible();
   await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
   await expect(square(page, 'e2').locator('[data-piece]')).toHaveCount(1);
   await clickMove(page, 'e2e4');
@@ -114,7 +117,7 @@ test('Play reminds about opening moves due today and links to that repertoire', 
   await expect(square(page, 'd5').locator('[data-piece]')).toHaveCount(1);
   await clickMove(page, 'c2c4');
   await expect(page.getByTestId('drill-feedback')).toContainText('all 2 from memory');
-  await page.getByRole('button', { name: 'Back to repertoire' }).click();
+  await page.getByRole('button', { name: 'Let this settle' }).click();
 
   // A second repertoire becomes the selected one; nothing is due on it.
   await page.getByRole('button', { name: 'New repertoire' }).click();
@@ -198,4 +201,74 @@ test('two White repertoires that answer a position differently: asked once, Rest
   await expect(page.getByTestId('repertoire-resting')).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('conflict-prompt')).toHaveCount(0);
+});
+
+test('a Hint lights the piece to move, and Play from here opens the line as a practice game', async ({ page }) => {
+  await page.goto('/#/openings');
+  await page.getByRole('button', { name: 'New repertoire' }).click();
+  await page.getByLabel('Name').fill('London');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByLabel('Repertoire PGN').fill('1. d4 d5 2. Bf4 *');
+  await page.getByRole('button', { name: 'Add PGN' }).click();
+  await page.getByRole('button', { name: /Learn new lines/ }).click();
+  await clickMove(page, 'd2d4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('New move: play Bf4');
+  await clickMove(page, 'c1f4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+  await expect(square(page, 'f4').locator('[data-piece]')).toHaveCount(0);
+  await page.getByTestId('drill-hint').click();
+  await expect(page.getByTestId('drill-feedback')).toContainText('The piece to move is lit up');
+  await expect(square(page, 'd2').locator('[style*="box-shadow"]')).toHaveCount(1);
+  await clickMove(page, 'd2d4');
+  await expect(square(page, 'd5').locator('[data-piece]')).toHaveCount(1);
+  await clickMove(page, 'c1f4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('1 of 2 from memory, 1 with a hint');
+  await page.getByTestId('drill-play-from-here').click();
+  await expect(page).toHaveURL(/#\/play/);
+  await expect(page.locator('[data-square="f4"] [data-piece]')).toHaveCount(1);
+});
+
+test("Today's reviews runs the due lines of every repertoire, White and Black in turn", async ({ page }) => {
+  await page.goto('/#/openings');
+  for (const [name, color, pgn, uci] of [
+    ['Queen pawn', 'White', '1. d4 *', 'd2d4'],
+    ['Caro', 'Black', '1. e4 c6 *', 'c7c6'],
+  ] as const) {
+    await page.getByRole('button', { name: 'New repertoire' }).click();
+    await page.getByLabel('Name').fill(name);
+    if (color === 'Black') await page.getByTestId('new-repertoire').getByText('Black').click();
+    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByLabel('Repertoire PGN').fill(pgn);
+    await page.getByRole('button', { name: 'Add PGN' }).click();
+    await page.getByRole('button', { name: /Learn new lines/ }).click();
+    await expect(page.getByTestId('drill-feedback')).toContainText('New move');
+    await clickMove(page, uci);
+    await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+    // The board is back at the start (and, as Black, White's 1.e4 is on it) before the move from memory.
+    await expect(square(page, uci.slice(0, 2)).locator('[data-piece]')).toHaveCount(1);
+    await expect(square(page, uci.slice(2, 4)).locator('[data-piece]')).toHaveCount(0);
+    if (color === 'Black') await expect(square(page, 'e4').locator('[data-piece]')).toHaveCount(1);
+    await clickMove(page, uci);
+    await expect(page.getByTestId('drill-feedback')).toContainText('all 1 from memory');
+    await page.getByRole('button', { name: 'Let this settle' }).click();
+    // One new line a day: let the next repertoire be learned too.
+    await page.evaluate(() => localStorage.removeItem('rookery.openings.daily'));
+    await page.reload();
+  }
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem('rookery.repertoires')!);
+    for (const cards of Object.values(data.cards) as Record<string, { due: string }>[]) for (const c of Object.values(cards)) c.due = '2000-01-01';
+    localStorage.setItem('rookery.repertoires', JSON.stringify(data));
+  });
+  await page.reload();
+  await page.getByTestId('todays-reviews').click();
+  const title = page.getByTestId('drill-panel').locator('span.font-semibold').first();
+  await expect(title).toContainText("Today's reviews:");
+  const first = (await title.textContent())!;
+  await expect(page.getByTestId('drill-feedback')).toContainText('Your move');
+  if (first.includes('Caro')) await expect(square(page, 'e4').locator('[data-piece]')).toHaveCount(1);
+  await clickMove(page, first.includes('Caro') ? 'c7c6' : 'd2d4');
+  await expect(page.getByTestId('drill-feedback')).toContainText('all 1 from memory');
+  await page.getByRole('button', { name: 'Next line' }).click();
+  await expect(title).toContainText(first.includes('Caro') ? 'Queen pawn' : 'Caro');
 });

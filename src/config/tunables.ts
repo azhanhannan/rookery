@@ -622,4 +622,9 @@ export const WHY_STORY = {
   maxSentences: { learner: 1, club: 2, analyst: 3 },
   /** Longest move sequence a sentence spells out, by style (plies); longer ones are told without the moves. */
   maxMoves: { learner: 2, club: 4, analyst: 99 },
+  /**
+   * A material claim is shown only when the engine agrees: the side said to win it has at least this win chance
+   * (0-100) by the engine's verdict (after the move for "what happens next", before it for the better move).
+   */
+  agreeWin: 55,
 };

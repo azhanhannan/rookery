@@ -6,6 +6,7 @@
 //     after the move (king shelter, castling rights, pawn structure, development, piece activity). These are
 //     facts, never blamed for the evaluation drop: the UI shows them under "What changed", not "Why it's bad".
 // This file is the shared contract; `explainMove` combines both for the UI.
+import { WHY_STORY } from '../config/tunables';
 import type { Color } from '../game/types';
 import { captionForMove } from './captions';
 import { lineStory } from './lineStory';
@@ -67,6 +68,8 @@ export function offersWhy(label: MoveLabel, style: ReviewStyle): boolean {
   return style === 'analyst' || WHY_LABELS.has(label);
 }
 
+const MATERIAL_KINDS = new Set(['wins-material', 'loses-material']);
+
 const empty = (ply: number): MoveExplanation => ({ ply, story: { played: [], better: [] }, changes: [] });
 /** Text compared loosely: case, spacing and the closing full stop don't make two sentences different. */
 const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!]+$/, '');
@@ -77,7 +80,7 @@ export function explainMove(review: GameReview, ply: number, style: ReviewStyle)
   const before = review.positions[ply - 1];
   const after = review.positions[ply];
   if (!Number.isInteger(ply) || ply < 1 || !move || !before || !after) return empty(ply);
-  const story = lineStory(
+  const told0 = lineStory(
     {
       fenBefore: before.fen,
       played: move.uci,
@@ -89,6 +92,17 @@ export function explainMove(review: GameReview, ply: number, style: ReviewStyle)
     },
     style,
   );
+  // A material claim the engine's own verdict contradicts is dropped: the stored line can stop before the material
+  // comes back (e.g. "Black wins material" while the engine calls the position level). The winner of a 'played'
+  // claim must be at least WHY_STORY.agreeWin by the engine after the move; a 'better' claim needs the mover there
+  // before it.
+  const moverAfter = move.winAfter;
+  const agrees = (s: WhySentence, winnerChance: number) =>
+    !MATERIAL_KINDS.has(s.kind) || winnerChance >= WHY_STORY.agreeWin;
+  const story: LineStory = {
+    played: told0.played.filter((s) => agrees(s, s.kind === 'wins-material' ? moverAfter : 100 - moverAfter)),
+    better: told0.better.filter((s) => agrees(s, move.winBefore)),
+  };
   // A change fact that says what the story (or the move's caption) already says is dropped.
   const told = [...story.played, ...story.better];
   const kinds = new Set(told.map((s) => s.kind));

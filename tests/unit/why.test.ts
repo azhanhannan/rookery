@@ -53,6 +53,22 @@ describe('explainMove', () => {
     expect(why.changes.map((c) => c.kind)).toEqual(['king-shield', 'development']);
   });
 
+  it("drops a material claim the engine's verdict contradicts, keeps the ones it agrees with", () => {
+    const m = SAMPLE_REVIEW.moves[16]; // 9. h3, a Blunder by White: White's win chance after it is low
+    story.value = {
+      played: [
+        { kind: 'loses-material', text: 'Black wins a knight.' },
+        { kind: 'wins-material', text: 'White wins a pawn.' },
+        { kind: 'mate', text: 'Black mates.' },
+      ],
+      better: [{ kind: 'wins-material', text: 'White wins a rook.' }],
+    };
+    const why = explainMove(SAMPLE_REVIEW, 17, 'club');
+    expect(100 - m.winAfter).toBeGreaterThanOrEqual(55);
+    expect(why.story.played.map((s) => s.text)).toEqual(['Black wins a knight.', 'Black mates.']);
+    expect(why.story.better.length).toBe(m.winBefore >= 55 ? 1 : 0);
+  });
+
   it('drops change facts that repeat the story (same kind or same sentence) or the caption', () => {
     story.value = { played: [{ kind: 'check', text: 'Then comes a check.' }], better: [] };
     changes.value = [

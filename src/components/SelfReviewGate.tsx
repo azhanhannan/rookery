@@ -1,5 +1,5 @@
 // Light self-review: before the engine's verdict, one question. Tap a move or skip; skipping costs nothing.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Orientation } from '../game/gameStore';
 import type { GameReview, MoveReview } from '../review/types';
 import { Board } from './Board';
@@ -27,6 +27,33 @@ export function SelfReviewGate({
   const [ply, setPly] = useState(0);
   const selected = ply > 0 ? review.moves[ply - 1] : undefined;
   const lastMove = selected ? { from: selected.uci.slice(0, 2), to: selected.uci.slice(2, 4) } : null;
+  const listRef = useRef<HTMLOListElement>(null);
+  const last = review.moves.length;
+
+  // Same keys as the review screen: ← → step through the moves, Home/End jump to the ends.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT') return;
+      const next: Record<string, (p: number) => number> = {
+        ArrowLeft: (p) => p - 1,
+        ArrowRight: (p) => p + 1,
+        Home: () => 0,
+        End: () => last,
+      };
+      const step = next[e.key];
+      if (step) {
+        e.preventDefault();
+        setPly((p) => Math.max(0, Math.min(last, step(p))));
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [last]);
+
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [ply]);
 
   return (
     <div className="board-layout mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[auto_minmax(18rem,1fr)]">
@@ -34,9 +61,9 @@ export function SelfReviewGate({
       <aside className="flex min-w-0 flex-col gap-3" data-testid="self-review">
         <div className="rounded-lg bg-surface p-3">
           <h2 className="font-semibold">Where do you think it went wrong?</h2>
-          <p className="text-sm text-muted">Tap the move you're least sure about, then see what the engine thinks.</p>
+          <p className="text-sm text-muted">Tap the move you're least sure about, then see what the engine thinks. ← → step through the moves.</p>
         </div>
-        <ol className="flex max-h-72 flex-wrap gap-1 overflow-y-auto rounded-lg bg-surface p-2 font-mono text-sm">
+        <ol ref={listRef} className="flex max-h-72 flex-wrap gap-1 overflow-y-auto rounded-lg bg-surface p-2 font-mono text-sm">
           {review.moves.map((m) => (
             <li key={m.ply}>
               <button

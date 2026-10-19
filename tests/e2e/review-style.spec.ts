@@ -68,6 +68,21 @@ test('self-review: pick a move, then see it next to the biggest mistake; Skip ju
   await expect(page.getByTestId('move-panel')).toBeVisible();
 });
 
+test('self-review: arrow keys step through the moves before picking', async ({ page }) => {
+  await loadReview(page, { style: 'learner' });
+  const gate = page.getByTestId('self-review');
+  await expect(gate.getByRole('button', { name: 'Tap a move' })).toBeDisabled();
+  await page.keyboard.press('ArrowRight');
+  await expect(gate.getByRole('button', { name: '1. e4', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await expect(gate.getByRole('button', { name: /It was 1\. e4/ })).toBeEnabled();
+  await page.keyboard.press('ArrowLeft');
+  await expect(gate.getByRole('button', { name: 'Tap a move' })).toBeDisabled();
+  await page.keyboard.press('End');
+  await expect(gate.locator('[aria-pressed="true"]')).toHaveCount(1);
+});
+
 test('Settings has a Game Review section that saves the style', async ({ page }) => {
   await page.goto('/#/account');
   const section = page.getByTestId('review-settings');

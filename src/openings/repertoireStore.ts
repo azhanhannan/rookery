@@ -10,12 +10,38 @@ import {
   mergeTrees,
   parseRepertoireData,
   pruneCards,
+  resumeCards,
   type CardRecord,
   type Repertoire,
   type RepertoireData,
 } from './repertoire';
 
 export const REPERTOIRES_KEY = 'rookery.repertoires';
+/** Review moves answered today ({ day, reviews }), per device: what the daily cap counts against. */
+export const DAILY_KEY = 'rookery.openings.daily';
+
+export type DailyCount = { day: string; reviews: number };
+
+function readDaily(): DailyCount {
+  try {
+    const d = JSON.parse(localStorage.getItem(DAILY_KEY) ?? 'null') as DailyCount | null;
+    if (d && typeof d.day === 'string' && typeof d.reviews === 'number') return d;
+  } catch {
+    // unreadable: start the day at zero
+  }
+  return { day: '', reviews: 0 };
+}
+
+function writeDaily(d: DailyCount): void {
+  try {
+    localStorage.setItem(DAILY_KEY, JSON.stringify(d));
+  } catch {
+    // the count lasts until the page is closed
+  }
+}
+
+/** Review moves answered on `today` (0 on a new day). */
+export const reviewsDone = (d: DailyCount, today: string) => (d.day === today ? d.reviews : 0);
 
 function read(): RepertoireData {
   try {
@@ -43,6 +69,14 @@ export type RepertoireState = {
   setTree(id: string, tree: VariationTree): void;
   /** Adds the lines of `tree` to a repertoire. Throws when it starts from another position. */
   addLines(id: string, tree: VariationTree): void;
+  /** Starts resting a repertoire on `today`: nothing is asked and its cards' clock stops. */
+  rest(id: string, today: string): void;
+  /** Ends a rest: every answered card's due date moves on by the days rested. */
+  resume(id: string, today: string): void;
+  /** Review moves answered per day on this device (the daily cap). */
+  daily: DailyCount;
+  /** Counts one graded review answer on `today`. */
+  countReview(today: string): void;
   /** Records an answer on a card and returns the card's new state. */
   answer(id: string, key: string, clean: boolean, today: string): CardRecord;
   /** Re-reads storage (another tab, or account sync, changed it). */
@@ -101,6 +135,25 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
       const rep = get().data.repertoires.find((r) => r.id === id);
       if (rep) withTree(id, mergeTrees(rep.tree, tree));
     },
+    rest(id, today) {
+      patchRep(id, (r) => (r.restedOn ? r : { ...r, restedOn: today }));
+    },
+    resume(id, today) {
+      const { repertoires, cards } = get().data;
+      const rep = repertoires.find((r) => r.id === id);
+      if (!rep?.restedOn) return;
+      const { restedOn: since, ...awake } = rep;
+      commit({
+        repertoires: repertoires.map((r) => (r.id === id ? { ...awake, updatedAt: now() } : r)),
+        cards: { ...cards, [id]: resumeCards(cards[id] ?? {}, since, today) },
+      });
+    },
+    daily: readDaily(),
+    countReview(today) {
+      const daily = { day: today, reviews: reviewsDone(get().daily, today) + 1 };
+      set({ daily });
+      writeDaily(daily);
+    },
     answer(id, key, clean, today) {
       const { repertoires, cards } = get().data;
       const book = cards[id] ?? {};
@@ -109,7 +162,7 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
       return card;
     },
     reload() {
-      set({ data: read() });
+      set({ data: read(), daily: readDaily() });
     },
   };
 });
@@ -117,6 +170,6 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
 // Another tab (or the account sync writing the key) changed the repertoires.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === REPERTOIRES_KEY) useRepertoireStore.getState().reload();
+    if (e.key === REPERTOIRES_KEY || e.key === DAILY_KEY) useRepertoireStore.getState().reload();
   });
 }

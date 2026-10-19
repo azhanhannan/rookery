@@ -63,11 +63,18 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
 
 **Panel ideas**: all built (wave 3).
 
-**Opening trainer, gentler (agreed 19 Oct, not built)** — Hannan had 70 moves due at once (42 from the Ruy Lopez,
-learned in one sitting) and three 1.e4 e5 White repertoires that mark each other's moves wrong. Done: due reminder
-on Play (card, "Not today") + count beside Openings in the header. To build: pause a repertoire; daily caps
-(~15 reviews, ~6 new); a move from another same-colour repertoire is named, not a miss; kinder miss wording + Hint;
-Learn teaches one line per session.
+**Opening trainer, gentler** (panel: `docs/opening-trainer-2026-10/synthesis.md`). Hannan had 70 moves due at once
+(42 Ruy Lopez moves learned in one sitting) and three 1.e4 e5 White repertoires that marked each other's moves wrong.
+- Built 19 Oct: due reminder on Play + header count (capped at today's share); **P0**: daily cap
+  (`OPENING_TRAINER.dailyReviews` 12, graded due moves, per device in `rookery.openings.daily`, line always finished,
+  backlog shown as days to catch up), a miss drops one step (`missDrop` 1) and is asked once more at the end of the line,
+  only due/new cards in Due now/Learn are graded (Practice/Weakest and passed-through cards never), another same-colour
+  repertoire's move is named and not a miss, Rest/Resume (clock frozen: due dates move on by the days rested), kinder
+  wording. Untried by hand.
+- **P1 next**: new-material limit (one line/day, ≤ 6 moves, none while behind) + gentle forecast; due-date spread ±15%;
+  credit for late recall; conflicting-repertoire prompt; shared positions counted once.
+- **P2**: Hint; Learn flow (idea first, ungraded first pass, end-of-session try, play from here); mixed colours; "why"
+  prompts; size/trim suggestion; recall-rate check.
 
 **Why? (wave 7), untried by hand**
 - "What happens next" says who wins material in side names (White/Black), so on your own mistake it can read

@@ -13,8 +13,8 @@ import { addMove, deleteFrom, makeMainline, pathTo, promoteVariation, splitComme
 import { useDrillStore } from '../openings/drillStore';
 import { seedRows, type SeedRow } from '../openings/fromGames';
 import { loadOpenings, lookupBook, openingAt } from '../openings/openings';
-import { lineText, repertoireProgress, seedFromGames, userCards, type DrillMode, type Repertoire } from '../openings/repertoire';
-import { useRepertoireStore } from '../openings/repertoireStore';
+import { catchUpDays, dueToday, lineText, repertoireProgress, reviewsLeft, seedFromGames, userCards, type DrillMode, type Repertoire } from '../openings/repertoire';
+import { reviewsDone, useRepertoireStore } from '../openings/repertoireStore';
 import { readSelected, writeSelected } from '../openings/selected';
 import { reviewFits } from '../review/reviewView';
 import { todayKey } from '../puzzles/days';
@@ -299,6 +299,13 @@ function RepertoireHeader({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(rep.name);
+  const today = todayKey();
+  const left = reviewsLeft(reviewsDone(useRepertoireStore((s) => s.daily), today));
+  const data = useRepertoireStore((s) => s.data);
+  const allDue = useMemo(() => dueToday(data, today).reduce((n, r) => n + r.due, 0), [data, today]);
+  const resting = !!rep.restedOn;
+  const forToday = resting ? 0 : Math.min(progress.due, left);
+  const capped = !resting && progress.due > 0 && left === 0;
   return (
     <div className={panel} data-testid="repertoire-header">
       {renaming ? (
@@ -320,14 +327,20 @@ function RepertoireHeader({
         </div>
       )}
       <p className="text-sm" data-testid="repertoire-counts">
-        <span className="font-semibold">{progress.learned}</span> learned · <span className="font-semibold">{progress.due}</span> due ·{' '}
+        <span className="font-semibold">{progress.learned}</span> learned · <span className="font-semibold">{forToday}</span> for today ·{' '}
         <span className="font-semibold">{progress.fresh}</span> new · {progress.total} positions
       </p>
+      {resting && (
+        <p className="rounded bg-surface-2 p-2 text-sm" data-testid="repertoire-resting">
+          Resting since {dateText(rep.restedOn!)}. Nothing is asked and your progress is kept; when you resume, the
+          moves come back a few a day.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
-        <button className={primary} disabled={progress.due === 0} onClick={() => onDrill('due')}>
-          Due now ({progress.due})
+        <button className={primary} disabled={forToday === 0} onClick={() => onDrill('due')}>
+          {capped ? 'Done for today ✓' : `Due now (${forToday})`}
         </button>
-        <button className={btn} disabled={progress.fresh === 0} onClick={() => onDrill('learn')}>
+        <button className={btn} disabled={progress.fresh === 0 || resting} onClick={() => onDrill('learn')}>
           Learn new lines ({progress.fresh})
         </button>
       </div>
@@ -339,19 +352,31 @@ function RepertoireHeader({
           Drill weakest
         </button>
       </div>
-      {progress.due === 0 && progress.nextDue && <p className="text-xs text-muted">Next review {dateText(progress.nextDue)}</p>}
+      {capped && (
+        <p className="text-xs text-muted" data-testid="repertoire-capped">
+          That's today's {OPENING_TRAINER.dailyReviews}. The rest waits for tomorrow, about {catchUpDays(allDue)}{' '}
+          {catchUpDays(allDue) === 1 ? 'day' : 'days'} to catch up at this pace.
+        </p>
+      )}
+      {!resting && progress.due === 0 && progress.nextDue && <p className="text-xs text-muted">Next review {dateText(progress.nextDue)}</p>}
       <div className="flex flex-wrap gap-3 text-xs">
         <button className="text-accent hover:underline" onClick={() => {
           setName(rep.name);
           setRenaming(!renaming);
         }}>{renaming ? 'Cancel rename' : 'Rename'}</button>
+        <button className="text-accent hover:underline" onClick={() => {
+          const store = useRepertoireStore.getState();
+          if (resting) store.resume(rep.id, today);
+          else store.rest(rep.id, today);
+        }}>{resting ? 'Resume' : 'Rest'}</button>
         <button className="text-danger hover:underline" onClick={onDelete}>Delete repertoire</button>
       </div>
     </div>
   );
 }
 
-function drillTitle(mode: DrillMode, pass: 'show' | 'quiz'): string {
+function drillTitle(mode: DrillMode, pass: 'show' | 'quiz' | 'recap'): string {
+  if (pass === 'recap') return 'One more look';
   if (mode === 'due') return 'Due now';
   if (mode === 'practice') return 'Practice';
   if (mode === 'weak') return 'Weakest lines';
@@ -367,15 +392,19 @@ function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | nu
     <div className={panel} data-testid="drill-panel">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-semibold">{drillTitle(d.mode, d.pass)}</span>
-        {d.phase !== 'empty' && <span className="text-xs text-muted">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
+        {d.phase !== 'empty' && d.phase !== 'capped' && d.pass !== 'recap' && <span className="text-xs text-muted">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
       </div>
       {opening && <p className="text-sm text-muted" data-testid="opening-name">{opening}</p>}
       {(d.mode === 'practice' || d.mode === 'weak') && (
         <p className="text-xs text-muted" data-testid="drill-off-schedule">
-          Extra practice: right answers don't change your review dates; a miss brings that position back sooner.
+          Extra practice: nothing here changes your review dates.
         </p>
       )}
-      {d.phase === 'empty' ? (
+      {d.phase === 'capped' ? (
+        <p className="text-sm" data-testid="drill-capped">
+          That's today's {OPENING_TRAINER.dailyReviews}, well done. The rest waits for tomorrow, with no penalty.
+        </p>
+      ) : d.phase === 'empty' ? (
         <p className="text-sm" data-testid="drill-empty">
           {d.mode === 'due'
             ? `Nothing due right now.${nextDue ? ` Next review ${dateText(nextDue)}.` : ''}`
@@ -406,7 +435,7 @@ function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | nu
             Next line
           </button>
         )}
-        <button className={btn} onClick={onStop}>{d.phase === 'done' || d.phase === 'empty' ? 'Back to repertoire' : 'Stop'}</button>
+        <button className={btn} onClick={onStop}>{d.phase === 'done' || d.phase === 'empty' || d.phase === 'capped' ? 'Back to repertoire' : 'Stop'}</button>
       </div>
     </div>
   );

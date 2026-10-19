@@ -307,6 +307,13 @@ export const OPENING_TRAINER = {
   opponentDelayMs: 450,
   /** Weakest positions listed in the progress view. */
   weakest: 5,
+  /**
+   * Review moves asked per day across all repertoires (graded, due ones); the line in progress is always finished.
+   * The rest waits for the next day, so a big batch learned at once spreads out (panel, docs/opening-trainer-2026-10).
+   */
+  dailyReviews: 12,
+  /** Ladder steps a miss costs (the card then returns at that step's interval). 0 ⇒ none; a large value ⇒ back to day 1. */
+  missDrop: 1,
 };
 
 /** Small play helpers: the Spar button, the losing-streak cushion and premoves. */

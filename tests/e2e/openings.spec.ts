@@ -34,9 +34,13 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
   await expect(page.getByTestId('drill-feedback')).toContainText('e4 is right');
   await expect(square(page, 'e5').locator('[data-piece]')).toHaveCount(1);
   await clickMove(page, 'f1c4');
-  await expect(page.getByTestId('drill-feedback')).toContainText('Play Nf3');
+  await expect(page.getByTestId('drill-feedback')).toContainText('Here it is: Nf3');
   await clickMove(page, 'g1f3');
-  await expect(page.getByTestId('drill-feedback')).toContainText('1 of 2 right first time');
+  // One more look at the missed move, from its own position, so the line ends on a right move.
+  await expect(page.getByText('One more look', { exact: true })).toBeVisible();
+  await expect(square(page, 'f3').locator('[data-piece]')).toHaveCount(0);
+  await clickMove(page, 'g1f3');
+  await expect(page.getByTestId('drill-feedback')).toContainText('1 of 2 from memory, and you fixed the other one');
 
   await page.getByRole('button', { name: 'Back to repertoire' }).click();
   await expect(page.getByTestId('repertoire-counts')).toContainText('1 learned');
@@ -109,7 +113,7 @@ test('Play reminds about opening moves due today and links to that repertoire', 
   await expect(page.getByTestId('drill-feedback')).toContainText('d4 is right');
   await expect(square(page, 'd5').locator('[data-piece]')).toHaveCount(1);
   await clickMove(page, 'c2c4');
-  await expect(page.getByTestId('drill-feedback')).toContainText('all 2 right');
+  await expect(page.getByTestId('drill-feedback')).toContainText('all 2 from memory');
   await page.getByRole('button', { name: 'Back to repertoire' }).click();
 
   // A second repertoire becomes the selected one; nothing is due on it.
@@ -147,4 +151,27 @@ test('Play reminds about opening moves due today and links to that repertoire', 
   await expect(page.getByTestId('status')).toBeVisible();
   await expect(page.getByTestId('openings-due')).toHaveCount(0);
   await expect(page.getByTestId('openings-due-dot')).toBeVisible();
+
+  // Today's reviews done (the daily cap): the trainer says so and the header count goes.
+  await page.evaluate(() => {
+    const d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    localStorage.setItem('rookery.openings.daily', JSON.stringify({ day, reviews: 12 }));
+  });
+  await page.goto('/#/openings');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Done for today ✓' })).toBeDisabled();
+  await expect(page.getByTestId('repertoire-capped')).toContainText('about 1 day to catch up');
+  await expect(page.getByTestId('openings-due-dot')).toHaveCount(0);
+  await page.evaluate(() => localStorage.removeItem('rookery.openings.daily'));
+  await page.reload();
+
+  // Resting: nothing is asked, and the reminder leaves it out.
+  await expect(page.getByRole('button', { name: 'Due now (2)' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Rest', exact: true }).click();
+  await expect(page.getByTestId('repertoire-resting')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Due now (0)' })).toBeDisabled();
+  await expect(page.getByTestId('openings-due-dot')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(page.getByRole('button', { name: 'Due now (2)' })).toBeEnabled();
 });

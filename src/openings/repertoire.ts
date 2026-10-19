@@ -6,7 +6,7 @@ import { OPENING_TRAINER } from '../config/tunables';
 import type { Color } from '../game/types';
 import { START_FEN } from '../game/rules';
 import { addMove, createTree, getNode, pathTo, type VariationTree } from '../game/variationTree';
-import { addDays, isDayKey } from '../puzzles/days';
+import { addDays, daysBetween, isDayKey } from '../puzzles/days';
 import { isDue, schedule, type CardState } from '../puzzles/spacedRepetition';
 import { toEpd } from './openings';
 
@@ -18,6 +18,8 @@ export type Repertoire = {
   tree: VariationTree;
   createdAt: string;
   updatedAt: string;
+  /** Resting since this day: nothing is asked and the cards' clock is frozen until it resumes. */
+  restedOn?: string;
 };
 
 export type CardRecord = CardState & {
@@ -194,6 +196,7 @@ export type DueRepertoire = { id: string; name: string; color: Color; due: numbe
 export function dueToday(data: Pick<RepertoireData, 'repertoires' | 'cards'>, today: string): DueRepertoire[] {
   const out: DueRepertoire[] = [];
   for (const rep of data.repertoires) {
+    if (rep.restedOn) continue;
     const cards = data.cards[rep.id] ?? {};
     let due = 0;
     for (const key of userCards(rep).keys()) if (isCardDue(cards[key], today)) due++;
@@ -206,7 +209,8 @@ export type DrillMode = 'due' | 'learn' | 'practice' | 'weak';
 
 /**
  * The next line to drill, or null when there is nothing for the mode.
- * 'due': lines with due cards; the most due cards first, then the oldest due date, then the least practised.
+ * 'due': lines with due cards; the longest overdue first, then the one whose first due move comes earliest in the game,
+ *   then the most due cards, then the least practised.
  * 'learn': lines with never-answered cards, in tree order (main line first).
  * 'practice': extra practice off the schedule; lines with a learned position, in tree order.
  * 'weak': lines through a position missed before, the worst miss rate first.
@@ -220,7 +224,7 @@ export function chooseLine(
   today: string,
   skip?: string | string[],
 ): string[] | null {
-  type Cand = { path: string[]; due: number; oldest: string; reps: number; fresh: number; seen: number; weak: number; i: number };
+  type Cand = { path: string[]; due: number; oldest: string; first: number; reps: number; fresh: number; seen: number; weak: number; i: number };
   const cands: Cand[] = linesOf(rep.tree).map((path, i) => {
     const keys = lineCards(rep.tree, rep.color, path);
     const dueKeys = keys.filter((k) => isCardDue(cards[k], today));
@@ -229,6 +233,7 @@ export function chooseLine(
       i,
       due: dueKeys.length,
       oldest: dueKeys.map((k) => cards[k].due).sort()[0] ?? '9999-99-99',
+      first: keys.findIndex((k) => isCardDue(cards[k], today)),
       reps: keys.reduce((s, k) => s + (cards[k]?.reps ?? 0), 0),
       fresh: keys.filter((k) => !seen(cards[k])).length,
       seen: keys.filter((k) => seen(cards[k])).length,
@@ -245,26 +250,81 @@ export function chooseLine(
     pool = unplayed.length ? unplayed : pool.filter((c) => leaf(c) !== skipped[skipped.length - 1]);
   }
   if (!pool.length) return null;
-  if (mode === 'due') pool.sort((a, b) => b.due - a.due || a.oldest.localeCompare(b.oldest) || a.reps - b.reps || a.i - b.i);
+  if (mode === 'due') pool.sort((a, b) => a.oldest.localeCompare(b.oldest) || a.first - b.first || b.due - a.due || a.reps - b.reps || a.i - b.i);
   if (mode === 'weak') pool.sort((a, b) => b.weak - a.weak || a.i - b.i);
   return pool[0].path;
 }
 
 /**
- * The card's next state after an answer on `today`, on the 1/3/7/21-day ladder of spacedRepetition.schedule.
- * Unlike "My mistakes", an opening card never retires: past the last interval it keeps coming back at that interval.
+ * The card's next state after an answer on `today`, on the 1/3/7/21-day ladder. A clean answer climbs a step
+ * (spacedRepetition.schedule); a miss drops `missDrop` steps and returns at that step's interval (the same
+ * due = review day + interval shape, so sync's reviewedOn still reads it). An opening card never retires: past the
+ * last interval it keeps coming back at that interval.
  */
-export function answerCard(prev: CardRecord | undefined, clean: boolean, today: string, intervals: number[] = OPENING_TRAINER.intervals): CardRecord {
-  const next = schedule(prev, clean, today, intervals);
+export function answerCard(
+  prev: CardRecord | undefined,
+  clean: boolean,
+  today: string,
+  intervals: number[] = OPENING_TRAINER.intervals,
+  missDrop: number = OPENING_TRAINER.missDrop,
+): CardRecord {
   const reps = (prev?.reps ?? 0) + 1;
   const fails = (prev?.fails ?? 0) + (clean ? 0 : 1);
+  if (!clean) {
+    const stage = Math.max(0, Math.min(prev?.stage ?? 0, intervals.length) - Math.max(1, missDrop));
+    const gap = stage === 0 ? (intervals[0] ?? 1) : intervals[stage - 1];
+    return { stage, due: addDays(today, gap), retired: false, reps, fails };
+  }
+  const next = schedule(prev, clean, today, intervals);
   if (next.retired) return { stage: intervals.length, due: addDays(today, intervals[intervals.length - 1] ?? 1), retired: false, reps, fails };
   return { ...next, reps, fails };
 }
 
-/** Whether an answer should change the schedule: always for a wrong answer, else only when the card was due. */
-export function shouldRecord(prev: CardRecord | undefined, clean: boolean, today: string): boolean {
-  return !clean || !seen(prev) || isDue(prev, today);
+/**
+ * Whether an answer should change the schedule: only for a card that is due (or never answered). A miss on a card
+ * that wasn't due (a due line passes through it) doesn't count against it, and nor does a clean answer.
+ */
+export function shouldRecord(prev: CardRecord | undefined, today: string): boolean {
+  return !seen(prev) || isDue(prev, today);
+}
+
+/** Cards after resting from `restedOn` to `today`: every answered card's due date moves on by the days rested. */
+export function resumeCards(cards: Record<string, CardRecord>, restedOn: string, today: string): Record<string, CardRecord> {
+  const days = Math.max(0, daysBetween(restedOn, today));
+  if (!days) return cards;
+  return Object.fromEntries(Object.entries(cards).map(([k, c]) => [k, seen(c) ? { ...c, due: addDays(c.due, days) } : c]));
+}
+
+/**
+ * Another repertoire of `color` (not `exceptId`) that plays `uci` from the position `fen`: the user remembered a
+ * move, just from the other opening. Null when none does.
+ */
+export function otherRepertoireWith(
+  reps: Repertoire[],
+  exceptId: string,
+  color: Color,
+  fen: string,
+  uci: string,
+): Repertoire | null {
+  const epd = toEpd(fen);
+  for (const r of reps) {
+    if (r.id === exceptId || r.color !== color) continue;
+    for (const n of Object.values(r.tree.nodes)) {
+      if (toEpd(n.fen) !== epd) continue;
+      if (n.children.some((c) => r.tree.nodes[c].uci === uci)) return r;
+    }
+  }
+  return null;
+}
+
+/** Review moves still to ask today, given how many were answered (`done`) on `today`. */
+export function reviewsLeft(done: number, cap: number = OPENING_TRAINER.dailyReviews): number {
+  return Math.max(0, cap - done);
+}
+
+/** About how many days of the daily cap the moves due now take (shown instead of the backlog itself). */
+export function catchUpDays(due: number, cap: number = OPENING_TRAINER.dailyReviews): number {
+  return due <= 0 ? 0 : Math.ceil(due / Math.max(1, cap));
 }
 
 export type WeakSpot = { key: string; nodeId: string; fails: number; reps: number; stage: number };

@@ -8,8 +8,12 @@ import { seedRows } from '../../src/openings/fromGames';
 import { toEpd } from '../../src/openings/openings';
 import {
   answerCard,
+  catchUpDays,
   chooseLine,
   dueToday,
+  otherRepertoireWith,
+  resumeCards,
+  reviewsLeft,
   isCardDue,
   lineCards,
   lineText,
@@ -144,16 +148,22 @@ describe('cards and scheduling', () => {
     expect(c.due).toBe('2026-11-06');
     c = answerCard(c, true, TODAY);
     expect(c).toMatchObject({ retired: false, due: '2026-11-06', stage: 4 });
+    // A miss drops one step (back to the 7-day step's interval), not to day 1.
     c = answerCard(c, false, TODAY);
-    expect(c).toMatchObject({ stage: 0, due: '2026-10-17', fails: 1, reps: 6 });
+    expect(c).toMatchObject({ stage: 3, due: '2026-10-23', fails: 1, reps: 6 });
+    c = answerCard(c, false, TODAY);
+    expect(c).toMatchObject({ stage: 2, due: '2026-10-19' });
+    expect(answerCard(card({ stage: 1 }), false, TODAY)).toMatchObject({ stage: 0, due: '2026-10-17' });
+    expect(answerCard(undefined, false, TODAY)).toMatchObject({ stage: 0, due: '2026-10-17' });
+    // missDrop is a setting: a large one is the old back-to-day-1 rule.
+    expect(answerCard(card({ stage: 4 }), false, TODAY, [1, 3, 7, 21], 9)).toMatchObject({ stage: 0, due: '2026-10-17' });
   });
 
-  it('records a clean answer only when due, a wrong one always', () => {
+  it('records an answer only for a due or new card, right or wrong', () => {
     const later = card({ due: '2026-10-20' });
-    expect(shouldRecord(later, true, TODAY)).toBe(false);
-    expect(shouldRecord(later, false, TODAY)).toBe(true);
-    expect(shouldRecord(card({}), true, TODAY)).toBe(true);
-    expect(shouldRecord(undefined, true, TODAY)).toBe(true);
+    expect(shouldRecord(later, TODAY)).toBe(false);
+    expect(shouldRecord(card({}), TODAY)).toBe(true);
+    expect(shouldRecord(undefined, TODAY)).toBe(true);
     expect(isCardDue(undefined, TODAY)).toBe(false);
   });
 
@@ -232,6 +242,41 @@ describe('cards and scheduling', () => {
     expect(p.weakest.map((w) => w.key)).toEqual([k('e4', 'e5'), k('e4', 'c5')]);
     expect(lineText(tree, p.weakest[0].nodeId)).toBe('1. e4 e5');
     expect(Object.keys(pruneCards(r, cards))).not.toContain('gone');
+  });
+});
+
+describe('resting, the daily cap and other repertoires', () => {
+  const card = (over: Partial<CardRecord>): CardRecord => ({ stage: 1, due: TODAY, retired: false, reps: 1, fails: 0, ...over });
+
+  it('moves answered cards on by the days rested', () => {
+    const cards = { a: card({ due: '2026-10-17' }), fresh: card({ reps: 0, due: TODAY }) };
+    const out = resumeCards(cards, '2026-10-10', TODAY);
+    expect(out.a.due).toBe('2026-10-23');
+    expect(out.fresh.due).toBe(TODAY);
+    expect(resumeCards(cards, TODAY, TODAY)).toBe(cards);
+  });
+
+  it('counts what is left today and the days to catch up', () => {
+    expect(reviewsLeft(0, 12)).toBe(12);
+    expect(reviewsLeft(13, 12)).toBe(0);
+    expect(catchUpDays(70, 12)).toBe(6);
+    expect(catchUpDays(0, 12)).toBe(0);
+  });
+
+  it('finds the other repertoire that plays a move', () => {
+    const ruy = { id: 'r', name: 'Ruy Lopez', color: 'w' as const, tree: parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bb5 *'), createdAt: '', updatedAt: '' };
+    const ital = { ...ruy, id: 'i', name: 'Italian', tree: parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 *') };
+    const black = { ...ital, id: 'b', name: 'Black one', color: 'b' as const };
+    const fen = ruy.tree.nodes[nodeBySans(ruy.tree, 'e4', 'e5', 'Nf3', 'Nc6')].fen;
+    expect(otherRepertoireWith([ruy, ital, black], 'r', 'w', fen, 'f1c4')?.name).toBe('Italian');
+    expect(otherRepertoireWith([ruy, ital], 'r', 'w', fen, 'f1d3')).toBeNull();
+    expect(otherRepertoireWith([ruy, black], 'r', 'w', fen, 'f1c4')).toBeNull();
+  });
+
+  it('leaves a resting repertoire out of today', () => {
+    const tree = parsePgnTree(PGN);
+    const repertoires = [{ id: 'a', name: 'A', color: 'w' as const, tree, restedOn: '2026-10-10' }];
+    expect(dueToday({ repertoires, cards: { a: { [toEpd(START_FEN)]: card({}) } } } as never, TODAY)).toEqual([]);
   });
 });
 

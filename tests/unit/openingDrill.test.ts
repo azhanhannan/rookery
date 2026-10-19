@@ -75,12 +75,18 @@ describe('opening drill', () => {
     expect(drill.getState().move(mv('f1c4'))).toBe(false);
     expect(drill.getState()).toMatchObject({ phase: 'wrong', arrow: 'g1f3' });
     expect(drill.getState().move(mv('g1f3'))).toBe(true);
+    // The missed move is asked once more from its own position (not recorded), so the line ends on a right move.
+    vi.runOnlyPendingTimers();
+    expect(drill.getState()).toMatchObject({ pass: 'recap', phase: 'user', index: 2, arrow: null });
+    expect(drill.getState().move(mv('f1c4'))).toBe(false);
+    expect(drill.getState().feedback?.text).toBe('Here it is: Nf3');
+    expect(drill.getState().move(mv('g1f3'))).toBe(true);
     expect(drill.getState().phase).toBe('done');
     const cards = reps.getState().data.cards[id];
     expect(cards[toEpd(START_FEN)]).toMatchObject({ stage: 1, due: '2026-10-17', fails: 0 });
     const afterE5 = Object.entries(cards).find(([k]) => k !== toEpd(START_FEN))![1];
     expect(afterE5).toMatchObject({ stage: 0, fails: 1, due: '2026-10-17' });
-    expect(drill.getState().feedback?.text).toBe('Line complete: 1 of 2 right first time');
+    expect(drill.getState().feedback?.text).toBe('Line complete: 1 of 2 from memory, and you fixed the other one');
   });
 
   it('due mode has nothing to do until a card is due', async () => {
@@ -101,7 +107,7 @@ describe('opening drill', () => {
     expect(Object.keys(reps.getState().data.cards[id])).toHaveLength(1);
   });
 
-  it('practice runs a learned line off the schedule: right answers change nothing, a miss counts', async () => {
+  it('practice runs a learned line off the schedule: nothing it does changes the cards', async () => {
     const { reps, drill } = await fresh();
     const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
     expect(drill.getState().start(id, 'practice')).toBe(false);
@@ -118,11 +124,11 @@ describe('opening drill', () => {
     expect(drill.getState().phase).toBe('done');
     expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toEqual(before);
     expect(Object.keys(reps.getState().data.cards[id])).toHaveLength(1);
-    // Again, with a miss: that is recorded.
+    // Again, with a miss: still not recorded.
     expect(drill.getState().start(id, 'practice')).toBe(true);
     expect(drill.getState().move(mv('e2e4'))).toBe(false);
     drill.getState().move(mv('d2d4'));
-    expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toMatchObject({ stage: 0, fails: 1, reps: 2 });
+    expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toEqual(before);
   });
 
   it('weak drills only lines with a missed position', async () => {
@@ -144,5 +150,60 @@ describe('opening drill', () => {
     const other = line === 'e2e4' ? 'd2d4' : 'e2e4';
     expect(drill.getState().move(mv(other))).toBe(false);
     expect(drill.getState()).toMatchObject({ phase: 'user', failed: [] });
+  });
+
+  it('a move from another repertoire of the same colour is named, not a miss', async () => {
+    const { reps, drill } = await fresh();
+    const ruy = reps.getState().create('Ruy Lopez', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bb5 *'));
+    reps.getState().create('Italian', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 *'));
+    expect(drill.getState().start(ruy, 'learn')).toBe(true);
+    for (const m of ['e2e4', 'g1f3', 'f1b5']) {
+      drill.getState().move(mv(m));
+      vi.runOnlyPendingTimers();
+    }
+    vi.runOnlyPendingTimers();
+    expect(drill.getState().pass).toBe('quiz');
+    drill.getState().move(mv('e2e4'));
+    vi.runOnlyPendingTimers();
+    drill.getState().move(mv('g1f3'));
+    vi.runOnlyPendingTimers();
+    expect(drill.getState().move(mv('f1c4'))).toBe(false);
+    expect(drill.getState()).toMatchObject({ phase: 'wrong', arrow: 'f1b5', failed: [] });
+    expect(drill.getState().feedback?.text).toBe("That's your Italian move. In this line it's Bb5");
+    expect(drill.getState().move(mv('f1b5'))).toBe(true);
+    expect(drill.getState().feedback?.text).toBe('Line complete: all 3 from memory');
+  });
+
+  it('due mode stops after the daily cap, finishing the line in progress', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
+    const s = reps.getState();
+    s.answer(id, toEpd(START_FEN), true, '2026-10-14');
+    for (let i = 0; i < 11; i++) s.countReview('2026-10-16');
+    // 11 of today's 12 are done.
+    expect(drill.getState().start(id, 'due')).toBe(true);
+    drill.getState().move(mv('d2d4'));
+    expect(reps.getState().daily).toEqual({ day: '2026-10-16', reviews: 12 });
+    vi.runOnlyPendingTimers();
+    // The line goes on (2.Bf4 is new, so shown), and then the day is done.
+    expect(drill.getState()).toMatchObject({ phase: 'user', arrow: 'c1f4' });
+    drill.getState().move(mv('c1f4'));
+    expect(drill.getState().phase).toBe('done');
+    reps.getState().answer(id, toEpd(START_FEN), false, '2026-10-15');
+    expect(drill.getState().start(id, 'due')).toBe(false);
+    expect(drill.getState().phase).toBe('capped');
+    // Other modes still work.
+    expect(drill.getState().start(id, 'practice')).toBe(true);
+  });
+
+  it('resting stops the clock: resuming moves due dates on by the days rested', async () => {
+    const { reps } = await fresh();
+    const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 d5 2. Bf4 *'));
+    reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-10');
+    reps.getState().rest(id, '2026-10-10');
+    expect(reps.getState().data.repertoires[0].restedOn).toBe('2026-10-10');
+    reps.getState().resume(id, '2026-10-16');
+    expect(reps.getState().data.repertoires[0].restedOn).toBeUndefined();
+    expect(reps.getState().data.cards[id][toEpd(START_FEN)].due).toBe('2026-10-17');
   });
 });

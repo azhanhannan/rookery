@@ -567,3 +567,35 @@ export const COACH_MOTIFS = {
   /** How far into the engine's line (plies, the motif's first move included) the win must happen. */
   witnessPlies: 5,
 };
+
+/**
+ * "Why?" in Review, the "What changed" facts (`src/review/positionChanges.ts`): measurable differences between
+ * the positions before and after a move. Each rule is documented at the top of that file.
+ */
+export const WHY_CHANGES = {
+  /** Most facts shown per style. */
+  maxFacts: { learner: 1, club: 2, analyst: 3 } as Record<'learner' | 'club' | 'analyst', number>,
+  /** Ranking (higher first): king safety and passed pawns above structure, development and activity. */
+  weight: {
+    kingShield: 90,
+    lineOpened: 80,
+    /** Plus the pawn's relative rank, so a more advanced passer ranks higher. */
+    passedOpponent: 80,
+    passedOwn: 60,
+    castlingBoth: 70,
+    castlingOne: 55,
+    doubled: 45,
+    isolated: 40,
+    activity: 35,
+    development: 30,
+    bishopPair: 25,
+  },
+  /** Passed pawns are reported from this relative rank on (1 = the side's back rank). */
+  passedMinRank: 4,
+  /** King-shield and line-opened need the opponent to keep at least this much non-pawn material (pawns; Q = 9). */
+  shelter: { minEnemyMaterial: 9 },
+  /** Development: only between these move numbers, and only with at least `minHome` minor pieces at home. */
+  development: { fromMove: 10, toMove: 25, minHome: 2 },
+  /** Activity: the moved knight/bishop had at least `minBefore` safe moves and is left with at most `maxAfter`. */
+  activity: { minBefore: 5, maxAfter: 2 },
+};

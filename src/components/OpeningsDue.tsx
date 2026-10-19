@@ -1,6 +1,6 @@
 // Reminders that opening moves are due today: a card on the Play page and a count beside "Openings" in the header.
 import { useMemo, useState } from 'react';
-import { dueToday, reviewsLeft, type DueRepertoire } from '../openings/repertoire';
+import { dueToday, dueTotal, reviewsLeft, type DueRepertoire } from '../openings/repertoire';
 import { reviewsDone, useRepertoireStore } from '../openings/repertoireStore';
 import { writeSelected } from '../openings/selected';
 import { todayKey } from '../puzzles/days';
@@ -18,7 +18,7 @@ export function useOpeningsDue(): { reps: DueRepertoire[]; today: number } {
   return useMemo(() => {
     const left = reviewsLeft(reviewsDone(daily, today));
     const reps = left ? dueToday(data, today) : [];
-    return { reps, today: Math.min(left, reps.reduce((n, r) => n + r.due, 0)) };
+    return { reps, today: reps.length ? Math.min(left, dueTotal(data, today)) : 0 };
   }, [data, daily, today]);
 }
 

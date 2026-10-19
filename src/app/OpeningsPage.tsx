@@ -13,8 +13,10 @@ import { addMove, deleteFrom, makeMainline, pathTo, promoteVariation, splitComme
 import { useDrillStore } from '../openings/drillStore';
 import { seedRows, type SeedRow } from '../openings/fromGames';
 import { loadOpenings, lookupBook, openingAt } from '../openings/openings';
-import { catchUpDays, dueToday, lineText, repertoireProgress, reviewsLeft, seedFromGames, userCards, type DrillMode, type Repertoire } from '../openings/repertoire';
-import { reviewsDone, useRepertoireStore } from '../openings/repertoireStore';
+import { markAsked, shouldAsk } from '../openings/conflictPrompt';
+import { catchUpDays, dueTotal, lineText, newMovesLeft, repertoireConflicts, repertoireProgress, reviewsLeft, seedFromGames, userCards, type DrillMode, type Repertoire, type RepertoireConflict } from '../openings/repertoire';
+import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from '../openings/repertoireStore';
+import { addDays } from '../puzzles/days';
 import { readSelected, writeSelected } from '../openings/selected';
 import { reviewFits } from '../review/reviewView';
 import { todayKey } from '../puzzles/days';
@@ -197,6 +199,7 @@ export function OpeningsPage() {
           <DrillPanel opening={opening} onStop={() => useDrillStore.getState().stop()} onNext={() => startDrill(drill.mode)} nextDue={progress?.nextDue ?? null} />
         ) : (
           <>
+            <ConflictPrompt rep={rep} reps={data.repertoires} />
             <RepertoireHeader rep={rep} progress={progress!} onDrill={startDrill} onDelete={() => {
               if (!window.confirm(`Delete the repertoire "${rep.name}" and its progress?`)) return;
               store.remove(rep.id);
@@ -227,6 +230,42 @@ export function OpeningsPage() {
           </>
         )}
       </aside>
+    </div>
+  );
+}
+
+/**
+ * Asks (at most twice per pair, conflictPrompt.ts) about another awake repertoire of this colour that answers a
+ * shared position differently: learning two answers to one position at once is the hardest way to learn.
+ */
+function ConflictPrompt({ rep, reps }: { rep: Repertoire; reps: Repertoire[] }) {
+  // Re-read after an answer (the asked count lives in localStorage).
+  const [, setTick] = useState(0);
+  const c: RepertoireConflict | undefined = repertoireConflicts(reps).find(
+    (x) => (x.a.id === rep.id || x.b.id === rep.id) && shouldAsk(x.a.id, x.b.id),
+  );
+  if (!c) return null;
+  const answer = (restId: string | null) => {
+    markAsked(c.a.id, c.b.id);
+    if (restId) useRepertoireStore.getState().rest(restId, todayKey());
+    setTick((t) => t + 1);
+  };
+  const where = lineText(c.a.tree, c.nodeId);
+  return (
+    <div className={panel} data-testid="conflict-prompt">
+      <p className="text-sm">
+        <span className="font-semibold">{c.a.name}</span> and <span className="font-semibold">{c.b.name}</span> answer the same
+        position differently{where ? ` (after ${where})` : ''}: {c.aMoves.join(' or ')} vs {c.bMoves.join(' or ')}.
+      </p>
+      <p className="text-xs text-muted">
+        Learning two answers to one position at the same time is the hardest way to learn them. Rest one for now? Nothing
+        is lost, and you can resume it any time.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button className={btn} onClick={() => answer(c.b.id)}>Rest {c.b.name}</button>
+        <button className={btn} onClick={() => answer(c.a.id)}>Rest {c.a.name}</button>
+        <button className={btn} onClick={() => answer(null)}>Keep both</button>
+      </div>
     </div>
   );
 }
@@ -300,9 +339,12 @@ function RepertoireHeader({
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(rep.name);
   const today = todayKey();
-  const left = reviewsLeft(reviewsDone(useRepertoireStore((s) => s.daily), today));
+  const daily = useRepertoireStore((s) => s.daily);
+  const left = reviewsLeft(reviewsDone(daily, today));
   const data = useRepertoireStore((s) => s.data);
-  const allDue = useMemo(() => dueToday(data, today).reduce((n, r) => n + r.due, 0), [data, today]);
+  const allDue = dueTotal(data, today);
+  const tomorrowDue = dueTotal(data, addDays(today, 1));
+  const newLeft = newMovesLeft(newMovesDone(daily, today), newLinesDone(daily, today), allDue);
   const resting = !!rep.restedOn;
   const forToday = resting ? 0 : Math.min(progress.due, left);
   const capped = !resting && progress.due > 0 && left === 0;
@@ -340,7 +382,7 @@ function RepertoireHeader({
         <button className={primary} disabled={forToday === 0} onClick={() => onDrill('due')}>
           {capped ? 'Done for today ✓' : `Due now (${forToday})`}
         </button>
-        <button className={btn} disabled={progress.fresh === 0 || resting} onClick={() => onDrill('learn')}>
+        <button className={btn} disabled={progress.fresh === 0 || resting || newLeft === 0} onClick={() => onDrill('learn')}>
           Learn new lines ({progress.fresh})
         </button>
       </div>
@@ -352,6 +394,11 @@ function RepertoireHeader({
           Drill weakest
         </button>
       </div>
+      {!resting && progress.fresh > 0 && (
+        <p className="text-xs text-muted" data-testid="learn-note">
+          {learnNote({ allDue, left, newLeft, tomorrowDue, linesDone: newLinesDone(daily, today) })}
+        </p>
+      )}
       {capped && (
         <p className="text-xs text-muted" data-testid="repertoire-capped">
           That's today's {OPENING_TRAINER.dailyReviews}. The rest waits for tomorrow, about {catchUpDays(allDue)}{' '}
@@ -373,6 +420,17 @@ function RepertoireHeader({
       </div>
     </div>
   );
+}
+
+/** One calm line under Learn: whether today suits new moves, and why not when it doesn't. */
+function learnNote({ allDue, left, newLeft, tomorrowDue, linesDone }: { allDue: number; left: number; newLeft: number; tomorrowDue: number; linesDone: number }): string {
+  const cap = OPENING_TRAINER.dailyReviews;
+  if (allDue > OPENING_TRAINER.maxBacklogDays * cap) return 'No new moves until the reviews are lighter. That keeps each day small.';
+  if (newLeft === 0)
+    return linesDone >= OPENING_TRAINER.newLinesPerDay ? "That's today's new line. Let it settle; more tomorrow." : "That's today's new moves. Let them settle; more tomorrow.";
+  if (Math.min(allDue, left) > 0) return 'Reviews first today: new moves stick better on a light day.';
+  if (tomorrowDue + newLeft > cap) return `Tomorrow already has about ${tomorrowDue} reviews; new moves would add to it. Maybe wait a day.`;
+  return `Up to ${newLeft} new ${newLeft === 1 ? 'move' : 'moves'} today. Fits in your daily ${cap}.`;
 }
 
 function drillTitle(mode: DrillMode, pass: 'show' | 'quiz' | 'recap'): string {
@@ -402,7 +460,9 @@ function DrillPanel({ opening, onStop, onNext, nextDue }: { opening: string | nu
       )}
       {d.phase === 'capped' ? (
         <p className="text-sm" data-testid="drill-capped">
-          That's today's {OPENING_TRAINER.dailyReviews}, well done. The rest waits for tomorrow, with no penalty.
+          {d.mode === 'learn'
+            ? "That's today's new moves. Let them settle; more tomorrow."
+            : `That's today's ${OPENING_TRAINER.dailyReviews}, well done. The rest waits for tomorrow, with no penalty.`}
         </p>
       ) : d.phase === 'empty' ? (
         <p className="text-sm" data-testid="drill-empty">

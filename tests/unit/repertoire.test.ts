@@ -10,7 +10,12 @@ import {
   answerCard,
   catchUpDays,
   chooseLine,
+  conflictKeys,
   dueToday,
+  dueTotal,
+  newMovesLeft,
+  repertoireConflicts,
+  trimToNew,
   otherRepertoireWith,
   resumeCards,
   reviewsLeft,
@@ -138,25 +143,52 @@ describe('seeding from games', () => {
 describe('cards and scheduling', () => {
   const card = (over: Partial<CardRecord>): CardRecord => ({ stage: 1, due: TODAY, retired: false, reps: 1, fails: 0, ...over });
 
+  const flat = { spread: 0 };
+
   it('climbs 1/3/7/21 days and never retires', () => {
-    let c = answerCard(undefined, true, TODAY);
-    expect(c).toMatchObject({ stage: 1, due: '2026-10-17', reps: 1, fails: 0 });
-    c = answerCard(c, true, TODAY);
+    let c = answerCard(undefined, true, TODAY, flat);
+    expect(c).toMatchObject({ stage: 1, due: '2026-10-17', reps: 1, fails: 0, last: TODAY });
+    c = answerCard(c, true, TODAY, flat);
     expect(c.due).toBe('2026-10-19');
-    c = answerCard(c, true, TODAY);
-    c = answerCard(c, true, TODAY);
+    c = answerCard(c, true, TODAY, flat);
+    c = answerCard(c, true, TODAY, flat);
     expect(c.due).toBe('2026-11-06');
-    c = answerCard(c, true, TODAY);
+    c = answerCard(c, true, TODAY, flat);
     expect(c).toMatchObject({ retired: false, due: '2026-11-06', stage: 4 });
     // A miss drops one step (back to the 7-day step's interval), not to day 1.
-    c = answerCard(c, false, TODAY);
+    c = answerCard(c, false, TODAY, flat);
     expect(c).toMatchObject({ stage: 3, due: '2026-10-23', fails: 1, reps: 6 });
-    c = answerCard(c, false, TODAY);
+    c = answerCard(c, false, TODAY, flat);
     expect(c).toMatchObject({ stage: 2, due: '2026-10-19' });
-    expect(answerCard(card({ stage: 1 }), false, TODAY)).toMatchObject({ stage: 0, due: '2026-10-17' });
-    expect(answerCard(undefined, false, TODAY)).toMatchObject({ stage: 0, due: '2026-10-17' });
+    expect(answerCard(card({ stage: 1 }), false, TODAY, flat)).toMatchObject({ stage: 0, due: '2026-10-17' });
+    expect(answerCard(undefined, false, TODAY, flat)).toMatchObject({ stage: 0, due: '2026-10-17' });
     // missDrop is a setting: a large one is the old back-to-day-1 rule.
-    expect(answerCard(card({ stage: 4 }), false, TODAY, [1, 3, 7, 21], 9)).toMatchObject({ stage: 0, due: '2026-10-17' });
+    expect(answerCard(card({ stage: 4 }), false, TODAY, { ...flat, missDrop: 9 })).toMatchObject({ stage: 0, due: '2026-10-17' });
+  });
+
+  it('gives credit for remembering late: the next step is at least the gap survived', () => {
+    // Stage 1 (asked 1 day after), answered on time: the next step is 3 days.
+    expect(answerCard(card({ stage: 1, due: TODAY, last: '2026-10-15' }), true, TODAY, flat)).toMatchObject({ stage: 2, due: '2026-10-19' });
+    // Remembered 10 days after its last review: it has survived 7 days, so 7 next.
+    expect(answerCard(card({ stage: 1, due: '2026-10-07', last: '2026-10-06' }), true, TODAY, flat)).toMatchObject({ stage: 3, due: '2026-10-23' });
+    // An old record without `last`: worked back from its due date (stage 2: last review 3 days before due, 21 days ago).
+    expect(answerCard(card({ stage: 2, due: '2026-09-28' }), true, TODAY, flat)).toMatchObject({ stage: 4, due: '2026-11-06' });
+  });
+
+  it('spreads intervals of 3 days or more a little, the same way on every device', () => {
+    const seen7 = new Set<string>();
+    const seen21 = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      seen7.add(answerCard(card({ stage: 2, last: '2026-10-13' }), true, TODAY, { seed: `k${i}` }).due);
+      seen21.add(answerCard(card({ stage: 3, last: '2026-10-09' }), true, TODAY, { seed: `k${i}` }).due);
+      // 1 and 3 days stay exact.
+      expect(answerCard(card({ stage: 0 }), true, TODAY, { seed: `k${i}` }).due).toBe('2026-10-17');
+      expect(answerCard(card({ stage: 1, last: '2026-10-15' }), true, TODAY, { seed: `k${i}` }).due).toBe('2026-10-19');
+    }
+    expect([...seen7].sort()).toEqual(['2026-10-22', '2026-10-23', '2026-10-24']);
+    expect([...seen21].sort()[0] >= '2026-11-03' && [...seen21].sort().at(-1)! <= '2026-11-09' && seen21.size > 3).toBe(true);
+    const a = answerCard(card({ stage: 3 }), true, TODAY, { seed: 'same' });
+    expect(answerCard(card({ stage: 3 }), true, TODAY, { seed: 'same' })).toEqual(a);
   });
 
   it('records an answer only for a due or new card, right or wrong', () => {
@@ -277,6 +309,47 @@ describe('resting, the daily cap and other repertoires', () => {
     const tree = parsePgnTree(PGN);
     const repertoires = [{ id: 'a', name: 'A', color: 'w' as const, tree, restedOn: '2026-10-10' }];
     expect(dueToday({ repertoires, cards: { a: { [toEpd(START_FEN)]: card({}) } } } as never, TODAY)).toEqual([]);
+  });
+});
+
+describe('shared positions, conflicts and the new-move budget', () => {
+  const card = (over: Partial<CardRecord>): CardRecord => ({ stage: 1, due: TODAY, retired: false, reps: 1, fails: 0, ...over });
+  const mk = (id: string, name: string, pgn: string, extra: object = {}) => ({ id, name, color: 'w' as const, tree: parsePgnTree(pgn), createdAt: '', updatedAt: '', ...extra });
+  const ital = mk('i', 'Italian', '1. e4 e5 2. Nf3 Nc6 3. Bc4 *');
+  const ruy = mk('r', 'Ruy Lopez', '1. e4 e5 2. Nf3 Nc6 3. Bb5 *');
+
+  it('counts a position shared with the same move once', () => {
+    const due = (r: typeof ital) => Object.fromEntries([...userCards(r).keys()].map((k) => [k, card({})]));
+    // 3 cards each; 1.e4 and 2.Nf3 are shared, move 3 differs: 4 positions.
+    expect(dueTotal({ repertoires: [ital, ruy], cards: { i: due(ital), r: due(ruy) } }, TODAY)).toBe(4);
+    expect(dueTotal({ repertoires: [ital, { ...ruy, restedOn: TODAY }], cards: { i: due(ital), r: due(ruy) } }, TODAY)).toBe(3);
+  });
+
+  it('finds repertoires that answer one position differently', () => {
+    const [c] = repertoireConflicts([ital, ruy]);
+    expect(c).toMatchObject({ aMoves: ['Bc4'], bMoves: ['Bb5'] });
+    expect(lineText(c.a.tree, c.nodeId)).toBe('1. e4 e5 2. Nf3 Nc6');
+    expect(repertoireConflicts([ital, { ...ruy, restedOn: TODAY }])).toEqual([]);
+    expect(repertoireConflicts([ital, { ...ruy, color: 'b' as const }])).toEqual([]);
+    expect(conflictKeys(ruy, [ital, ruy]).size).toBe(1);
+  });
+
+  it('cuts a line after its n-th new move', () => {
+    const tree = parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 *');
+    const r = { tree, color: 'w' as const };
+    const path = linesOf(tree)[0];
+    expect(trimToNew(r, {}, path, 2).map((id) => tree.nodes[id].san ?? '')).toEqual(['', 'e4', 'e5', 'Nf3']);
+    expect(trimToNew(r, { [toEpd(START_FEN)]: card({}) }, path, 2).map((id) => tree.nodes[id].san ?? '').at(-1)).toBe('Bc4');
+    expect(trimToNew(r, {}, path, 9)).toEqual(path);
+  });
+
+  it('allows new moves only on a light enough day', () => {
+    const t = { newMovesPerDay: 6, newLinesPerDay: 1, maxBacklogDays: 3, dailyReviews: 12 };
+    expect(newMovesLeft(0, 0, 0, t)).toBe(6);
+    expect(newMovesLeft(4, 0, 0, t)).toBe(2);
+    expect(newMovesLeft(0, 1, 0, t)).toBe(0);
+    expect(newMovesLeft(0, 0, 36, t)).toBe(6);
+    expect(newMovesLeft(0, 0, 37, t)).toBe(0);
   });
 });
 

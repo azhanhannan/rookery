@@ -280,7 +280,7 @@ function normalizeRepertoires(value: unknown): RepertoireValue | undefined {
     for (const k of Object.keys(book).sort()) {
       const c = (book as Record<string, unknown>)[k] as RepCard;
       if (validCard(c) && typeof c.reps === 'number' && typeof c.fails === 'number')
-        out[k] = { stage: c.stage, due: c.due, retired: c.retired, reps: c.reps, fails: c.fails };
+        out[k] = { stage: c.stage, due: c.due, retired: c.retired, reps: c.reps, fails: c.fails, ...(isDayKey(c.last) ? { last: c.last } : {}) };
     }
     cards[r.id] = out;
   }
@@ -384,8 +384,9 @@ export function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The day a card was last reviewed, worked back from its due date and stage. */
+/** The day a card was last reviewed: its `last` when stored, else worked back from its due date and stage. */
 export function reviewedOn(card: CardState, intervals: number[] = MISTAKES.intervals): string {
+  if (card.last) return card.last;
   if (card.retired) return card.due; // retiring sets due to the day of the solve
   const gap = card.stage === 0 ? (intervals[0] ?? 1) : (intervals[card.stage - 1] ?? intervals[intervals.length - 1] ?? 1);
   return addDays(card.due, -gap);

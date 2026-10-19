@@ -71,8 +71,17 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
   only due/new cards in Due now/Learn are graded (Practice/Weakest and passed-through cards never), another same-colour
   repertoire's move is named and not a miss, Rest/Resume (clock frozen: due dates move on by the days rested), kinder
   wording. Untried by hand.
-- **P1 next**: new-material limit (one line/day, ≤ 6 moves, none while behind) + gentle forecast; due-date spread ±15%;
-  credit for late recall; conflicting-repertoire prompt; shared positions counted once.
+- Built 19 Oct, **P1**: new moves 6/day and one new line/day (a long line is learned in parts), none while more than
+  3 days of reviews wait, with a one-line note under Learn ("Reviews first today", "Fits in your daily 12", ...);
+  intervals of 3+ days spread ±15% (seeded by the card, same on every device); credit for late recall (next step is
+  at least the gap survived; cards now store `last`, which sync keeps and `reviewedOn` prefers); a position shared by
+  same-colour repertoires with the same move is one card (answered once, counted once); a clash between two awake
+  same-colour repertoires is asked about at most twice (on sight, then after 3 mix-ups) with Rest A / Rest B /
+  Keep both, and the clashing move is cued with the repertoire's name. Untried by hand. Not built from the papers:
+  load-balanced spread, half cap for 7 days after Resume, the 7-day forecast simulation (a 3-days-of-backlog gate
+  stands in), time-boxed sessions.
+- `coach-practice.spec` "hung bishop" fails on this machine tonight with or without the P1 change (checked by
+  stashing); it passed in the run before. Look at it next time.
 - **P2**: Hint; Learn flow (idea first, ungraded first pass, end-of-session try, play from here); mixed colours; "why"
   prompts; size/trim suggestion; recall-rate check.
 

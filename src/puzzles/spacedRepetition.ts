@@ -10,6 +10,8 @@ export type CardState = {
   /** Day it is next shown (local "YYYY-MM-DD"). */
   due: string;
   retired: boolean;
+  /** Day it was last answered (opening cards only; older records leave it out and it is worked back from `due`). */
+  last?: string;
 };
 
 export type Schedule = Record<string, CardState>;

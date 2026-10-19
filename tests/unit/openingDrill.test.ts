@@ -183,7 +183,7 @@ describe('opening drill', () => {
     // 11 of today's 12 are done.
     expect(drill.getState().start(id, 'due')).toBe(true);
     drill.getState().move(mv('d2d4'));
-    expect(reps.getState().daily).toEqual({ day: '2026-10-16', reviews: 12 });
+    expect(reps.getState().daily).toMatchObject({ day: '2026-10-16', reviews: 12 });
     vi.runOnlyPendingTimers();
     // The line goes on (2.Bf4 is new, so shown), and then the day is done.
     expect(drill.getState()).toMatchObject({ phase: 'user', arrow: 'c1f4' });
@@ -205,5 +205,41 @@ describe('opening drill', () => {
     reps.getState().resume(id, '2026-10-16');
     expect(reps.getState().data.repertoires[0].restedOn).toBeUndefined();
     expect(reps.getState().data.cards[id][toEpd(START_FEN)].due).toBe('2026-10-17');
+  });
+
+  it('Learn teaches a long line a few new moves a day, one line a day', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('Long', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d3 d6 6. O-O O-O 7. Re1 a6 8. a4 *'));
+    expect(drill.getState().start(id, 'learn')).toBe(true);
+    // 8 new moves in the line, 6 a day: it stops after the 6th (O-O).
+    expect(drill.getState().steps.filter((st) => st.user).map((st) => st.san)).toEqual(['e4', 'Nf3', 'Bc4', 'c3', 'd3', 'O-O']);
+    const play = () => {
+      for (const st of drill.getState().steps) {
+        if (!st.user) continue;
+        while (drill.getState().phase !== 'user') vi.runOnlyPendingTimers();
+        drill.getState().move(mv(st.uci));
+      }
+    };
+    play();
+    vi.runOnlyPendingTimers();
+    play();
+    expect(drill.getState().phase).toBe('done');
+    expect(reps.getState().daily).toMatchObject({ newMoves: 6, newLines: 1 });
+    // Today's new line is done: Learn says so, and the rest waits for tomorrow.
+    expect(drill.getState().start(id, 'learn')).toBe(false);
+    expect(drill.getState()).toMatchObject({ phase: 'capped', mode: 'learn' });
+    vi.setSystemTime(new Date(2026, 9, 17, 10));
+    expect(drill.getState().start(id, 'learn')).toBe(true);
+  });
+
+  it('a position shared by two same-colour repertoires (same move) is answered once for both', async () => {
+    const { reps, drill } = await fresh();
+    const a = reps.getState().create('Italian', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bc4 *'));
+    const b = reps.getState().create('Ruy Lopez', 'w', parsePgnTree('1. e4 e5 2. Nf3 Nc6 3. Bb5 *'));
+    reps.getState().answer(a, toEpd(START_FEN), true, '2026-10-15');
+    expect(reps.getState().data.cards[b][toEpd(START_FEN)]).toEqual(reps.getState().data.cards[a][toEpd(START_FEN)]);
+    // The clash at move 3 is named before the move.
+    expect(drill.getState().start(b, 'learn')).toBe(true);
+    expect(drill.getState().cue).toHaveLength(1);
   });
 });

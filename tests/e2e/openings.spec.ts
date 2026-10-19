@@ -175,3 +175,27 @@ test('Play reminds about opening moves due today and links to that repertoire', 
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(page.getByRole('button', { name: 'Due now (2)' })).toBeEnabled();
 });
+
+test('two White repertoires that answer a position differently: asked once, Rest or Keep both', async ({ page }) => {
+  await page.goto('/#/openings');
+  for (const [name, pgn] of [
+    ['Italian', '1. e4 e5 2. Nf3 Nc6 3. Bc4 *'],
+    ['Ruy', '1. e4 e5 2. Nf3 Nc6 3. Bb5 *'],
+  ]) {
+    await page.getByRole('button', { name: 'New repertoire' }).click();
+    await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByLabel('Repertoire PGN').fill(pgn);
+    await page.getByRole('button', { name: 'Add PGN' }).click();
+  }
+  const prompt = page.getByTestId('conflict-prompt');
+  await expect(prompt).toContainText('Bc4 vs Bb5');
+  await expect(prompt).toContainText('after 1. e4 e5 2. Nf3 Nc6');
+  await expect(page.getByTestId('learn-note')).toContainText('Up to 6 new moves today');
+
+  await prompt.getByRole('button', { name: 'Rest Ruy' }).click();
+  await expect(prompt).toHaveCount(0);
+  await expect(page.getByTestId('repertoire-resting')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('conflict-prompt')).toHaveCount(0);
+});

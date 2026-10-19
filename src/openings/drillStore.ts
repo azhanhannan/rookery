@@ -9,10 +9,11 @@ import { todayKey } from '../puzzles/days';
 import { recordTrainedDay } from '../puzzles/streak';
 import { logTraining, startTraining } from '../training/trainingLog';
 import { drillSteps, judgeMove, type DrillStep } from './drill';
-import { chooseLine, otherRepertoireWith, reviewsLeft, shouldRecord, type DrillMode } from './repertoire';
-import { reviewsDone, useRepertoireStore } from './repertoireStore';
+import { countMixup } from './conflictPrompt';
+import { chooseLine, conflictKeys, dueTotal, newMovesLeft, otherRepertoireWith, reviewsLeft, shouldRecord, trimToNew, type DrillMode } from './repertoire';
+import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from './repertoireStore';
 
-/** 'capped': Due now, but today's review moves are done (OPENING_TRAINER.dailyReviews). */
+/** 'capped': today's share is done (Due now: OPENING_TRAINER.dailyReviews; Learn: the new-move budget). */
 export type DrillPhase = 'idle' | 'opponent' | 'user' | 'wrong' | 'done' | 'empty' | 'capped';
 export type DrillFeedback = { kind: 'good' | 'bad' | 'info'; text: string };
 
@@ -30,6 +31,11 @@ type DrillData = {
   pass: 'show' | 'quiz' | 'recap';
   /** Step indexes still to ask in the recap. */
   recap: number[];
+  /** The repertoire's name, and its positions where another same-colour repertoire plays something else (named as a cue). */
+  repName: string;
+  cue: string[];
+  /** New moves recorded in this line. */
+  fresh: number;
   fen: string;
   lastMove: { from: string; to: string } | null;
   /** The move shown with an arrow (a new move being taught, or the right move after a wrong one). */
@@ -64,6 +70,9 @@ const idle: DrillData = {
   index: 0,
   pass: 'quiz',
   recap: [],
+  repName: '',
+  cue: [],
+  fresh: 0,
   fen: new Chess().fen(),
   lastMove: null,
   arrow: null,
@@ -125,7 +134,13 @@ export const useDrillStore = create<DrillState>((set, get) => {
       phase: 'user',
       arrow: show ? step.uci : null,
       shown: show,
-      feedback: show ? { kind: 'info', text: `New move: play ${step.san}` } : s.feedback?.kind === 'good' ? s.feedback : { kind: 'info', text: 'Your move' },
+      feedback: show
+        ? { kind: 'info', text: `New move: play ${step.san}` }
+        : s.cue.includes(step.key)
+          ? { kind: 'info', text: `${s.repName}: your move` }
+          : s.feedback?.kind === 'good'
+            ? s.feedback
+            : { kind: 'info', text: 'Your move' },
     });
   };
 
@@ -165,6 +180,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
 
   const done = () => {
     const s = get();
+    if (s.fresh > 0) useRepertoireStore.getState().countNewLine(todayKey());
     if (s.answered > 0) {
       recordTrainedDay();
       logTraining('opening');
@@ -186,14 +202,19 @@ export const useDrillStore = create<DrillState>((set, get) => {
       startTraining('opening');
       const repStore = useRepertoireStore.getState();
       const rep = repStore.data.repertoires.find((r) => r.id === repId);
-      if (mode === 'due' && reviewsLeft(reviewsDone(repStore.daily, todayKey())) === 0) {
+      const today = todayKey();
+      const newLeft = newMovesLeft(newMovesDone(repStore.daily, today), newLinesDone(repStore.daily, today), dueTotal(repStore.data, today));
+      if ((mode === 'due' && reviewsLeft(reviewsDone(repStore.daily, today)) === 0) || (mode === 'learn' && newLeft === 0)) {
         set({ ...idle, repId, mode, phase: 'capped', fen: rep?.tree.nodes[rep.tree.rootId].fen ?? idle.fen });
         return false;
       }
       const prev = get();
       const same = prev.repId === repId && prev.mode === mode;
       const played = same ? prev.played : prev.repId === repId && prev.path.length ? [prev.path[prev.path.length - 1]] : [];
-      const path = rep ? chooseLine(rep, useRepertoireStore.getState().data.cards[repId] ?? {}, mode, todayKey(), played) : null;
+      const repCards = repStore.data.cards[repId] ?? {};
+      const chosen = rep ? chooseLine(rep, repCards, mode, today, played) : null;
+      // A long new line is learned a few moves a day: the rest of it waits for another day.
+      const path = rep && chosen && mode === 'learn' ? trimToNew(rep, repCards, chosen, newLeft) : chosen;
       if (!rep || !path) {
         set({ ...idle, repId, mode, phase: 'empty', fen: rep?.tree.nodes[rep.tree.rootId].fen ?? idle.fen });
         return false;
@@ -206,6 +227,8 @@ export const useDrillStore = create<DrillState>((set, get) => {
         mode,
         path,
         steps,
+        repName: rep.name,
+        cue: [...conflictKeys(rep, repStore.data.repertoires)],
         pass: mode === 'learn' ? 'show' : 'quiz',
         fen: rep.tree.nodes[rep.tree.rootId].fen,
         // A line chosen again means every line has had its turn: start a new round.
@@ -253,6 +276,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         // Remembered right, just from another opening: named, and not a miss.
         const other = otherRepertoireWith(useRepertoireStore.getState().data.repertoires, rep.id, rep.color, step.fenBefore, uci);
         if (other) {
+          countMixup(rep.id, other.id);
           set({ phase: 'wrong', arrow: step.uci, feedback: { kind: 'info', text: `That's your ${other.name} move. In this line it's ${step.san}` } });
           return false;
         }
@@ -261,7 +285,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         return false;
       }
       // Correct.
-      let { answered, clean } = s;
+      let { answered, clean, fresh } = s;
       const firstTime = !s.failed.includes(step.key);
       if (s.pass === 'quiz' && !s.shown) {
         const today = todayKey();
@@ -272,6 +296,10 @@ export const useDrillStore = create<DrillState>((set, get) => {
           const store = useRepertoireStore.getState();
           store.answer(s.repId, step.key, firstTime, today);
           if (prevCard && prevCard.reps > 0) store.countReview(today);
+          else {
+            store.countNew(today);
+            fresh++;
+          }
         }
         answered++;
         if (firstTime) clean++;
@@ -285,6 +313,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         index: s.index + 1,
         answered,
         clean,
+        fresh,
         feedback: s.shown || !firstTime ? { kind: 'info', text: `${step.san}` } : { kind: 'good', text: `${step.san} is right` },
       });
       run();

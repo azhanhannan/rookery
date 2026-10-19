@@ -7,7 +7,7 @@ import type { Color } from '../game/types';
 import { START_FEN } from '../game/rules';
 import { addMove, createTree, getNode, pathTo, type VariationTree } from '../game/variationTree';
 import { addDays, daysBetween, isDayKey } from '../puzzles/days';
-import { isDue, schedule, type CardState } from '../puzzles/spacedRepetition';
+import { isDue, type CardState } from '../puzzles/spacedRepetition';
 import { toEpd } from './openings';
 
 export type Repertoire = {
@@ -192,6 +192,34 @@ export function isCardDue(c: CardRecord | undefined, today: string): boolean {
 /** A repertoire with moves to review today (the Play page and the header remind the user). */
 export type DueRepertoire = { id: string; name: string; color: Color; due: number };
 
+/**
+ * The moves the repertoire plays from each of its cards (EPD → sorted UCIs joined by spaces). Two same-colour
+ * repertoires with the same EPD and the same moves share that card: it is asked and counted once.
+ */
+export function cardMoves(rep: Pick<Repertoire, 'tree' | 'color'>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [key, ids] of userCards(rep)) {
+    const ucis = new Set<string>();
+    for (const id of ids) for (const c of rep.tree.nodes[id].children) ucis.add(rep.tree.nodes[c].uci ?? '');
+    out.set(key, [...ucis].sort().join(' '));
+  }
+  return out;
+}
+
+/**
+ * Moves due on or before `day` across the awake repertoires, a position shared by same-colour repertoires (same
+ * moves) counted once.
+ */
+export function dueTotal(data: Pick<RepertoireData, 'repertoires' | 'cards'>, day: string): number {
+  const seenKeys = new Set<string>();
+  for (const rep of data.repertoires) {
+    if (rep.restedOn) continue;
+    const cards = data.cards[rep.id] ?? {};
+    for (const [key, moves] of cardMoves(rep)) if (isCardDue(cards[key], day)) seenKeys.add(`${rep.color}|${key}|${moves}`);
+  }
+  return seenKeys.size;
+}
+
 /** The repertoires with at least one card due on `today`, in the user's order. */
 export function dueToday(data: Pick<RepertoireData, 'repertoires' | 'cards'>, today: string): DueRepertoire[] {
   const out: DueRepertoire[] = [];
@@ -255,29 +283,72 @@ export function chooseLine(
   return pool[0].path;
 }
 
+export type AnswerOptions = {
+  intervals?: number[];
+  /** Ladder steps a miss costs. */
+  missDrop?: number;
+  /** Spread (±share of the interval, whole days) for intervals of `spreadFrom` days or more; 0 ⇒ none. */
+  spread?: number;
+  spreadFrom?: number;
+  /** Seeds the spread (the card's key), so every device picks the same day. */
+  seed?: string;
+};
+
+/** A small whole-number hash (FNV-1a) of `s`. */
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** `days`, moved by up to ±spread·days (rounded), the same for the same seed and day. Short intervals stay as they are. */
+export function spreadDays(days: number, seed: string, today: string, spread: number, from: number): number {
+  const j = Math.round(days * spread);
+  if (days < from || j <= 0) return days;
+  return days + (hash(`${seed}|${today}`) % (2 * j + 1)) - j;
+}
+
+/** The day a card was last answered: stored, or worked back from its due date (older records). */
+export function lastReviewed(c: CardRecord, intervals: number[] = OPENING_TRAINER.intervals): string {
+  if (c.last) return c.last;
+  const gap = c.stage === 0 ? (intervals[0] ?? 1) : (intervals[c.stage - 1] ?? intervals[intervals.length - 1] ?? 1);
+  return addDays(c.due, -gap);
+}
+
 /**
- * The card's next state after an answer on `today`, on the 1/3/7/21-day ladder. A clean answer climbs a step
- * (spacedRepetition.schedule); a miss drops `missDrop` steps and returns at that step's interval (the same
- * due = review day + interval shape, so sync's reviewedOn still reads it). An opening card never retires: past the
- * last interval it keeps coming back at that interval.
+ * The card's next state after an answer on `today`, on the 1/3/7/21-day ladder (`due` = review day + the new
+ * step's interval, spread a little; `last` = today).
+ * - Clean: climbs a step, or further when it was remembered after a longer gap than planned (credit for late
+ *   recall: the new step is at least the longest interval he has now survived).
+ * - Miss: drops `missDrop` steps and returns at that step's interval.
+ * An opening card never retires: past the last interval it keeps coming back at that interval.
  */
-export function answerCard(
-  prev: CardRecord | undefined,
-  clean: boolean,
-  today: string,
-  intervals: number[] = OPENING_TRAINER.intervals,
-  missDrop: number = OPENING_TRAINER.missDrop,
-): CardRecord {
+export function answerCard(prev: CardRecord | undefined, clean: boolean, today: string, opts: AnswerOptions = {}): CardRecord {
+  const intervals = opts.intervals ?? OPENING_TRAINER.intervals;
+  const missDrop = opts.missDrop ?? OPENING_TRAINER.missDrop;
+  const spread = opts.spread ?? OPENING_TRAINER.spread;
+  const from = opts.spreadFrom ?? OPENING_TRAINER.spreadFrom;
+  const top = intervals.length;
   const reps = (prev?.reps ?? 0) + 1;
   const fails = (prev?.fails ?? 0) + (clean ? 0 : 1);
+  let stage: number;
   if (!clean) {
-    const stage = Math.max(0, Math.min(prev?.stage ?? 0, intervals.length) - Math.max(1, missDrop));
-    const gap = stage === 0 ? (intervals[0] ?? 1) : intervals[stage - 1];
-    return { stage, due: addDays(today, gap), retired: false, reps, fails };
+    stage = Math.max(0, Math.min(prev?.stage ?? 0, top) - Math.max(1, missDrop));
+  } else {
+    stage = Math.min(top, (prev?.stage ?? 0) + 1);
+    if (prev && prev.reps > 0) {
+      const elapsed = daysBetween(lastReviewed(prev, intervals), today);
+      for (let s2 = top; s2 > stage; s2--) {
+        if (intervals[s2 - 1] <= elapsed) {
+          stage = s2;
+          break;
+        }
+      }
+    }
   }
-  const next = schedule(prev, clean, today, intervals);
-  if (next.retired) return { stage: intervals.length, due: addDays(today, intervals[intervals.length - 1] ?? 1), retired: false, reps, fails };
-  return { ...next, reps, fails };
+  const gap = stage === 0 ? (intervals[0] ?? 1) : intervals[stage - 1];
+  const days = spreadDays(gap, opts.seed ?? '', today, spread, from);
+  return { stage, due: addDays(today, days), retired: false, reps, fails, last: today };
 }
 
 /**
@@ -315,6 +386,83 @@ export function otherRepertoireWith(
     }
   }
   return null;
+}
+
+/** Two awake same-colour repertoires that answer one position differently (the first such position in `a`). */
+export type RepertoireConflict = {
+  a: Repertoire;
+  b: Repertoire;
+  /** EPD of the position. */
+  key: string;
+  /** A node of `a` at that position (for its move list). */
+  nodeId: string;
+  aMoves: string[];
+  bMoves: string[];
+};
+
+/** Conflicting pairs among the awake repertoires: same colour, a shared position, different moves from it. */
+export function repertoireConflicts(reps: Repertoire[]): RepertoireConflict[] {
+  const awake = reps.filter((r) => !r.restedOn);
+  const out: RepertoireConflict[] = [];
+  for (let i = 0; i < awake.length; i++) {
+    for (let j = i + 1; j < awake.length; j++) {
+      const a = awake[i];
+      const b = awake[j];
+      if (a.color !== b.color) continue;
+      const bm = cardMoves(b);
+      const ac = userCards(a);
+      for (const [key, moves] of cardMoves(a)) {
+        const other = bm.get(key);
+        if (other === undefined || other === moves) continue;
+        const nodeId = ac.get(key)![0];
+        const fen = a.tree.nodes[nodeId].fen;
+        const sans = (ucis: string) => ucis.split(' ').map((u) => sanOf(fen, u) ?? u);
+        out.push({ a, b, key, nodeId, aMoves: sans(moves), bMoves: sans(other) });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/** The positions of `rep` where another awake same-colour repertoire plays something else. */
+export function conflictKeys(rep: Repertoire, reps: Repertoire[]): Set<string> {
+  const out = new Set<string>();
+  const mine = cardMoves(rep);
+  for (const r of reps) {
+    if (r.id === rep.id || r.restedOn || r.color !== rep.color) continue;
+    for (const [key, moves] of cardMoves(r)) if (mine.has(key) && mine.get(key) !== moves) out.add(key);
+  }
+  return out;
+}
+
+/**
+ * `path` cut so that it teaches at most `n` never-answered moves: it ends just after the user's n-th new move
+ * (the rest of a long line is learned another day). Unchanged when it has n or fewer.
+ */
+export function trimToNew(rep: Pick<Repertoire, 'tree' | 'color'>, cards: Record<string, CardRecord>, path: string[], n: number): string[] {
+  let fresh = 0;
+  const asked = new Set<string>();
+  for (let i = 0; i + 1 < path.length; i++) {
+    const fen = rep.tree.nodes[path[i]].fen;
+    if (sideToMove(fen) !== rep.color) continue;
+    const key = toEpd(fen);
+    if (asked.has(key) || seen(cards[key])) continue;
+    asked.add(key);
+    if (++fresh === n) return path.slice(0, i + 2);
+  }
+  return path;
+}
+
+/** New moves still to learn today: none while more than `maxBacklogDays` of reviews wait, or after today's line. */
+export function newMovesLeft(
+  movesDone: number,
+  linesDone: number,
+  waiting: number,
+  t: Pick<typeof OPENING_TRAINER, 'newMovesPerDay' | 'newLinesPerDay' | 'maxBacklogDays' | 'dailyReviews'> = OPENING_TRAINER,
+): number {
+  if (waiting > t.maxBacklogDays * t.dailyReviews || linesDone >= t.newLinesPerDay) return 0;
+  return Math.max(0, t.newMovesPerDay - movesDone);
 }
 
 /** Review moves still to ask today, given how many were answered (`done`) on `today`. */

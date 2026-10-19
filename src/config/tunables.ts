@@ -312,8 +312,16 @@ export const OPENING_TRAINER = {
    * The rest waits for the next day, so a big batch learned at once spreads out (panel, docs/opening-trainer-2026-10).
    */
   dailyReviews: 12,
-  /** Ladder steps a miss costs (the card then returns at that step's interval). 0 ⇒ none; a large value ⇒ back to day 1. */
+  /** Ladder steps a miss costs (the card then returns at that step's interval). 1 is the least; a large value ⇒ back to day 1. */
   missDrop: 1,
+  /** Each interval of `spreadFrom` days or more moves by up to ±this share (7 → 6-8, 21 → 18-24), so a batch learned together drifts apart. */
+  spread: 0.15,
+  spreadFrom: 3,
+  /** New moves learned per day, and new lines started per day (a longer line is learned in parts). */
+  newMovesPerDay: 6,
+  newLinesPerDay: 1,
+  /** No new moves while more than this many days of reviews are waiting (keeps a backlog from growing). */
+  maxBacklogDays: 3,
 };
 
 /** Small play helpers: the Spar button, the losing-streak cushion and premoves. */

@@ -294,7 +294,7 @@ describe('insights facts: forcing moves (factsVersion 3, cost by type)', () => {
 
   it('a piece simply left hanging is a blunder, not a sacrifice: 3.Nh4?? is quiet', () => {
     const f = buildGameFacts(hangingGame(0))!;
-    expect(f.factsVersion).toBe(3);
+    expect(f.factsVersion).toBe(INSIGHTS.factsVersion);
     expect(f.moves.find((m) => m.ply === 5)).toMatchObject({ forcing: false, motif: 'hanging' });
     expect(f.moves.every((m) => typeof m.forcing === 'boolean')).toBe(true);
   });

@@ -59,7 +59,7 @@ export function newThreat(fenPrev: string | undefined, fenBefore: string, me: Co
   return hanging.length > 0 || mate ? { hanging, mate } : null;
 }
 
-const HANGING_KINDS: ReadonlySet<CaptionKind> = new Set(['left-undefended', 'lost-for-free', 'lost-to-cheaper']);
+const HANGING_KINDS: ReadonlySet<CaptionKind> = new Set(['left-undefended', 'lost-for-free', 'lost-to-cheaper', 'lost-in-exchange']);
 
 /**
  * The move ignored a threat the opponent's last move created: the threatened piece stayed where it was and
@@ -135,7 +135,8 @@ export function gaveAwayStalemate(fenAfter: string, winBefore: number): boolean 
   return !!safeChess(fenAfter)?.isStalemate();
 }
 
-const CAPTION_MOTIF: Record<CaptionKind, Exclude<Motif, 'other'>> = {
+/** Caption kind to motif; 'other' for kinds with no drill to train them (trapped pieces, promotions). */
+const CAPTION_MOTIF: Record<CaptionKind, Motif> = {
   'missed-mate-1': 'missed-mate',
   'missed-mate-2': 'missed-mate',
   'allowed-mate-1': 'allowed-mate',
@@ -145,6 +146,18 @@ const CAPTION_MOTIF: Record<CaptionKind, Exclude<Motif, 'other'>> = {
   'lost-to-cheaper': 'hanging',
   fork: 'fork',
   'missed-free-piece': 'missed-free-piece',
+  'lost-in-exchange': 'hanging',
+  pin: 'pin',
+  'missed-pin': 'pin',
+  skewer: 'skewer',
+  'missed-skewer': 'skewer',
+  'discovered-attack': 'discovered-attack',
+  'missed-discovered-attack': 'discovered-attack',
+  'missed-fork': 'fork',
+  'trapped-piece': 'other',
+  'missed-trap': 'other',
+  'allowed-promotion': 'other',
+  'missed-promotion': 'other',
 };
 
 export type MotifInput = {
@@ -164,5 +177,6 @@ export function motifFor(i: MotifInput): Exclude<Motif, 'other'> | undefined {
   if (gaveAwayStalemate(i.fenAfter, i.winBefore)) return 'stalemate';
   if (allowedBackRankMate(i.fact, i.fenAfter, i.lineAfter)) return 'back-rank';
   if (i.loss >= INSIGHTS.eventLoss && ignoredThreat(i.fact, i.threat, i.fenBefore, i.me)) return 'ignored-threat';
-  return i.fact ? CAPTION_MOTIF[i.fact.kind] : undefined;
+  const motif = i.fact ? CAPTION_MOTIF[i.fact.kind] : undefined;
+  return motif === 'other' ? undefined : motif;
 }

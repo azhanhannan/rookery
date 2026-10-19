@@ -46,7 +46,9 @@ Wave 2 added a migration (`20261016100000_user_state`), wave 3 another (`2026101
   tablebase still says win; draw drills pass after N moves still drawn. Offline fallback: Stockfish ±300cp.
 - First sync on a device: the account's settings win over that device's.
 - Captions in Review are only shown when a rule proves them (hanging piece, missed/allowed mate in 1–2, fork,
-  missed free piece); otherwise none.
+  missed free piece; since coach motifs also pins, skewers, discovered attacks, missed forks, trapped pieces,
+  promotions and pieces not defended well enough, each witnessed by the stored engine line, `src/review/tactics.ts`);
+  otherwise none.
 - Lichess opening explorer needs a personal Lichess token (API answers 401 without one since 2026). It is kept
   in the browser only (`rookery.lichessToken`), never synced or sent to our server.
 - Coach access: linking a coach shares the games already saved to the student's account; coach routes answer

@@ -63,13 +63,16 @@ const PHASE_WORDS: Record<Phase, string> = { O: 'the opening', M: 'the middlegam
 /** The motif a weak move is filed under, as a short noun phrase for the closing line. */
 const MOTIF_WORDS: Record<Exclude<Motif, 'other'>, string> = {
   hanging: 'a piece left where it could be taken',
-  fork: 'walking into a fork',
+  fork: 'a fork allowed or missed',
   'missed-free-piece': 'a free piece left on the board',
   'missed-mate': 'a missed checkmate',
   'allowed-mate': 'a checkmate allowed',
   'back-rank': 'a back-rank mate allowed',
   'ignored-threat': 'a threat left unanswered',
   stalemate: 'a win given away as stalemate',
+  pin: 'a pin allowed or missed',
+  skewer: 'a skewer allowed or missed',
+  'discovered-attack': 'a discovered attack allowed or missed',
 };
 
 const sideName = (c: Color) => (c === 'w' ? 'White' : 'Black');

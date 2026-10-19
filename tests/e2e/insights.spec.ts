@@ -142,7 +142,7 @@ test('signed in: the coach’s Focus outranks the ledger pick, and the page says
   await expect(page.getByTestId('coach-can-see')).toHaveText('Your coach can see this.');
   const card = page.getByTestId('focus-card');
   await expect(card).toHaveAttribute('data-coach', 'yes');
-  await expect(card).toContainText('Walking into forks');
+  await expect(card).toContainText('Forks allowed or missed');
   await expect(card.getByTestId('coach-focus')).toContainText('Set by coachy');
   await expect(card.getByTestId('coach-focus')).toContainText('Check every knight jump.');
   await card.getByTestId('focus-start').click();

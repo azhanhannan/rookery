@@ -10,26 +10,32 @@ export const PHASE_NAME: Record<Phase, string> = { O: 'Opening', M: 'Middlegame'
 
 export const MOTIF_NAME: Record<Motif, string> = {
   hanging: 'Pieces left hanging',
-  fork: 'Walking into forks',
+  fork: 'Forks allowed or missed',
   'missed-free-piece': 'Missed free pieces',
   'missed-mate': 'Missed checkmates',
   'allowed-mate': 'Allowed checkmates',
   'back-rank': 'Back-rank mates allowed',
   'ignored-threat': 'Threats left unanswered',
   stalemate: 'Stalemate given away',
+  pin: 'Pins allowed or missed',
+  skewer: 'Skewers allowed or missed',
+  'discovered-attack': 'Discovered attacks allowed or missed',
   other: 'Other slips (no rule explains them)',
 };
 
 /** Learner's one sentence: what keeps happening, with no numbers. */
 const MOTIF_PLAIN: Record<Motif, string> = {
   hanging: 'you leave a piece where it can be taken for free',
-  fork: 'you let one enemy piece attack two of yours at once',
+  fork: 'one piece attacks two at once — against you, or a fork you could have played',
   'missed-free-piece': 'you miss a piece you could take for free',
   'missed-mate': 'you miss a checkmate you could play',
   'allowed-mate': 'you leave your king open to a quick checkmate',
   'back-rank': 'your king gets mated on its back row',
   'ignored-threat': 'your opponent attacks something and you don’t answer it',
   stalemate: 'a winning game turns into stalemate',
+  pin: 'a piece gets pinned to the king or queen — yours, or one of theirs you could have pinned',
+  skewer: 'a line attack goes through one piece to win the one behind it — against you, or one you missed',
+  'discovered-attack': 'a piece moves out of the way and uncovers an attack — against you, or one you missed',
   other: 'a move gives away part of your advantage',
 };
 

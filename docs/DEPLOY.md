@@ -1,7 +1,7 @@
 # Deploying Rookery
 
 Production runs on one DigitalOcean droplet (Basic, 2 GB / 1 vCPU / 50 GB, Singapore, $12/mo) behind
-Cloudflare, as three Docker containers. GitHub Actions tests every push and deploys `master`.
+Cloudflare, as three Docker containers. GitHub Actions tests every push and deploys `main`.
 
 ```
 browser ──https──▶ Cloudflare (proxy + cache for the 44 MB Maia model, engines, bundles)
@@ -13,7 +13,7 @@ browser ──https──▶ Cloudflare (proxy + cache for the 44 MB Maia model,
                      │ db   Postgres 18, volume pgdata (not published to the host)       │
                      └───────────────────────────────────────────────────────────────────┘
 
-git push master ─▶ Actions: test ─▶ build api+web images ─▶ GHCR ─▶ ssh deploy.sh <sha> ─▶ smoke test
+git push main   ─▶ Actions: test ─▶ build api+web images ─▶ GHCR ─▶ ssh deploy.sh <sha> ─▶ smoke test
 ```
 
 Stockfish and Maia run in the visitor's browser, so the droplet only serves files and a small API. That is
@@ -46,24 +46,25 @@ Code changes that make the container work (all no-ops for `npm run server` in de
 ## What you need before starting
 
 - A **domain** (or subdomain) on Cloudflare. Use a personal one: Rookery is not an EDESS system.
-- A **private GitHub repo** for Rookery (the local repo has no remote yet).
+- A **private GitHub repo** for Rookery — done on 2026-10-23, step 1.
 - A DigitalOcean account (personal billing) with your SSH public key added
   (Settings → Security → SSH Keys).
 
 Below, `chess.example.com` is the domain, `203.0.113.10` the droplet IP and `azhanhannan` the GitHub
 owner: replace all three.
 
-## 1. Push the repo to GitHub
+## 1. Push the repo to GitHub — done 2026-10-23
 
-On github.com create a **private** repo `rookery`, empty (no README). Then, from `C:\laragon\www\chess`:
+`https://github.com/azhanhannan/rookery` (private). `origin` is the HTTPS remote, authenticated by
+Git Credential Manager, and the default branch is **`main`** — the repo was renamed from `master` on
+the same day, which is why the workflow and this document say `main` throughout.
 
-```powershell
-git remote add origin git@github.com:azhanhannan/rookery.git
-git push -u origin master
-```
+`deploy/docker` is pushed as a branch but **not merged**: merging starts the pipeline, which would
+deploy to a droplet that doesn't exist yet. Merging is step 7.
 
-Don't merge the `deploy/docker` branch yet: the pipeline would try to deploy to a droplet that doesn't exist.
-Merging is step 7.
+Pre-push checks, for the record: `.env` has never been committed, no blob over 2 MB has ever entered
+history (so the Maia model and the 307 MB puzzle CSV stayed out), and no credential patterns appear in
+tracked files.
 
 ## 2. Create the droplet
 
@@ -239,7 +240,7 @@ Everything runs as `deploy` in `/opt/rookery`.
 | Logs | `docker compose logs -f --tail 100 api` (or `web`, `db`) |
 | Restart the API | `docker compose restart api` |
 | What's deployed | `tail deploy-history.log`, or `grep IMAGE_TAG .env` |
-| Redeploy current master | Actions → CI/CD → Run workflow |
+| Redeploy current main | Actions → CI/CD → Run workflow |
 | Database shell | `docker compose exec db psql -U rookery -d rookery` |
 | Backup now | `./backup.sh manual` |
 | Disk | `df -h /` and `docker system df` |
@@ -300,3 +301,8 @@ For uptime, a free external check (e.g. UptimeRobot) on `https://chess.example.c
 - **Single server**: an outage of the droplet is an outage of accounts and sync. Play still works offline
   in the browser (localStorage is the source of truth), so this degrades gracefully.
 - **Downtime per deploy**: a few seconds while the api container restarts and runs migrations.
+- **The backup set is the database only.** `backup.sh` pushes `backups/` to restic and nothing else, so
+  `/opt/rookery/.env` and `certs/` are not in it. Both are reproducible — the Origin Certificate from
+  Cloudflare in a click, `GOOGLE_CLIENT_SECRET` from Google Auth Platform — but `POSTGRES_PASSWORD` is
+  not, because Postgres set it once when the volume was created. That is why step 5 says to keep it in
+  your password manager; losing it means restoring the dump into a fresh volume.

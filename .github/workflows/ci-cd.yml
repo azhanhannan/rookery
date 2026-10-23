@@ -1,10 +1,10 @@
-# CI on every push and PR; on master also build both images, push them to GHCR and deploy to the droplet.
+# CI on every push and PR; on main also build both images, push them to GHCR and deploy to the droplet.
 # Secrets and the `production` environment: docs/DEPLOY.md step 6.
 name: CI/CD
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
 
   build:
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

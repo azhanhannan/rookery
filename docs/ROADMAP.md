@@ -4,7 +4,7 @@ Where the post-SPEC feature work stands, so a new session can pick it up. Last u
 
 ## Status at close (19 Oct 2026)
 
-- Waves 1-7 built and merged; all checks green on `master` (tsc, 1108 unit, 82 server, build, 97 e2e; `settings.spec` piece-image check flaked once under load, passes alone).
+- Waves 1-7 built and merged; all checks green on `main` (tsc, 1108 unit, 82 server, build, 97 e2e; `settings.spec` piece-image check flaked once under load, passes alone).
 - Local dev DB: `man_9486` merged into `breakfastmilo` (18 Oct); the 14 Phase 5 fixture games (`seed-*`, `loc-*`)
   deleted and ratings replayed on 19 Oct: rapid 694 (11 games), blitz 759 (7), bullet removed, puzzle 1361.
   Backups and the one-off scripts (merge, cleanup) are in `.data/backups/2026-10/` (gitignored, local only).

@@ -1,7 +1,7 @@
 # Deploying Rookery to a DigitalOcean droplet
 
 Runbook for putting Rookery on a single small droplet. Written 2026-10-23 against the
-tree at `master` (waves 1-7, `docs/ROADMAP.md`).
+tree at `main` (waves 1-7, `docs/ROADMAP.md`).
 
 ## Why a small droplet is enough
 

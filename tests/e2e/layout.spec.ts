@@ -66,3 +66,24 @@ test('full screen: the button and F hide the header and grow the board; exiting 
   await page.keyboard.press('f');
   await expect(page.locator('header')).toHaveCount(1);
 });
+
+test('phone: the More and Account menus never stay open together, and close on a tap outside', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/signup');
+  await page.getByLabel('Username').fill(`m_${Date.now().toString(36)}`);
+  await page.getByLabel('Password').fill('correct-horse-9');
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  const account = page.locator('details:has(summary[aria-label="Account"])');
+  const more = page.locator('details:has(summary[aria-label="More pages"])');
+  await page.getByLabel('Account').click();
+  await expect(account).toHaveAttribute('open', '');
+  await page.getByLabel('More pages').click();
+  await expect(more).toHaveAttribute('open', '');
+  await expect(account).not.toHaveAttribute('open');
+
+  await page.getByLabel('Account').click();
+  await expect(more).not.toHaveAttribute('open');
+  await page.mouse.click(200, 700);
+  await expect(account).not.toHaveAttribute('open');
+});

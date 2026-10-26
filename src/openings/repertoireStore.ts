@@ -69,8 +69,8 @@ function write(data: RepertoireData): void {
 
 export type RepertoireState = {
   data: RepertoireData;
-  /** Creates a repertoire (from `tree`, or empty) and returns its id. */
-  create(name: string, color: Color, tree?: VariationTree): string;
+  /** Creates a repertoire (from `tree`, or empty) and returns its id. `libraryId` marks one added from the library. */
+  create(name: string, color: Color, tree?: VariationTree, libraryId?: string): string;
   rename(id: string, name: string): void;
   remove(id: string): void;
   /** Replaces a repertoire's tree (an edit, e.g. a deleted line); cards for positions that left are dropped. */
@@ -148,10 +148,18 @@ export const useRepertoireStore = create<RepertoireState>((set, get) => {
   };
   return {
     data: read(),
-    create(name, color, tree) {
+    create(name, color, tree, libraryId) {
       const id = crypto.randomUUID();
       const t = now();
-      const rep: Repertoire = { id, name: name.trim() || 'My repertoire', color, tree: tree ?? createTree(), createdAt: t, updatedAt: t };
+      const rep: Repertoire = {
+        id,
+        name: name.trim() || 'My repertoire',
+        color,
+        tree: tree ?? createTree(),
+        createdAt: t,
+        updatedAt: t,
+        ...(libraryId ? { libraryId } : {}),
+      };
       const { repertoires, cards } = get().data;
       commit({ repertoires: [...repertoires, rep], cards });
       return id;

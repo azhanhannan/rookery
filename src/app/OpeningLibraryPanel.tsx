@@ -112,6 +112,8 @@ function LibraryEntry({
   const lines = useMemo(() => linesFor(tree, openingsReady), [tree, openingsReady]);
   const positions = useMemo(() => userCards({ tree, color: o.color }).size, [tree, o.color]);
   const sameSide = reps.filter((r) => r.color === o.color);
+  // Added before: by its library id, or, for ones added before ids were kept, by the library's name and side.
+  const added = reps.find((r) => r.libraryId === o.id) ?? sameSide.find((r) => !r.libraryId && r.name === o.name);
   const [into, setInto] = useState<string>('new');
   const [shown, setShown] = useState<string>(lines[0]?.leaf ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +121,7 @@ function LibraryEntry({
   const add = () => {
     const store = useRepertoireStore.getState();
     try {
-      if (into === 'new') onAdded(store.create(o.name, o.color, tree));
+      if (into === 'new') onAdded(store.create(o.name, o.color, tree, o.id));
       else {
         store.addLines(into, tree);
         onAdded(into);
@@ -158,26 +160,37 @@ function LibraryEntry({
           </li>
         ))}
       </ul>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        {sameSide.length > 0 && (
-          <select
-            className="min-w-0 flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm"
-            aria-label="Add to"
-            value={into}
-            onChange={(e) => setInto(e.target.value)}
-          >
-            <option value="new">As a new repertoire</option>
-            {sameSide.map((r) => (
-              <option key={r.id} value={r.id}>
-                Into "{r.name}"
-              </option>
-            ))}
-          </select>
-        )}
-        <button className={primary} onClick={add} data-testid="library-add">
-          Add to my repertoires
-        </button>
-      </div>
+      {added ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p className="min-w-0 flex-1 text-sm" data-testid="library-added">
+            Already in your repertoires as "{added.name}".
+          </p>
+          <button className={primary} onClick={() => onAdded(added.id)}>
+            Open it
+          </button>
+        </div>
+      ) : (
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          {sameSide.length > 0 && (
+            <select
+              className="min-w-0 flex-1 rounded-lg bg-surface-2 px-3 py-2 text-sm"
+              aria-label="Add to"
+              value={into}
+              onChange={(e) => setInto(e.target.value)}
+            >
+              <option value="new">As a new repertoire</option>
+              {sameSide.map((r) => (
+                <option key={r.id} value={r.id}>
+                  Into "{r.name}"
+                </option>
+              ))}
+            </select>
+          )}
+          <button className={primary} onClick={add} data-testid="library-add">
+            Add to my repertoires
+          </button>
+        </div>
+      )}
       {error && <p className="text-sm text-danger">{error}</p>}
       <p className="text-xs text-muted">Then press "Learn new lines". You can delete lines you don't want from the Lines tab.</p>
     </>

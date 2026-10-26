@@ -1,10 +1,11 @@
 // The site header: the app name, the pages, and the account links. Built to stay on one line from 360 px up:
 // the `primary` pages are always shown; the rest sit in a "More" menu, and inline only on very wide screens.
-import { useEffect, useRef, type MouseEvent } from 'react';
+import type { MouseEvent } from 'react';
 import { APP_NAME } from '../config/tunables';
 import { isCurrent, NAV_ITEMS } from '../app/nav';
 import { AccountNav } from './AccountNav';
 import { OpeningsDueBadge } from './OpeningsDue';
+import { useDetailsMenu } from './useDetailsMenu';
 
 const link = (on: boolean) => `text-sm whitespace-nowrap ${on ? 'text-ink' : 'text-muted'} hover:text-ink`;
 
@@ -20,20 +21,7 @@ function Bars() {
 export function SiteHeader({ hash }: { hash: string }) {
   const more = NAV_ITEMS.filter((i) => !i.primary);
   const moreCurrent = more.find((i) => isCurrent(i, hash));
-  const menu = useRef<HTMLDetailsElement>(null);
-
-  // The header stays mounted across pages: close the menu on navigation and on a click anywhere else.
-  useEffect(() => {
-    menu.current?.removeAttribute('open');
-  }, [hash]);
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      const d = menu.current;
-      if (d?.open && !d.contains(e.target as Node)) d.removeAttribute('open');
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, []);
+  const menu = useDetailsMenu();
   const close = (e: MouseEvent<HTMLElement>) => e.currentTarget.closest('details')?.removeAttribute('open');
 
   return (

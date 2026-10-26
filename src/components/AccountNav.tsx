@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { useAuthStore } from '../account/authStore';
 import { useCoachBadge, useCoachBadgePolling } from '../coach/coachStore';
+import { useDetailsMenu } from './useDetailsMenu';
 
 const link = 'text-sm text-muted hover:text-ink';
 
@@ -15,6 +16,7 @@ export function AccountNav() {
   const status = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const menu = useDetailsMenu();
   useCoachBadgePolling();
   // Unread coach comments plus unfinished homework.
   const coachBadge = useCoachBadge((s) => s.unread.count + s.homeworkOpen);
@@ -67,7 +69,7 @@ export function AccountNav() {
   return (
     <>
       <div className="hidden items-center gap-3 lg:flex">{entries()}</div>
-      <details className="relative lg:hidden">
+      <details ref={menu} className="relative lg:hidden">
         <summary
           className="flex cursor-pointer list-none items-center text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden"
           aria-label="Account"

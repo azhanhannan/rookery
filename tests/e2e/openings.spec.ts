@@ -98,6 +98,21 @@ test('add a repertoire from the library and start learning it', async ({ page })
   await expect(page.getByTestId('drill-feedback')).toContainText('New move: play e4');
 });
 
+test('a library repertoire already added is opened, not added twice', async ({ page }) => {
+  await page.goto('/#/openings');
+  await page.getByRole('button', { name: 'Browse the library' }).click();
+  await page.getByTestId('library-entry').filter({ hasText: 'Ruy Lopez' }).click();
+  await page.getByTestId('library-add').click();
+  await expect(page.getByTestId('repertoire-header')).toContainText('Ruy Lopez');
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByTestId('library-entry').filter({ hasText: 'Ruy Lopez' }).click();
+  await expect(page.getByTestId('library-added')).toContainText('Already in your repertoires as "Ruy Lopez');
+  await expect(page.getByTestId('library-add')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open it' }).click();
+  await expect(page.getByTestId('repertoire-header')).toContainText('Ruy Lopez');
+  await expect(page.getByRole('combobox').first().locator('option')).toHaveCount(1);
+});
+
 test('Play reminds about opening moves due today and links to that repertoire', async ({ page }) => {
   await page.goto('/#/openings');
   await page.getByRole('button', { name: 'New repertoire' }).click();

@@ -20,6 +20,8 @@ export type Repertoire = {
   updatedAt: string;
   /** Resting since this day: nothing is asked and the cards' clock is frozen until it resumes. */
   restedOn?: string;
+  /** The library entry it was added from (`LibraryOpening.id`), so the library can tell it's already there. */
+  libraryId?: string;
 };
 
 export type CardRecord = CardState & {

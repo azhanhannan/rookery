@@ -66,7 +66,13 @@ Pre-push checks, for the record: `.env` has never been committed, no blob over 2
 history (so the Maia model and the 307 MB puzzle CSV stayed out), and no credential patterns appear in
 tracked files.
 
-## 2. Create the droplet
+## 2. Create the droplet — done 2026-10-26
+
+Droplet `runcodecloud` (named for the domain, not the app: it may host more `*.runcodecloud.com`
+projects later), project `personal`, SGP1, IPv4 `159.223.63.47`, IPv6 off. `runcodecloud.com` DNS moved
+from Namecheap BasicDNS to Cloudflare (`jason`/`rachel.ns.cloudflare.com`) the same day; the app's
+hostname is `rookery.runcodecloud.com`.
+
 
 DigitalOcean → Create → Droplets:
 
@@ -83,7 +89,12 @@ DigitalOcean → Create → Droplets:
 Note the IPv4 address. Optionally also Networking → Firewalls: allow inbound 22, 80, 443 only (a second
 layer on top of ufw; DO's firewall, unlike ufw, also applies to Docker's published ports).
 
-## 3. Run the setup script
+## 3. Run the setup script — done 2026-10-26
+
+First run failed on the apt lock (cloud-init's first-boot apt was still running): on a fresh droplet,
+`cloud-init status --wait` before running the script. Verified after: `deploy` can run `docker ps`,
+ufw 22/80/443, 2 GB swap, `PasswordAuthentication no`, no reboot pending.
+
 
 From the repo on your laptop (Git Bash or PowerShell):
 
@@ -294,6 +305,10 @@ For uptime, a free external check (e.g. UptimeRobot) on `https://chess.example.c
 | Domain | your registrar's price |
 
 ## Known limits
+
+- **One app per droplet, for now.** Rookery's `web` (Caddy) container binds 80/443. A second
+  `*.runcodecloud.com` app on the same droplet means moving Caddy out of this stack into a shared proxy
+  (e.g. `/opt/proxy`) that routes by hostname. The Origin Certificate is already `*.runcodecloud.com`.
 
 - **Client IPs**: Caddy sees Cloudflare's edge IPs, so the login throttle keys on `username|edge IP`.
   It still slows guessing on one account. For true client IPs, add Cloudflare's IP ranges as Caddy

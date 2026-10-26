@@ -1,0 +1,35 @@
+# Rookery behind Cloudflare (proxied, SSL mode "Full (strict)"). The certificate is a Cloudflare Origin
+# Certificate mounted from /opt/rookery/certs, so there is no ACME and nothing to renew. See docs/DEPLOY.md.
+{$DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:5181
+	}
+
+	handle {
+		root * /srv
+
+		# Vite's hashed bundles never change under the same name.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+		# Engines, Maia model (~44 MB), boards and pieces: unhashed names, so a week, not forever.
+		@static path /maia/* /ort/* /stockfish/* /boards/* /pieces/* /puzzles/*
+		header @static Cache-Control "public, max-age=604800"
+
+		@html path / /index.html
+		header @html Cache-Control "no-cache"
+
+		file_server
+	}
+}

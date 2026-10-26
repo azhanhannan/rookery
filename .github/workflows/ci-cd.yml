@@ -1,0 +1,113 @@
+# CI on every push and PR; on main also build both images, push them to GHCR and deploy to the droplet.
+# Secrets and the `production` environment: docs/DEPLOY.md step 6.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The unit tests load the Stockfish worker and Maia files from public/.
+      - run: node scripts/copy-stockfish.mjs && node scripts/fetch-maia.mjs
+      - run: npx tsc -b
+      - run: npm run lint
+      - run: npm test
+      - run: npm run test:server
+
+  build:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/rookery-api:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/rookery-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/rookery-web:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/rookery-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      USER_AT: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: ssh key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: copy stack files
+        run: |
+          scp deploy/compose.yaml deploy/deploy.sh deploy/backup.sh "$USER_AT:/opt/rookery/"
+          ssh "$USER_AT" 'chmod +x /opt/rookery/deploy.sh /opt/rookery/backup.sh'
+      - name: deploy
+        run: |
+          # The job's token can read this repo's packages; it expires with the job, so nothing long-lived sits on the server.
+          echo "${{ secrets.GITHUB_TOKEN }}" | ssh "$USER_AT" 'docker login ghcr.io -u ${{ github.actor }} --password-stdin'
+          ssh "$USER_AT" "/opt/rookery/deploy.sh $TAG; status=\$?; docker logout ghcr.io >/dev/null; exit \$status"
+      - name: smoke test
+        run: |
+          domain=$(ssh "$USER_AT" "grep '^DOMAIN=' /opt/rookery/.env | cut -d= -f2")
+          curl -fsS --retry 5 --retry-delay 5 "https://${domain}/api/health"
+          curl -fsS -o /dev/null "https://${domain}/"

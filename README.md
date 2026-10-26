@@ -31,7 +31,8 @@ npm run build
 ```
 
 The browser app works without the server (play, review, local history); accounts and ratings need it.
-In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:start`.
+In production set `DATABASE_URL` to a real PostgreSQL and run `npm run server:start`; the Docker + CI/CD
+deployment (DigitalOcean droplet behind Cloudflare) is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 `SCREENS=1 npx playwright test screens` writes screenshots to `test-results/` for a visual check.
 

@@ -12,7 +12,7 @@ const LINE_COLOR: Record<RatingCategory, string> = {
 };
 
 /** One row per rated game (oldest first); only the game's own category has a value. */
-type Row = { n: number; at: string; category: RatingCategory } & Partial<Record<RatingCategory, number>>;
+type Row = { n: number; at: string; category: RatingCategory; provisional: boolean } & Partial<Record<RatingCategory, number>>;
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: Row }[] }) {
   const row = active ? payload?.[0]?.payload : undefined;
@@ -21,12 +21,26 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
     <div className="rounded bg-surface px-2 py-1 text-xs text-ink shadow">
       <div className="font-semibold">
         {CATEGORY_NAMES[row.category]} {row[row.category]}
+        {row.provisional && '?'}
       </div>
+      {row.provisional && <div className="text-muted">Still finding your level</div>}
       <div className="text-muted">
         Game {row.n} · {new Date(row.at).toLocaleDateString()}
       </div>
     </div>
   );
+}
+
+/** A provisional point is a hollow dot (a solid one once the rating has settled). */
+function dotFor(color: string) {
+  return function Dot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: Row }) {
+    if (cx == null || cy == null || !payload) return <g />;
+    return payload.provisional ? (
+      <circle cx={cx} cy={cy} r={3} fill="var(--surface)" stroke={color} strokeWidth={1.5} data-testid="graph-dot-provisional" />
+    ) : (
+      <circle cx={cx} cy={cy} r={2.5} fill={color} strokeWidth={0} />
+    );
+  };
 }
 
 /** Rating after each rated game, one line per category, x = rated game number. */
@@ -35,7 +49,9 @@ export function RatingHistoryChart({ history }: { history: RatingPoint[] }) {
   const [hidden, setHidden] = useState<Set<RatingCategory>>(() => new Set());
   const shown = present.filter((c) => !hidden.has(c));
 
-  const rows: Row[] = history.map((p, i) => ({ n: i + 1, at: p.at, category: p.category, [p.category]: p.rating }));
+  const rows: Row[] = history.map((p, i) => ({ n: i + 1, at: p.at, category: p.category, provisional: !!p.provisional, [p.category]: p.rating }));
+  const latest = (c: RatingCategory) => [...history].reverse().find((p) => p.category === c);
+  const anyProvisional = present.some((c) => latest(c)?.provisional);
   // The y range follows the shown lines only, so hiding a far-off category rescales the rest.
   const values = history.filter((p) => !hidden.has(p.category)).map((p) => p.rating);
   const lo = values.length ? Math.floor((Math.min(...values) - 25) / 50) * 50 : 1400;
@@ -67,6 +83,7 @@ export function RatingHistoryChart({ history }: { history: RatingPoint[] }) {
             >
               <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: LINE_COLOR[c], opacity: hidden.has(c) ? 0.35 : 1 }} />
               {CATEGORY_NAMES[c]}
+              {latest(c)?.provisional && <span className="text-muted">?</span>}
             </button>
           ))}
         </div>
@@ -105,7 +122,8 @@ export function RatingHistoryChart({ history }: { history: RatingPoint[] }) {
                 stroke={LINE_COLOR[c]}
                 strokeWidth={2}
                 connectNulls
-                dot={rows.length <= 40 ? { r: 2.5, fill: LINE_COLOR[c], strokeWidth: 0 } : false}
+                // Line's own dots only on its own games (the rows of other categories have no value here).
+                dot={rows.length <= 40 ? dotFor(LINE_COLOR[c]) : false}
                 activeDot={{ r: 4, fill: LINE_COLOR[c], stroke: 'var(--surface)', strokeWidth: 2 }}
                 isAnimationActive={false}
               />
@@ -114,6 +132,10 @@ export function RatingHistoryChart({ history }: { history: RatingPoint[] }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <p className="text-xs text-muted" data-testid="rating-graph-note">
+        Each dot is your rating after a rated game. Each time control is a separate rating.
+        {anyProvisional && ' A ? or a hollow dot means the rating is still finding your level: early games move it a lot.'}
+      </p>
     </div>
   );
 }

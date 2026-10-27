@@ -108,7 +108,14 @@ export type GameIdsResponse = { clientIds: string[] };
 // GET /api/games/:clientId -> the stored record (own games only; 404 otherwise).
 export type GameResponse = { game: GameSummary; record: GameRecord };
 
-export type RatingPoint = { category: RatingCategory; rating: number; at: string; gameClientId: string };
+export type RatingPoint = {
+  category: RatingCategory;
+  rating: number;
+  at: string;
+  gameClientId: string;
+  /** The rating was still provisional after this game (RD above RATINGS.provisionalRd). */
+  provisional: boolean;
+};
 
 // Puzzles. Only the FIRST attempt at each puzzle changes the puzzle rating (stored as a Rating row
 // with category 'puzzle'); the server looks the puzzle's rating up itself, it never trusts the client's.

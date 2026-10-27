@@ -60,6 +60,8 @@ describe('GET /profile/:username', () => {
       ['blitz', blitz2.rating!.after, blitz2.game.clientId],
     ]);
     expect(p.history.every((h) => !Number.isNaN(Date.parse(h.at)))).toBe(true);
+    // A few games in, every rating is still provisional (RD starts at 350).
+    expect(p.history.every((h) => h.provisional)).toBe(true);
 
     expect(res.body).not.toContain('e2e4');
     expect(res.body).not.toContain('passwordHash');

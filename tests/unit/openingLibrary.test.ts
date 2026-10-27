@@ -28,6 +28,12 @@ const nameAt = (fen: string) => book.get(toEpd(fen)) ?? book.get(toEpd(fen).repl
 const MIN_BOOK_PLIES = 4;
 const MIN_MAIN_BOOK_PLIES = 8;
 
+/**
+ * Entries whose every move of yours carries its reason (shown as "Why …?" while drilling). Add each entry as its
+ * reasons are written; once all are, this list can go and the check apply to the whole library.
+ */
+const EXPLAINED = new Set(['italian']);
+
 describe('opening library', () => {
   it('has unique ids', () => {
     expect(new Set(LIBRARY.map((o) => o.id)).size).toBe(LIBRARY.length);
@@ -63,6 +69,13 @@ describe('opening library', () => {
           const min = i === 0 ? MIN_MAIN_BOOK_PLIES : MIN_BOOK_PLIES;
           expect(depth, `${o.id}: leaves the book after ${depth} plies: ${sans}`).toBeGreaterThanOrEqual(Math.min(min, path.length - 1));
         });
+      });
+
+      it.runIf(EXPLAINED.has(o.id))('explains every move of yours (the "Why …?" while drilling)', () => {
+        for (const n of Object.values(tree.nodes)) {
+          if (!n.parentId || tree.nodes[n.parentId].fen.split(' ')[1] !== o.color) continue;
+          expect(n.comment?.trim(), `${o.id}: ${n.san} has no reason`).toBeTruthy();
+        }
       });
 
       it(`main line reaches "${o.family}"`, () => {

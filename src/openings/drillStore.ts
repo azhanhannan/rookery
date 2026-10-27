@@ -11,6 +11,7 @@ import { logTraining, startTraining } from '../training/trainingLog';
 import { drillSteps, judgeMove, type DrillStep } from './drill';
 import { countMixup } from './conflictPrompt';
 import { recordRecall } from './recall';
+import { libraryEntryOf } from './library';
 import { chooseLine, conflictKeys, dueToday, dueTotal, lineIdea, newMovesLeft, otherRepertoireWith, reviewsLeft, shouldRecord, trimToNew, type DrillMode } from './repertoire';
 import type { Color } from '../game/types';
 import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from './repertoireStore';
@@ -45,7 +46,7 @@ type DrillData = {
   helped: number;
   /** Learn: the line's idea, shown before its moves. */
   idea: string;
-  /** The last move's plan waits behind "Why this move?" (asked, not told, after an answer from memory). */
+  /** The plan waits behind "Why …?" (asked, not told, after an answer from memory). */
   planHidden: boolean;
   /** Today's reviews across all awake repertoires, alternating colours ("Next line" picks the next repertoire). */
   mixed: boolean;
@@ -59,8 +60,14 @@ type DrillData = {
   /** Cards answered wrongly in this run of the line. */
   failed: string[];
   feedback: DrillFeedback | null;
-  /** The plan (PGN comment) of the last move played. */
+  /**
+   * Why `planSan` is played: the PGN comment on one of the user's moves. Set when that move is shown (a new move,
+   * or the answer after a miss) or played; cleared while a move is asked from memory, so it never gives one away.
+   */
   plan: string;
+  planSan: string;
+  /** The comment on the opponent's last move (a line's name, or what it threatens), kept apart from the plan. */
+  theirNote: { san: string; text: string } | null;
   /** This line: answers recorded and how many were clean. */
   answered: number;
   clean: number;
@@ -108,6 +115,8 @@ const idle: DrillData = {
   failed: [],
   feedback: null,
   plan: '',
+  planSan: '',
+  theirNote: null,
   answered: 0,
   clean: 0,
   taught: 0,
@@ -165,7 +174,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         const cur = get();
         if (cur.steps[cur.index] !== step) return;
         sound(step.fenBefore, step.uci);
-        set({ fen: step.fenAfter, lastMove: moveOf(step.uci), plan: step.plan, index: cur.index + 1 });
+        set({ fen: step.fenAfter, lastMove: moveOf(step.uci), theirNote: step.plan ? { san: step.san, text: step.plan } : null, index: cur.index + 1 });
         run();
       }, OPENING_TRAINER.opponentDelayMs);
       return;
@@ -178,6 +187,10 @@ export const useDrillStore = create<DrillState>((set, get) => {
       phase: 'user',
       arrow: show ? step.uci : null,
       shown: show,
+      // A new move comes with its reason; one asked from memory comes without (the reason would give it away).
+      plan: show ? step.plan : '',
+      planSan: show ? step.san : '',
+      planHidden: false,
       feedback: show
         ? { kind: 'info', text: `New move: play ${step.san}` }
         : s.cue.includes(step.key)
@@ -196,7 +209,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
       timer = setTimeout(() => {
         timer = null;
         const root = s.steps[0]?.fenBefore ?? s.fen;
-        set({ pass: 'quiz', index: 0, fen: root, lastMove: null, plan: '', failed: [] });
+        set({ pass: 'quiz', index: 0, fen: root, lastMove: null, plan: '', planSan: '', theirNote: null, failed: [] });
         run();
       }, OPENING_TRAINER.opponentDelayMs * 2);
       return;
@@ -219,7 +232,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
   /** Puts the board on the first recap step's position and asks it. */
   const askRecap = (recap: number[]) => {
     const step = get().steps[recap[0]];
-    set({ pass: 'recap', recap, index: recap[0], fen: step.fenBefore, lastMove: null, plan: '', arrow: null, shown: false, phase: 'user', feedback: { kind: 'info', text: 'Your move' } });
+    set({ pass: 'recap', recap, index: recap[0], fen: step.fenBefore, lastMove: null, plan: '', planSan: '', theirNote: null, arrow: null, shown: false, phase: 'user', feedback: { kind: 'info', text: 'Your move' } });
   };
 
   const done = () => {
@@ -293,7 +306,9 @@ export const useDrillStore = create<DrillState>((set, get) => {
         mixed: !!opts?.mixed,
         path,
         steps,
-        idea: mode === 'learn' ? lineIdea(rep.tree, path) : '',
+        // A library opening's summary; otherwise the first comment on the line (every move of a library line has
+        // its own reason, so its first comment would only repeat the first move's "Why").
+        idea: mode === 'learn' ? (libraryEntryOf(rep)?.summary ?? lineIdea(rep.tree, path)) : '',
         repName: rep.name,
         cue: [...conflictKeys(rep, repStore.data.repertoires)],
         pass: mode === 'learn' ? 'show' : 'quiz',
@@ -320,12 +335,12 @@ export const useDrillStore = create<DrillState>((set, get) => {
       const verdict = judgeMove(rep.tree, step, uci);
       if (s.pass === 'recap') {
         if (verdict !== 'correct') {
-          set({ phase: 'wrong', arrow: step.uci, feedback: { kind: 'info', text: `Here it is: ${step.san}` } });
+          set({ phase: 'wrong', arrow: step.uci, plan: step.plan, planSan: step.san, planHidden: false, feedback: { kind: 'info', text: `Here it is: ${step.san}` } });
           return false;
         }
         sound(step.fenBefore, step.uci);
         const rest = s.recap.slice(1);
-        set({ fen: step.fenAfter, lastMove: moveOf(step.uci), arrow: null, plan: step.plan, feedback: { kind: 'good', text: `${step.san}, got it` } });
+        set({ fen: step.fenAfter, lastMove: moveOf(step.uci), arrow: null, plan: step.plan, planSan: step.san, planHidden: false, feedback: { kind: 'good', text: `${step.san}, got it` } });
         if (rest.length) {
           set({ phase: 'opponent' });
           timer = setTimeout(() => {
@@ -336,7 +351,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         return true;
       }
       if (verdict === 'other-line') {
-        set({ arrow: step.uci, feedback: { kind: 'info', text: `That's in your repertoire too, but this line continues ${step.san}` } });
+        set({ arrow: step.uci, plan: step.plan, planSan: step.san, planHidden: false, feedback: { kind: 'info', text: `That's in your repertoire too, but this line continues ${step.san}` } });
         return false;
       }
       if (verdict === 'wrong') {
@@ -344,11 +359,11 @@ export const useDrillStore = create<DrillState>((set, get) => {
         const other = otherRepertoireWith(useRepertoireStore.getState().data.repertoires, rep.id, rep.color, step.fenBefore, uci);
         if (other) {
           countMixup(rep.id, other.id);
-          set({ phase: 'wrong', arrow: step.uci, feedback: { kind: 'info', text: `That's your ${other.name} move. In this line it's ${step.san}` } });
+          set({ phase: 'wrong', arrow: step.uci, plan: step.plan, planSan: step.san, planHidden: false, feedback: { kind: 'info', text: `That's your ${other.name} move. In this line it's ${step.san}` } });
           return false;
         }
         const failed = s.pass === 'quiz' && !s.shown && !s.failed.includes(step.key) ? [...s.failed, step.key] : s.failed;
-        set({ phase: 'wrong', arrow: step.uci, failed, feedback: { kind: 'bad', text: `Not quite. Here it is: ${step.san}` } });
+        set({ phase: 'wrong', arrow: step.uci, failed, plan: step.plan, planSan: step.san, planHidden: false, feedback: { kind: 'bad', text: `Not quite. Here it is: ${step.san}` } });
         return false;
       }
       // Correct.
@@ -385,6 +400,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         lastMove: moveOf(step.uci),
         arrow: null,
         plan: step.plan,
+        planSan: step.san,
         index: s.index + 1,
         answered,
         clean,

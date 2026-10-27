@@ -530,14 +530,19 @@ function DrillPanel({ opening, color, onStop, onNext, nextDue }: { opening: stri
               {d.feedback.text}
             </p>
           )}
+          {d.theirNote && d.phase !== 'done' && (
+            <p className="text-sm text-muted" data-testid="drill-their-note">
+              They played {d.theirNote.san}: {d.theirNote.text}
+            </p>
+          )}
           {d.plan && d.planHidden && (
             <button className="self-start text-sm text-accent hover:underline" onClick={() => useDrillStore.getState().revealPlan()} data-testid="drill-why">
-              Why this move? (think first, then tap)
+              Why {d.planSan}? (think first, then tap)
             </button>
           )}
           {d.plan && !d.planHidden && (
             <p className="rounded bg-surface-2 p-2 text-sm" data-testid="drill-plan">
-              <span className="font-semibold">Plan: </span>
+              <span className="font-semibold">Why {d.planSan}: </span>
               {d.plan}
             </p>
           )}

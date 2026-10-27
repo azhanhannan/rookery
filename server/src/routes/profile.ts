@@ -25,7 +25,7 @@ export async function profileRoutes(app: FastifyInstance, { db }: { db: Db }) {
       db.ratingEvent.findMany({
         where: { userId: user.id },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        select: { category: true, ratingAfter: true, createdAt: true, game: { select: { clientId: true } } },
+        select: { category: true, ratingAfter: true, rdAfter: true, createdAt: true, game: { select: { clientId: true } } },
       }),
       db.game.count({ where: { userId: user.id } }),
       db.game.count({ where: { userId: user.id, rated: true } }),
@@ -49,6 +49,7 @@ export async function profileRoutes(app: FastifyInstance, { db }: { db: Db }) {
         rating: Math.round(e.ratingAfter),
         at: e.createdAt.toISOString(),
         gameClientId: e.game.clientId,
+        provisional: isProvisional(e.rdAfter),
       })),
       counts: { games, rated },
       puzzle,

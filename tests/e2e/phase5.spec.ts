@@ -71,6 +71,9 @@ test('sign up, play a rated blitz game, see it in My games and on the profile, l
   await expect(page.getByTestId('rating-cards')).toContainText('Blitz');
   await expect(page.getByTestId('rating-graph')).toBeVisible();
   await expect(page.getByTestId('rating-graph').locator('svg').first()).toBeVisible();
+  // One game in, the rating is still provisional: a hollow dot, and the note says what that means.
+  await expect(page.getByTestId('graph-dot-provisional')).toHaveCount(1);
+  await expect(page.getByTestId('rating-graph-note')).toContainText('still finding your level');
 
   // Log out, then back in with the same credentials.
   await nav(page).getByRole('button', { name: 'Log out' }).click();

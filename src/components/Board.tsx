@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Chessboard, type PieceDropHandlerArgs, type SquareHandlerArgs } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useGameStore, type Orientation } from '../game/gameStore';
@@ -9,6 +9,49 @@ import { mergeSquareStyles, useBoardMarks } from './boardMarks';
 import { piecesFor } from './pieceRender';
 
 const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
+
+/** Pixels a finger or mouse must travel before a press becomes a drag, so a slightly wobbly tap stays a tap. */
+const DRAG_START_PX = 6;
+/** How long after the pointer lifts the board may take to report the drag's end before it is reset. */
+const STUCK_DRAG_MS = 150;
+
+/**
+ * react-chessboard can lose the end of a drag: when a drag starts and the pointer lifts within the same frame,
+ * dnd-kit fires neither drop nor cancel, and the piece stays dimmed and unusable until a reload. Track the drag
+ * ourselves, and when the pointer is up with no drop or cancel reported, remount the board (a new `key`).
+ */
+function useStuckDragReset() {
+  const dragging = useRef(false);
+  const [boardKey, setBoardKey] = useState(0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onUp = () => {
+      if (!dragging.current) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        setBoardKey((k) => k + 1);
+      }, STUCK_DRAG_MS);
+    };
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
+  return {
+    boardKey,
+    started: () => {
+      dragging.current = true;
+    },
+    ended: () => {
+      dragging.current = false;
+    },
+  };
+}
 
 function kingSquare(board: ReturnType<Chess['board']>, color: 'w' | 'b'): string | null {
   for (const row of board) for (const p of row) if (p?.type === 'k' && p.color === color) return p.square;
@@ -102,6 +145,7 @@ function BoardView({
   const pre = !live && premove ? premove : null;
   const marks = useBoardMarks(positionKey);
   const shown = marks.settings;
+  const drag = useStuckDragReset();
 
   // Selection belongs to one position; a new position (move played, or stepping through the list) clears it.
   const [sel, setSel] = useState<{ key: string; square: string } | null>(null);
@@ -121,6 +165,7 @@ function BoardView({
   }
 
   function onPieceDrop({ sourceSquare, targetSquare }: PieceDropHandlerArgs): boolean {
+    drag.ended();
     if (pre) {
       setSel(null);
       if (targetSquare && sourceSquare !== targetSquare) pre.onQueue(sourceSquare, targetSquare);
@@ -183,6 +228,7 @@ function BoardView({
   return (
     <div className="relative w-full" data-testid="board">
       <Chessboard
+        key={drag.boardKey}
         options={{
           id,
           position,
@@ -191,7 +237,12 @@ function BoardView({
           canDragPiece: ({ piece }) => (pre ? piece.pieceType[0] === pre.color : live && piece.pieceType[0] === turn),
           onPieceDrop,
           onSquareClick,
-          onPieceDrag: ({ square }) => square && setSel({ key: positionKey, square }),
+          onPieceDrag: ({ square }) => {
+            drag.started();
+            if (square) setSel({ key: positionKey, square });
+          },
+          onPieceDragCancel: drag.ended,
+          dragActivationDistance: DRAG_START_PX,
           squareStyles: allStyles,
           // App-drawn arrows (review) and hand-drawn ones (right-drag) share the board.
           ...(arrows ? { arrows } : {}),

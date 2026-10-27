@@ -104,6 +104,8 @@ describe('opening drill', () => {
     expect(drill.getState()).toMatchObject({ phase: 'user', arrow: 'c1f4', shown: true });
     drill.getState().move(mv('c1f4'));
     expect(drill.getState().phase).toBe('done');
+    // The shown move is named, so the summary accounts for both of the line's moves.
+    expect(drill.getState().feedback?.text).toBe('Line complete: all 1 from memory. 1 new move shown');
     expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toMatchObject({ stage: 1, reps: 2 });
     expect(Object.keys(reps.getState().data.cards[id])).toHaveLength(1);
   });
@@ -261,7 +263,7 @@ describe('opening drill', () => {
     vi.runOnlyPendingTimers();
     drill.getState().move(mv('c1f4'));
     expect(drill.getState().phase).toBe('done');
-    expect(drill.getState().feedback?.text).toBe('Line complete: 0 of 1 from memory, 1 with a hint');
+    expect(drill.getState().feedback?.text).toBe('Line complete: 0 of 1 from memory, 1 with a hint. 1 new move shown');
   });
 
   it('after a move answered from memory its plan is asked for, then shown', async () => {

@@ -43,6 +43,8 @@ test('build a repertoire from PGN and learn it', async ({ page }) => {
   await expect(square(page, 'f3').locator('[data-piece]')).toHaveCount(0);
   await clickMove(page, 'g1f3');
   await expect(page.getByTestId('drill-feedback')).toContainText('1 of 2 from memory, and you fixed the other one');
+  // The line is over: no "Move x of y" left over from the replayed miss.
+  await expect(page.getByTestId('drill-progress')).toHaveCount(0);
 
   // After learning: let it settle (the default), or play it out.
   await expect(page.getByTestId('drill-settle')).toBeVisible();

@@ -266,6 +266,42 @@ describe('opening drill', () => {
     expect(drill.getState().feedback?.text).toBe('Line complete: 0 of 1 from memory, 1 with a hint. 1 new move shown');
   });
 
+  it('"Why …?" is always about your move: shown with a new move, hidden while asked, given with the answer after a miss', async () => {
+    const { reps, drill } = await fresh();
+    const id = reps.getState().create('Italian', 'w', parsePgnTree('1. e4 {Centre} e5 2. Nf3 {Hit e5} Nc6 {Defends e5} 3. Bc4 {Aim at f7} *'));
+    expect(drill.getState().start(id, 'learn')).toBe(true);
+    // Learning: the new move comes with its reason, before it is played.
+    expect(drill.getState()).toMatchObject({ arrow: 'e2e4', plan: 'Centre', planSan: 'e4', planHidden: false });
+    drill.getState().move(mv('e2e4'));
+    vi.runOnlyPendingTimers();
+    drill.getState().move(mv('g1f3'));
+    vi.runOnlyPendingTimers();
+    // The opponent's comment is a note on their move; the reason on show is for your next (new) move.
+    expect(drill.getState()).toMatchObject({ theirNote: { san: 'Nc6', text: 'Defends e5' }, plan: 'Aim at f7', planSan: 'Bc4' });
+    drill.getState().move(mv('f1c4'));
+    vi.runOnlyPendingTimers();
+    vi.runOnlyPendingTimers();
+    // From memory: asked without a reason on show.
+    expect(drill.getState()).toMatchObject({ pass: 'quiz', phase: 'user', plan: '', theirNote: null });
+    drill.getState().move(mv('e2e4'));
+    expect(drill.getState()).toMatchObject({ plan: 'Centre', planSan: 'e4', planHidden: true });
+    vi.runOnlyPendingTimers();
+    expect(drill.getState()).toMatchObject({ phase: 'user', plan: '', planSan: '' });
+    // A miss: the right move comes with its own reason.
+    expect(drill.getState().move(mv('f1c4'))).toBe(false);
+    expect(drill.getState()).toMatchObject({ phase: 'wrong', plan: 'Hit e5', planSan: 'Nf3', planHidden: false });
+  });
+
+  it("a library opening's idea is its summary, not its first move's reason", async () => {
+    const { reps, drill } = await fresh();
+    const { LIBRARY } = await import('../../src/openings/library');
+    const italian = LIBRARY.find((o) => o.id === 'italian')!;
+    const id = reps.getState().create(italian.name, 'w', parsePgnTree(italian.pgn), italian.id);
+    expect(drill.getState().start(id, 'learn')).toBe(true);
+    expect(drill.getState().idea).toBe(italian.summary);
+    expect(drill.getState()).toMatchObject({ planSan: 'e4', plan: expect.stringContaining('Take the centre') });
+  });
+
   it('after a move answered from memory its plan is asked for, then shown', async () => {
     const { reps, drill } = await fresh();
     const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 {Take the centre} d5 *'));

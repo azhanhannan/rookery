@@ -32,10 +32,28 @@ export const LIBRARY: LibraryOpening[] = [
     family: 'Italian Game',
     summary: 'Quick development, the bishop on c4 aims at f7, then a slow build-up with c3 and d3 (or d4).',
     ideas: ['Bishop to c4 eyes f7, the square only the king defends', 'c3 prepares d4 when the moment is right', 'Castle early, then Re1 to back up e4'],
-    pgn: `1. e4 e5 2. Nf3 {Attack e5 and develop} Nc6 3. Bc4 {Aim at f7}
-      Bc5 (3... Nf6 {Two Knights} 4. d3 {Calm: keep e4 protected and skip the wild lines} Be7 (4... Bc5 5. c3 d6 6. O-O O-O 7. Re1 a6 8. a4) 5. O-O O-O 6. Re1 d6 7. c3 {Room for the bishop on c2, and d4 later})
-      4. c3 {Prepare d4} Nf6 (4... d6 5. d4 {Take the centre} exd4 6. cxd4 Bb6 7. Nc3 Nf6 8. O-O)
-      5. d3 {Giuoco Pianissimo: slow and solid} d6 6. O-O O-O 7. Re1 a6 8. a4 {Stop ...b5 chasing the bishop} *`,
+    pgn: `1. e4 {Take the centre, and open lines for your queen and light-squared bishop} e5
+      2. Nf3 {Develop a piece and attack the e5 pawn} Nc6
+      3. Bc4 {Develop the bishop to aim at f7, the weak square only Black's king defends}
+      Bc5 {Giuoco Piano: Black's bishop aims at f2, just like yours aims at f7}
+      (3... Nf6 {Two Knights Defence: the knight attacks your e4 pawn}
+        4. d3 {Calm: protect e4 with a pawn and skip the wild lines} Be7
+        (4... Bc5 5. c3 {Prepare d4 later, and give your bishop a safe way back to c2} d6
+          6. O-O {King to safety, and the rook comes towards the centre} O-O
+          7. Re1 {The rook backs up e4, ready for when the centre opens} a6
+          8. a4 {Stop ...b5 from chasing your bishop})
+        5. O-O {King to safety before anything else} O-O
+        6. Re1 {The rook backs up e4} d6
+        7. c3 {Room for the bishop on c2, and d4 later})
+      4. c3 {Prepare d4, to build a big pawn centre} Nf6
+      (4... d6 5. d4 {Take the centre now: Black hasn't attacked e4 yet} exd4
+        6. cxd4 {Take back with the pawn: two pawns side by side in the centre} Bb6
+        7. Nc3 {Develop, and defend e4 once more} Nf6
+        8. O-O {King to safety: your pieces are out and the centre is yours})
+      5. d3 {Giuoco Pianissimo ("very quiet"): protect e4 and build slowly} d6
+      6. O-O {King to safety, and the rook comes towards the centre} O-O
+      7. Re1 {The rook backs up e4, ready for when the centre opens} a6
+      8. a4 {Stop ...b5 from chasing your bishop} *`,
   },
   {
     id: 'ruy-lopez',
@@ -208,3 +226,12 @@ export const LIBRARY_GROUPS: { key: LibraryOpening['against']; title: string }[]
   { key: 'e4', title: 'As Black against 1.e4' },
   { key: 'd4', title: 'As Black against 1.d4' },
 ];
+
+/**
+ * The library entry a repertoire came from: by `libraryId`, or, for one added before ids were kept, by name and side
+ * (as the Library panel matches them). Null for the user's own repertoires.
+ */
+export function libraryEntryOf(rep: { libraryId?: string; name: string; color: Color }): LibraryOpening | null {
+  if (rep.libraryId) return LIBRARY.find((o) => o.id === rep.libraryId) ?? null;
+  return LIBRARY.find((o) => o.name === rep.name && o.color === rep.color) ?? null;
+}

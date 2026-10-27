@@ -64,6 +64,8 @@ type DrillData = {
   /** This line: answers recorded and how many were clean. */
   answered: number;
   clean: number;
+  /** This line: new moves shown with an arrow outside Learn (not from memory, so not in `answered`). */
+  taught: number;
   /** Leaf ids of the lines played since this mode was started ("Next line" avoids them until all are done). */
   played: string[];
 };
@@ -108,6 +110,7 @@ const idle: DrillData = {
   plan: '',
   answered: 0,
   clean: 0,
+  taught: 0,
   played: [],
 };
 
@@ -131,15 +134,20 @@ function sound(fen: string, uci: string) {
 
 const moveOf = (uci: string) => ({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
 
-/** The end-of-line line: what went right first, never a percentage. */
-export function summary(answered: number, clean: number, helped: number): string {
-  if (answered === 0) return 'Line complete';
+/**
+ * The end-of-line line: what went right first, never a percentage. New moves shown on the way are named too,
+ * so the counts add up to the line's length.
+ */
+export function summary(answered: number, clean: number, helped: number, taught = 0): string {
+  const shown = taught ? `${taught} new ${taught === 1 ? 'move' : 'moves'} shown` : '';
+  if (answered === 0) return shown ? `Line complete: ${shown}` : 'Line complete';
+  const extra = shown ? `. ${shown[0].toUpperCase()}${shown.slice(1)}` : '';
   const missed = answered - clean - helped;
-  if (missed === 0 && helped === 0) return `Line complete: all ${answered} from memory`;
+  if (missed === 0 && helped === 0) return `Line complete: all ${answered} from memory${extra}`;
   const parts = [`${clean} of ${answered} from memory`];
   if (helped) parts.push(`${helped} with a hint`);
   const tail = missed ? `, and you fixed ${missed === 1 ? 'the other one' : `the other ${missed}`}` : '';
-  return `Line complete: ${parts.join(', ')}${tail}`;
+  return `Line complete: ${parts.join(', ')}${tail}${extra}`;
 }
 
 export const useDrillStore = create<DrillState>((set, get) => {
@@ -221,7 +229,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
       recordTrainedDay();
       logTraining('opening');
     }
-    set({ phase: 'done', pass: 'quiz', recap: [], arrow: null, hintSquare: null, feedback: { kind: 'good', text: summary(s.answered, s.clean, s.helped) } });
+    set({ phase: 'done', pass: 'quiz', recap: [], arrow: null, hintSquare: null, feedback: { kind: 'good', text: summary(s.answered, s.clean, s.helped, s.taught) } });
   };
 
   return {
@@ -344,7 +352,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         return false;
       }
       // Correct.
-      let { answered, clean, fresh, helped } = s;
+      let { answered, clean, fresh, helped, taught } = s;
       const firstTime = !s.failed.includes(step.key);
       const withHint = firstTime && s.hinted.includes(step.key);
       if (s.pass === 'quiz' && !s.shown) {
@@ -370,7 +378,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         answered++;
         if (withHint) helped++;
         else if (firstTime) clean++;
-      }
+      } else if (s.pass === 'quiz' && s.shown) taught++;
       sound(step.fenBefore, step.uci);
       set({
         fen: step.fenAfter,
@@ -382,6 +390,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         clean,
         fresh,
         helped,
+        taught,
         hintSquare: null,
         // After an answer from memory the plan is asked for ("Why this move?"), not told.
         planHidden: !!step.plan && s.pass === 'quiz' && !s.shown && firstTime && !withHint,

@@ -493,7 +493,7 @@ function DrillPanel({ opening, color, onStop, onNext, nextDue }: { opening: stri
     <div className={panel} data-testid="drill-panel">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-semibold">{d.mixed && d.pass !== 'recap' ? `Today's reviews: ${d.repName}` : drillTitle(d.mode, d.pass)}</span>
-        {d.phase !== 'empty' && d.phase !== 'capped' && d.pass !== 'recap' && <span className="text-xs text-muted">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
+        {d.phase !== 'empty' && d.phase !== 'capped' && d.phase !== 'done' && d.pass !== 'recap' && <span className="text-xs text-muted" data-testid="drill-progress">Move {Math.min(doneUser + 1, userSteps)} of {userSteps}</span>}
       </div>
       {opening && <p className="text-sm text-muted" data-testid="opening-name">{opening}</p>}
       {(d.mode === 'practice' || d.mode === 'weak') && (

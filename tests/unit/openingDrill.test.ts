@@ -302,6 +302,20 @@ describe('opening drill', () => {
     expect(drill.getState()).toMatchObject({ planSan: 'e4', plan: expect.stringContaining('Take the centre') });
   });
 
+  it('a library repertoire added before its reasons were written gets them from the library, progress untouched', async () => {
+    const { reps, drill } = await fresh();
+    // The Italian as it was copied on 26 Oct: no reason on 1.e4, a line name on 3...Nf6.
+    const old = '1. e4 e5 2. Nf3 {Attack e5 and develop} Nc6 3. Bc4 {Aim at f7} Bc5 (3... Nf6 {Two Knights} 4. d3) 4. c3 *';
+    const id = reps.getState().create('Italian Game', 'w', parsePgnTree(old));
+    reps.getState().answer(id, toEpd(START_FEN), true, '2026-10-15');
+    const card = reps.getState().data.cards[id][toEpd(START_FEN)];
+    expect(drill.getState().start(id, 'practice')).toBe(true);
+    drill.getState().move(mv('e2e4'));
+    expect(drill.getState()).toMatchObject({ planSan: 'e4', plan: expect.stringContaining('Take the centre') });
+    expect(reps.getState().data.cards[id][toEpd(START_FEN)]).toEqual(card);
+    expect(reps.getState().data.repertoires[0].tree).toEqual(parsePgnTree(old));
+  });
+
   it('after a move answered from memory its plan is asked for, then shown', async () => {
     const { reps, drill } = await fresh();
     const id = reps.getState().create('London', 'w', parsePgnTree('1. d4 {Take the centre} d5 *'));

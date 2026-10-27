@@ -12,6 +12,7 @@ import { drillSteps, judgeMove, type DrillStep } from './drill';
 import { countMixup } from './conflictPrompt';
 import { recordRecall } from './recall';
 import { libraryEntryOf } from './library';
+import { withLibraryNotes } from './libraryNotes';
 import { chooseLine, conflictKeys, dueToday, dueTotal, lineIdea, newMovesLeft, otherRepertoireWith, reviewsLeft, shouldRecord, trimToNew, type DrillMode } from './repertoire';
 import type { Color } from '../game/types';
 import { newLinesDone, newMovesDone, reviewsDone, useRepertoireStore } from './repertoireStore';
@@ -297,7 +298,7 @@ export const useDrillStore = create<DrillState>((set, get) => {
         set({ ...idle, repId, mode, phase: 'empty', fen: rep?.tree.nodes[rep.tree.rootId].fen ?? idle.fen });
         return false;
       }
-      const steps = drillSteps(rep.tree, rep.color, path);
+      const steps = withLibraryNotes(drillSteps(rep.tree, rep.color, path), rep);
       const leaf = path[path.length - 1];
       set({
         ...idle,

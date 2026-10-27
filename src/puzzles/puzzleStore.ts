@@ -18,7 +18,9 @@ import { getEngine } from '../engine/EngineService';
 import { checkAlternative } from './alternative';
 import type { MistakePuzzle } from './harvest';
 import { hint, playOpponentReply, showSolution, startSession, trySolverMove, type PuzzleSession } from './session';
-import type { Puzzle, PuzzleSet } from './types';
+import type { Puzzle } from './types';
+
+export { loadPuzzleSet } from './puzzleSet';
 
 /** Time each move of "Show solution" stays on the board, ms. */
 export const SOLUTION_STEP_MS = 600;
@@ -29,25 +31,6 @@ const GOOD = 'rgba(76, 175, 80, 0.55)';
 const BAD = 'rgba(214, 48, 32, 0.5)';
 /** The hint's from-square highlight. */
 export const HINT_COLOR = 'rgba(66, 135, 245, 0.5)';
-
-// --- data -------------------------------------------------------------------------------------
-
-let setPromise: Promise<PuzzleSet> | null = null;
-
-/** public/puzzles/puzzles.json, fetched once per page load (a failed fetch can be retried). */
-export function loadPuzzleSet(): Promise<PuzzleSet> {
-  if (!setPromise) {
-    const p = fetch('/puzzles/puzzles.json').then(async (res) => {
-      if (!res.ok) throw new Error(`Couldn't load the puzzles (${res.status}).`);
-      return (await res.json()) as PuzzleSet;
-    });
-    setPromise = p;
-    p.catch(() => {
-      if (setPromise === p) setPromise = null;
-    });
-  }
-  return setPromise;
-}
 
 // --- helpers ----------------------------------------------------------------------------------
 

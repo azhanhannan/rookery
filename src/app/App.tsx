@@ -10,12 +10,17 @@ import { AuthPage } from './AuthPage';
 import { GamesPage } from './GamesPage';
 import { ImportPage } from './ImportPage';
 import { PlayPage } from './PlayPage';
+import { prefetchPuzzleSet } from '../puzzles/puzzleSet';
 
 // The review screen (and Recharts) loads on first visit, keeping the play page's bundle small.
 const ReviewPage = lazy(() => import('./ReviewPage').then((m) => ({ default: m.ReviewPage })));
 // The profile's rating graph uses Recharts too.
-// Puzzles fetch their data at runtime; the page itself is small but kept out of the main bundle too.
-const PuzzlesPage = lazy(() => import('./PuzzlesPage').then((m) => ({ default: m.PuzzlesPage })));
+// Puzzles fetch their data at runtime; the page itself is small but kept out of the main bundle too. The data
+// download starts with the page's code rather than after it.
+const PuzzlesPage = lazy(() => {
+  prefetchPuzzleSet();
+  return import('./PuzzlesPage').then((m) => ({ default: m.PuzzlesPage }));
+});
 const ProfilePage = lazy(() => import('./ProfilePage').then((m) => ({ default: m.ProfilePage })));
 // The Analysis board (variation tree, PGN tools, position editor) loads on first visit too.
 const AnalysisPage = lazy(() => import('./AnalysisPage').then((m) => ({ default: m.AnalysisPage })));

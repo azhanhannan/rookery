@@ -153,9 +153,13 @@ function play(ac: AudioContext, v: Voice) {
 
 function playVoices(voices: Voice[]): void {
   if (voices.length === 0) return;
+  // Before the first tap or key press the browser would start the context suspended (silent for the whole
+  // visit, as nothing resumes it), and creating it costs a noticeable moment while the page is loading.
+  if (!ctx && navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
   try {
     ctx ??= new AudioContext();
     const ac = ctx;
+    if (ac.state === 'suspended') void ac.resume();
     for (const v of voices) play(ac, v);
   } catch {
     // no audio support: stay silent

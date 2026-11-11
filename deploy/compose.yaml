@@ -56,6 +56,9 @@ services:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env}
     volumes:
       - ./certs:/etc/caddy/certs:ro
+      # Static sites served next to Rookery (Papan Tulis at buku.*). Create the folder before the first
+      # deploy that carries this line, or Docker creates it as root.
+      - ./sites:/sites:ro
       - caddy_data:/data
       - caddy_config:/config
 

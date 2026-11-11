@@ -306,9 +306,13 @@ For uptime, a free external check (e.g. UptimeRobot) on `https://chess.example.c
 
 ## Known limits
 
-- **One app per droplet, for now.** Rookery's `web` (Caddy) container binds 80/443. A second
-  `*.runcodecloud.com` app on the same droplet means moving Caddy out of this stack into a shared proxy
-  (e.g. `/opt/proxy`) that routes by hostname. The Origin Certificate is already `*.runcodecloud.com`.
+- **Other apps ride on Rookery's Caddy.** Rookery's `web` (Caddy) container binds 80/443.
+  - **Static sites** get a site block in `deploy/Caddyfile` and a folder under `/opt/rookery/sites/`. That
+    folder is mounted read-only at `/sites`. Papan Tulis (`buku.runcodecloud.com`) works this way, and its
+    own repo uploads its files. Rookery deploys never touch them.
+  - **An app with its own server** still means moving Caddy out of this stack into a shared proxy (e.g.
+    `/opt/proxy`) that routes by hostname.
+  - The Origin Certificate is already `*.runcodecloud.com`.
 
 - **Client IPs**: Caddy sees Cloudflare's edge IPs, so the login throttle keys on `username|edge IP`.
   It still slows guessing on one account. For true client IPs, add Cloudflare's IP ranges as Caddy

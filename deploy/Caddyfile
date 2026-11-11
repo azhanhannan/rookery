@@ -33,3 +33,33 @@
 		file_server
 	}
 }
+
+# Papan Tulis (personal, static PWA) shares this droplet. Its files are not in this image: they sit in
+# /opt/rookery/sites/buku, uploaded by tools/deploy.sh in the buku repo, so deploying it never restarts Rookery.
+# `current` is a symlink to one release folder, swapped atomically. The same origin cert covers *.runcodecloud.com.
+{$BUKU_DOMAIN:buku.runcodecloud.com} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Private classroom use: keep it out of search engines.
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	root * /sites/buku/current
+
+	# The service worker does its own caching. The browser and Cloudflare must always revalidate these,
+	# or the "Versi baharu sedia" banner shows up late.
+	@fresh path / /index.html /sw.js /manifest.webmanifest
+	header @fresh Cache-Control "no-cache"
+
+	@static path /fonts/* /*.png /icon.svg
+	header @static Cache-Control "public, max-age=604800"
+
+	file_server
+}

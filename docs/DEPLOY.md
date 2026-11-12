@@ -131,6 +131,17 @@ ssh deploy@203.0.113.10 docker ps     # empty table, no permission error
 The Origin Certificate is only trusted by Cloudflare, so the record must stay proxied. If you ever turn the
 orange cloud off, switch Caddy to Let's Encrypt first (delete the `tls` line in `deploy/Caddyfile`).
 
+**Origin lock.** Caddy drops every request on 80/443 that does not come from a Cloudflare IP range: see the
+`cloudflare_only` snippet in `deploy/Caddyfile`. So nobody can reach the droplet's IP directly and skip
+Cloudflare's WAF, rate limits and DDoS protection. Three consequences:
+- **Grey cloud = site down.** A DNS-only record takes the site down, so turning the orange cloud off also
+  means removing `import cloudflare_only`.
+- **Checks must go through Cloudflare.** `curl https://<ip>` or `--resolve` to the droplet IP gets a dropped
+  connection. Health checks from outside must use the hostname; the CI smoke test already does. Docker's own
+  healthchecks run inside the containers, so they are not affected.
+- **New Cloudflare ranges.** When Cloudflare adds a range (https://www.cloudflare.com/ips), add it to the
+  snippet. Until then, visitors routed through the new range see dropped connections.
+
 ## 5. The droplet's `.env` and certificate
 
 ```bash

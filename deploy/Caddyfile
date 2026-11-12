@@ -90,7 +90,7 @@
 }
 
 # Cendekia DMJ (Laravel prototype for the DMJ alumni team) shares this droplet. It is its own Compose
-# project in /opt/cendekia (repo azhanhannan/cendekia-dmj) and joins this stack's network with the alias
+# project in /home/deploy/cendekia (repo azhanhannan/cendekia-dmj) and joins this stack's network with the alias
 # "cendekia", publishing no ports. If it is down, only this hostname answers 502; Rookery is unaffected.
 {$CENDEKIA_DOMAIN:cendekia.runcodecloud.com} {
 	import cloudflare_only

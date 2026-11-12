@@ -323,7 +323,7 @@ For uptime, a free external check (e.g. UptimeRobot) on `https://chess.example.c
     own repo uploads its files. Rookery deploys never touch them.
   - **An app with its own server** runs as its own Compose project, joins the external network
     `rookery_default` under an alias, publishes no ports, and gets a `reverse_proxy <alias>:<port>` site block
-    here. Cendekia DMJ (`cendekia.runcodecloud.com`, `/opt/cendekia`, repo `azhanhannan/cendekia-dmj`) works
+    here. Cendekia DMJ (`cendekia.runcodecloud.com`, `/home/deploy/cendekia`, repo `azhanhannan/cendekia-dmj`) works
     this way. Consequences: never `docker compose down` Rookery while it runs (the network is in use); a
     Rookery deploy restarts Caddy for a few seconds for every site. If more apps come, move Caddy into a
     shared proxy stack (e.g. `/opt/proxy`) that owns the network.

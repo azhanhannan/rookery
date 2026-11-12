@@ -321,8 +321,12 @@ For uptime, a free external check (e.g. UptimeRobot) on `https://chess.example.c
   - **Static sites** get a site block in `deploy/Caddyfile` and a folder under `/opt/rookery/sites/`. That
     folder is mounted read-only at `/sites`. Papan Tulis (`buku.runcodecloud.com`) works this way, and its
     own repo uploads its files. Rookery deploys never touch them.
-  - **An app with its own server** still means moving Caddy out of this stack into a shared proxy (e.g.
-    `/opt/proxy`) that routes by hostname.
+  - **An app with its own server** runs as its own Compose project, joins the external network
+    `rookery_default` under an alias, publishes no ports, and gets a `reverse_proxy <alias>:<port>` site block
+    here. Cendekia DMJ (`cendekia.runcodecloud.com`, `/opt/cendekia`, repo `azhanhannan/cendekia-dmj`) works
+    this way. Consequences: never `docker compose down` Rookery while it runs (the network is in use); a
+    Rookery deploy restarts Caddy for a few seconds for every site. If more apps come, move Caddy into a
+    shared proxy stack (e.g. `/opt/proxy`) that owns the network.
   - The Origin Certificate is already `*.runcodecloud.com`.
 
 - **Client IPs**: Caddy sees Cloudflare's edge IPs, so the login throttle keys on `username|edge IP`.

@@ -88,3 +88,30 @@
 
 	file_server
 }
+
+# Cendekia DMJ (Laravel prototype for the DMJ alumni team) shares this droplet. It is its own Compose
+# project in /opt/cendekia (repo azhanhannan/cendekia-dmj) and joins this stack's network with the alias
+# "cendekia", publishing no ports. If it is down, only this hostname answers 502; Rookery is unaffected.
+{$CENDEKIA_DOMAIN:cendekia.runcodecloud.com} {
+	import cloudflare_only
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Prototype with sample data: keep it out of search engines until it goes live for real.
+		X-Robots-Tag "noindex, nofollow"
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy cendekia:8080 {
+		# Only Cloudflare reaches this block (cloudflare_only), and Cloudflare sets CF-Connecting-IP itself,
+		# so it is safe to hand Laravel the visitor's real IP (login throttling keys on it).
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}

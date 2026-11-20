@@ -102,7 +102,15 @@ function routeKey(hash: string): string {
 function useHash(): string {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
-    const on = () => setHash(location.hash);
+    let page = location.hash.split('?')[0];
+    const on = () => {
+      setHash(location.hash);
+      // A new page opens at the top (on phones you otherwise land part-way down it). Query-only changes on the
+      // same page (`#/review/<id>?ply=…`) keep the scroll position.
+      const next = location.hash.split('?')[0];
+      if (next !== page) window.scrollTo(0, 0);
+      page = next;
+    };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);

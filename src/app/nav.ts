@@ -21,7 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '#/drills', label: 'Drills' },
   { href: '#/lessons', label: 'Lessons' },
   { href: '#/import', label: 'Import' },
-  { href: '#/about', label: 'About' },
+  // About is a footer link only (it is a licences/credits page, not a place people navigate to).
 ];
 
 /** Is `item` the page at `hash`? Play is also the start page (no hash). */

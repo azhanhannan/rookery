@@ -60,7 +60,7 @@ export function PlayerBar({ color }: { color: Color }) {
           data-testid={`clock-${color}`}
           className={`min-w-20 rounded-md px-2.5 py-1 text-right font-mono text-lg tabular-nums ${
             running ? 'bg-ink text-bg' : 'bg-surface-2 text-muted'
-          } ${isLowTime(left) ? (running ? '!bg-danger !text-white' : '!text-danger') : ''}`}
+          } ${isLowTime(left) ? (running ? '!bg-danger !text-on-danger' : '!text-danger') : ''}`}
         >
           {formatClock(left)}
         </span>

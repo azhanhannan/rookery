@@ -41,7 +41,7 @@ const FILTER_NAMES: Record<GameFilter, string> = {
 
 const OUTCOME_STYLE = {
   won: 'bg-accent text-accent-ink',
-  lost: 'bg-danger text-white',
+  lost: 'bg-danger text-on-danger',
   drawn: 'bg-surface-2 text-ink',
   none: 'bg-surface-2 text-ink',
 };

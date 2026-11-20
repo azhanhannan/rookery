@@ -9,6 +9,8 @@
   --accent: #2f6f62;
   --accent-text: #ffffff;
   --danger: #b4432f;
+  /* Text on a filled danger chip/button. */
+  --danger-text: #ffffff;
   --board-light: #ece3cf;
   --board-dark: #7f9a8f;
   --last-move: rgba(232, 196, 76, 0.55);
@@ -28,6 +30,8 @@
     --accent: #5fb3a1;
     --accent-text: #0f1312;
     --danger: #e0735e;
+    /* White on this danger is ~3.6:1; near-black is well above AA. */
+    --danger-text: #1a0f0c;
     --board-light: #d9cfb8;
     --board-dark: #5f7a70;
     color-scheme: dark;
@@ -43,6 +47,7 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-text);
   --color-danger: var(--danger);
+  --color-on-danger: var(--danger-text);
 }
 
 body {

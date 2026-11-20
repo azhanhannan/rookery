@@ -1,6 +1,7 @@
 // The site header: the app name, the pages, and the account links. Built to stay on one line from 360 px up:
 // the `primary` pages are always shown; the rest sit in a "More" menu, and inline only on very wide screens.
 import type { MouseEvent } from 'react';
+import { useAuthStore } from '../account/authStore';
 import { APP_NAME } from '../config/tunables';
 import { isCurrent, NAV_ITEMS } from '../app/nav';
 import { AccountNav } from './AccountNav';
@@ -22,6 +23,7 @@ export function SiteHeader({ hash }: { hash: string }) {
   const more = NAV_ITEMS.filter((i) => !i.primary);
   const moreCurrent = more.find((i) => isCurrent(i, hash));
   const menu = useDetailsMenu();
+  const signedIn = useAuthStore((s) => s.status === 'signed-in' && !!s.user);
   const close = (e: MouseEvent<HTMLElement>) => e.currentTarget.closest('details')?.removeAttribute('open');
 
   return (
@@ -65,6 +67,13 @@ export function SiteHeader({ hash }: { hash: string }) {
                 {item.href === '#/openings' && <OpeningsDueBadge />}
               </a>
             ))}
+            {/* Phones, signed out: the header has no room for Sign up / Settings, so they live here. */}
+            {!signedIn && (
+              <div className="flex flex-col gap-3 border-t border-surface-2 pt-3 sm:hidden">
+                <a href="#/signup" className={link(hash === '#/signup')} onClick={close}>Sign up</a>
+                <a href="#/account" className={link(hash === '#/account')} onClick={close}>Settings</a>
+              </div>
+            )}
           </div>
         </details>
         <span className="ml-auto" />

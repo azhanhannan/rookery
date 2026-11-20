@@ -73,7 +73,7 @@ export function OpeningLibraryPanel({
           <p className="text-sm text-muted">Ready-made repertoires with the main line and the replies worth knowing. Add one, then learn it a line at a time.</p>
           {LIBRARY_GROUPS.map((g) => (
             <div key={g.key} className="flex flex-col gap-1.5">
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">{g.title}</div>
+              <div className="mt-1 text-xs font-semibold text-muted">{g.title}</div>
               {LIBRARY.filter((o) => o.against === g.key).map((o) => (
                 <button
                   key={o.id}

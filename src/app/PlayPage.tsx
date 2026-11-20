@@ -12,6 +12,7 @@ import { BoardColumn, FullscreenButton } from '../components/BoardColumn';
 import { retryBotMove, startBotTurns, useBotStatus } from '../game/botTurn';
 import { useGameStore } from '../game/gameStore';
 import { botColor, describeEnd, replay } from '../game/rules';
+import { RATING } from '../config/tunables';
 import { setMuted } from '../game/sound';
 import { loadEvalBarPref, saveBotElo, saveEvalBarPref, saveMaiaElo } from '../game/storage';
 import type { GameRecord, NewGameOptions } from '../game/types';
@@ -136,7 +137,12 @@ export function PlayPage() {
   const outcome = humanOutcome(record);
   const botInfo = bot ? record[bot === 'w' ? 'white' : 'black'] : null;
   const botElo = botInfo?.elo;
-  const next = outcome && botElo !== undefined ? nextBot(botElo, outcome, botInfo?.engine === 'maia') : null;
+  // A game ended within a few moves (an early resignation) says nothing about the level, so no suggestion then.
+  const humanMoves = bot === 'w' ? Math.floor(record.moves.length / 2) : Math.ceil(record.moves.length / 2);
+  const next =
+    outcome && botElo !== undefined && humanMoves >= RATING.minMoves
+      ? nextBot(botElo, outcome, botInfo?.engine === 'maia')
+      : null;
 
   const ended = describeEnd(record);
   const turn = replay(record).turn();
@@ -246,7 +252,7 @@ export function PlayPage() {
           <FullscreenButton className={`${btn} col-span-2`} withText />
           {confirmResign ? (
             <button
-              className="rounded-lg bg-danger px-3 py-2 text-sm font-semibold text-white"
+              className="rounded-lg bg-danger px-3 py-2 text-sm font-semibold text-on-danger"
               onClick={() => {
                 resign();
                 setConfirmResign(false);

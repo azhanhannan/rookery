@@ -214,7 +214,7 @@ export function ImportPage() {
                 role="radio"
                 aria-checked={side === v}
                 onClick={() => setSide(v)}
-                className={`rounded-lg px-3 py-1 ${side === v ? 'bg-accent text-white' : 'bg-surface-2 hover:bg-surface'}`}
+                className={`rounded-lg px-3 py-1 ${side === v ? 'bg-accent text-accent-ink' : 'bg-surface-2 hover:bg-surface'}`}
               >
                 {label}
               </button>

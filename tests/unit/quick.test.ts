@@ -114,11 +114,21 @@ describe('accuracy bands', () => {
     expect(accuracyNote(null, 1000)).toBeNull();
   });
 
+  const plies = (n: number) => Array.from({ length: n }, () => 'e4');
+
   it('notes the player side against their rating, other people by band, bots not at all', () => {
-    const vsBot = game('x', '0-1');
+    const vsBot = { ...game('x', '0-1'), moves: plies(20) };
     expect(accuracyNotesFor(vsBot, { w: 85, b: 90 }, 1000)).toEqual({ w: 'Strong for your level', b: null });
-    const imported = { ...game('y', '1-0', { bot: null }), userColor: 'b' as const };
+    const imported = { ...game('y', '1-0', { bot: null }), userColor: 'b' as const, moves: plies(20) };
     expect(accuracyNotesFor(imported, { w: 62, b: 72 }, 1000)).toEqual({ w: 'Typical for ~600', b: 'About your level' });
+  });
+
+  it('says nothing about level for a side with fewer than RATING.minMoves moves', () => {
+    const resigned = { ...game('z', '0-1', { bot: null }), moves: plies(3) };
+    expect(accuracyNotesFor(resigned, { w: 100, b: 100 }, 1000)).toEqual({ w: null, b: null });
+    // 19 plies: White made 10 moves (noted), Black 9 (not).
+    const edge = { ...game('e', '1-0', { bot: null }), moves: plies(19) };
+    expect(accuracyNotesFor(edge, { w: 62, b: 62 }, null)).toEqual({ w: 'Typical for ~600', b: null });
   });
 });
 

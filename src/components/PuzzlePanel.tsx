@@ -50,7 +50,7 @@ export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut, nextLab
           : 'Puzzle over';
 
   const feedbackClass =
-    feedback?.kind === 'good' ? 'bg-accent text-accent-ink' : feedback?.kind === 'bad' ? 'bg-danger text-white' : 'bg-surface';
+    feedback?.kind === 'good' ? 'bg-accent text-accent-ink' : feedback?.kind === 'bad' ? 'bg-danger text-on-danger' : 'bg-surface';
 
   return (
     <aside className="flex min-w-0 flex-col gap-3">
@@ -113,7 +113,8 @@ export function PuzzlePanel({ themes, theme, onTheme, onNext, signedOut, nextLab
           </button>
         )}
         <button
-          className={`rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink ${failed && ended ? '' : 'col-span-2'}`}
+          // While the puzzle is open this button means "skip", so it stays secondary; once it ends it is the next step.
+          className={`${ended ? 'rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink' : btn} ${failed && ended ? '' : 'col-span-2'}`}
           onClick={onNext}
         >
           {nextLabel ?? 'Next puzzle'}

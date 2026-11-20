@@ -1,5 +1,5 @@
 // Review's friendly accuracy line: what an accuracy means for a player's level. Pure.
-import { ACCURACY_BANDS } from '../config/tunables';
+import { ACCURACY_BANDS, RATING } from '../config/tunables';
 import type { Color, GameRecord } from '../game/types';
 
 type Bands = typeof ACCURACY_BANDS;
@@ -42,14 +42,19 @@ export function accuracyNote(accuracy: number | null, rating: number | null | un
  * `playerRating`; another human side gets "Typical for ~N"; a bot side gets nothing.
  */
 export function accuracyNotesFor(
-  record: Pick<GameRecord, 'white' | 'black' | 'userColor'>,
+  record: Pick<GameRecord, 'white' | 'black' | 'userColor'> & { moves?: readonly unknown[] },
   accuracy: { w: number | null; b: number | null },
   playerRating: number | null | undefined,
+  minMoves: number = RATING.minMoves,
 ): { w: string | null; b: string | null } {
   const bot = record.white.isBot ? 'w' : record.black.isBot ? 'b' : null;
   const you: Color | null = record.userColor ?? (bot ? (bot === 'w' ? 'b' : 'w') : null);
+  // Too few moves to say anything about level (a 2-move resignation is "100% accurate"): same floor as Game rating.
+  const plies = record.moves?.length;
+  const movesBy = (c: Color) => (plies === undefined ? Infinity : c === 'w' ? Math.ceil(plies / 2) : Math.floor(plies / 2));
   const note = (c: Color) => {
     if (bot === c) return null;
+    if (movesBy(c) < minMoves) return null;
     return accuracyNote(accuracy[c], c === you ? playerRating : null);
   };
   return { w: note('w'), b: note('b') };

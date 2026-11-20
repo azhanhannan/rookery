@@ -4,7 +4,7 @@ import { distanceWords, tablebaseLine, type TbMove } from '../engine/tablebase';
 const OUTCOME_STYLE: Record<TbMove['outcome'], string> = {
   win: 'bg-accent text-accent-ink',
   draw: 'bg-surface-2',
-  loss: 'bg-danger text-white',
+  loss: 'bg-danger text-on-danger',
 };
 
 /** "Tablebase: White wins (DTZ 3, DTM 21)" plus each legal move and what it leads to. Hidden above 7 pieces. */

@@ -44,7 +44,7 @@ test('bot replies, UI stays responsive while it thinks, eval bar shows and toggl
   await expect(page.getByTestId('eval-bar')).toBeVisible();
 });
 
-test('bot cannot be moved by the human, and resigning suggests a level', async ({ page }) => {
+test('bot cannot be moved by the human, and resigning at once suggests no level', async ({ page }) => {
   await startBotGame(page, '800', 'White');
   // Black's pieces are the bot's: clicking them selects nothing, so no move happens.
   await square(page, 'e7').click();
@@ -54,10 +54,8 @@ test('bot cannot be moved by the human, and resigning suggests a level', async (
   await page.getByRole('button', { name: /^Resign/ }).click();
   await page.getByRole('button', { name: /^Confirm/ }).click();
   await expect(page.getByTestId('status')).toHaveText('Black wins by resignation');
-  await expect(page.getByTestId('next-level')).toContainText('600');
-  await page.getByTestId('next-level').getByRole('button').click();
-  await expect(page.getByTestId('move-list')).toContainText('No moves yet');
-  await expect(page.getByText('Bot 600')).toBeVisible();
+  // A game ended before RATING.minMoves says nothing about the level, so no lower bot is offered.
+  await expect(page.getByTestId('next-level')).toHaveCount(0);
 });
 
 test('every bot level can be chosen and plays a legal first move', async ({ page }) => {

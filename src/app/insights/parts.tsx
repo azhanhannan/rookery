@@ -24,7 +24,7 @@ export const btn = 'rounded-lg bg-surface-2 px-3 py-2 text-center text-sm font-m
 export const primary = 'rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-accent-ink hover:opacity-90 disabled:opacity-40';
 
 export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: 'muted' | 'accent' | 'danger' }) {
-  const color = tone === 'accent' ? 'bg-accent text-accent-ink' : tone === 'danger' ? 'bg-danger text-white' : 'bg-surface-2 text-muted';
+  const color = tone === 'accent' ? 'bg-accent text-accent-ink' : tone === 'danger' ? 'bg-danger text-on-danger' : 'bg-surface-2 text-muted';
   return <span className={`inline-block shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${color}`}>{children}</span>;
 }
 

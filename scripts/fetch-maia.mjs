@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MODEL_NAME = 'maia3_simplified.onnx';
-const MODEL_URL = `https://raw.githubusercontent.com/CSSLab/maia-platform-frontend/main/public/maia3/${MODEL_NAME}`;
+// Pinned to the upstream commit that holds this exact model (fp16, 27 Mar 2026). Upstream replaced the file on
+// main on 11 Nov 2026, which broke the sha256 check and with it the web image build; a commit URL never changes.
+const MODEL_COMMIT = '0013cc8e6ec52c88f5b3d694781d4cc8427cb91a';
+const MODEL_URL = `https://raw.githubusercontent.com/CSSLab/maia-platform-frontend/${MODEL_COMMIT}/public/maia3/${MODEL_NAME}`;
 const MODEL_SHA256 = '405bf76c15727dad8728b352c06a8f3c1b80fb2760e8d666b32485c63d75b856';
 const MODEL_BYTES = 45_683_686;
 /** A local copy to use instead of downloading (set MAIA_MODEL_PATH); checked against the sha256 like a download. */
